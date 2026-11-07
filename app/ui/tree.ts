@@ -9,6 +9,7 @@ import { addChapter, manifestChapters } from "../manifest.ts";
 import { basename, dirname, stem } from "../path.ts";
 import { focused } from "../store.ts";
 import { collectProjects, flatten, kindOf, selectChapters, titleOf, treeRows, type Row } from "../workspace.ts";
+import { golem } from "../tools.ts";
 import { ask, toast } from "./dom.ts";
 import { item } from "./settings.ts";
 
@@ -78,6 +79,7 @@ const draw = (el: HTMLElement, ctx: Ctx) => {
   el.innerHTML = `<div class="acts">
       <span class="iconbtn" data-act="new-file" title="新しいシート">${icon("square-pen")}</span>
       <span class="iconbtn" data-act="new-folder" title="新しいフォルダ">${icon("folder-plus")}</span>
+      <span class="iconbtn" data-act="new-project" title="新しいプロジェクト（golem new）">${icon("book-plus")}</span>
       <span class="sp"></span>
       <span class="iconbtn" data-act="refresh" title="読みなおす">${icon("refresh-cw")}</span>
       <span class="iconbtn" data-act="collapse" title="すべて閉じる">${icon("chevrons-down-up")}</span>
@@ -157,6 +159,18 @@ export const mountTree = (ctx: Ctx) => {
             await api.makeDir(`${dir}/${name}`);
             await reloadTree(ctx);
             return ctx.store.dispatch({ type: "expand", path: dir, on: true });
+          }
+          case "new-project": {
+            const ws = s.workspace;
+            const name = ws && (await ask("新しいプロジェクトの名前（golem new）"));
+            if (!ws || !name) return;
+            // with a shared library, the fonts come from it (docs/adr/0014); without one, golem fetches them
+            const out = await golem(ctx, ws, ["new", name, ...(ctx.config.libraryDir ? ["--no-fonts"] : [])]);
+            if (out.code !== 0) return toast((out.stderr || out.stdout).trim());
+            for (const f of ctx.onNewProject) await f(`${ws}/${name}`, ctx);
+            await reloadTree(ctx);
+            ctx.store.dispatch({ type: "expand", path: `${ws}/${name}`, on: true });
+            return ctx.open([`${ws}/${name}/chapters/01.gm`]);
           }
           case "new-file": {
             const project = focused(s)?.project ?? null;

@@ -54,6 +54,8 @@ export type Ctx = {
   titles: Map<string, string>;
   /** The Golem projects of every workspace, refreshed with the tree. */
   projects: string[];
+  /** Run after `golem new` made a project (to copy fonts from the library). */
+  onNewProject: ((project: string, ctx: Ctx) => void | Promise<void>)[];
   /** Run after a file is renamed in Aleph. */
   onRename: ((from: string, to: string, ctx: Ctx) => void | Promise<void>)[];
   /** Draws the panels and the status bar again (after a change outside the store). */
