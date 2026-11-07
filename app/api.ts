@@ -4,6 +4,10 @@ import { invoke } from "@tauri-apps/api/core";
 export type Entry = { path: string; name: string; dir: boolean; children: Entry[] };
 export type Out = { code: number; stdout: string; stderr: string };
 
+export type Hit = { path: string; line: number; column: number; text: string; start: number; end: number };
+export type Found = { hits: Hit[]; truncated: boolean };
+export type SearchArgs = { roots: string[]; pattern: string; regex: boolean; case_sensitive: boolean; kinds: string[]; limit: number };
+
 export type ToolInfo = { path: string; version: string; bundled: string };
 export type Tool = "golem" | "shem";
 
@@ -25,5 +29,6 @@ export const api = {
   lspStart: (id: string, bin: string | undefined, cwd: string) => invoke<void>("lsp_start", { id, bin, cwd }),
   lspSend: (id: string, message: string) => invoke<void>("lsp_send", { id, message }),
   lspStop: (id: string) => invoke<void>("lsp_stop", { id }),
+  search: (args: SearchArgs) => invoke<Found>("search_files", { args }),
   git: (bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("git", { bin, cwd, args }),
 };

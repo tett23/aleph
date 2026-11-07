@@ -4,6 +4,7 @@
 mod fsops;
 mod lsp;
 mod process;
+mod search;
 mod window;
 
 use std::path::{Path, PathBuf};
@@ -214,6 +215,39 @@ fn tool(
     )
 }
 
+// ---- search (docs/adr/0015) ----
+
+#[derive(serde::Deserialize)]
+struct SearchArgs {
+    roots: Vec<String>,
+    pattern: String,
+    regex: bool,
+    case_sensitive: bool,
+    kinds: Vec<String>,
+    limit: usize,
+}
+
+/// Runs off the main thread: a search over many files takes a while.
+#[tauri::command]
+async fn search_files(args: SearchArgs) -> R<search::Found> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let roots: Vec<&Path> = args.roots.iter().map(Path::new).collect();
+        let kinds: Vec<&str> = args.kinds.iter().map(String::as_str).collect();
+        search::search(
+            &roots,
+            &search::Query {
+                pattern: &args.pattern,
+                regex: args.regex,
+                case_sensitive: args.case_sensitive,
+                kinds: &kinds,
+                limit: args.limit,
+            },
+        )
+    })
+    .await
+    .map_err(err)?
+}
+
 // ---- golem lsp (docs/adr/0009) ----
 
 /// Starts `golem lsp` in a project; its messages arrive as `lsp-<id>` events,
@@ -395,7 +429,8 @@ pub fn run_app() {
             lsp_start,
             lsp_send,
             lsp_stop,
-            quit
+            quit,
+            search_files
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")

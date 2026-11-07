@@ -112,13 +112,14 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
   const flavors = rows.flatMap((r) => linesCell(r.flavor));
   const frags = rows.flatMap((r) => linesCell(r.fragments));
   const memos = rows.map((r) => r.memo.trim()).filter(Boolean);
+  const prose = ["gm", "md", "txt"].includes(d.kind);
   el.innerHTML = `
-    <div class="sec"><h5>目標 <small>${g.from === "hand" ? "手で決めた値" : g.from === "plot" ? "プロットの予定字数" : ""}</small></h5>
+    ${prose ? `<div class="sec"><h5>目標 <small>${g.from === "hand" ? "手で決めた値" : g.from === "plot" ? "プロットの予定字数" : ""}</small></h5>
       <div class="goal">${ring(g.goal ? st.chars / g.goal : 0, 44, 5)}
         <div class="t"><b>${st.chars.toLocaleString()}</b> / <input class="field" data-goal type="number" min="0" step="100" value="${m.goal ?? ""}" placeholder="${g.from === "plot" ? g.goal : "—"}"> 字<br>${
           g.goal ? `残り ${Math.max(0, g.goal - st.chars).toLocaleString()} 字 · ` : ""
         }原稿用紙 ${st.sheets} 枚</div>
-      </div></div>
+      </div></div>` : ""}
     ${kws.length ? `<div class="sec"><h5>キーワード</h5><div class="kw">${kws.map(([v, c]) => `<span style="--c:${c}">${esc(v)}</span>`).join("")}</div></div>` : ""}
     ${
       musts.length || flavors.length

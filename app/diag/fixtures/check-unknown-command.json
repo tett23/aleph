@@ -1,0 +1,1 @@
+[{"code":"G02022","severity":"error","span":{"file":"chapters/01.gm","start":4433,"end":4442,"line":74,"column":2},"message":"未知のコマンドです: nosuchcmd","related":[],"fixes":[]}]
