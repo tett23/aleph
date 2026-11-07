@@ -1,0 +1,61 @@
+// Small DOM helpers: toast, ask (Tauri's WebView has no window.prompt), confirm and menu.
+import { esc } from "../esc.ts";
+import { h } from "../icons.ts";
+
+export const toast = (msg: string) => {
+  const t = h(`<div class="toast">${esc(msg)}</div>`);
+  document.body.append(t);
+  setTimeout(() => t.remove(), 3500);
+};
+
+const dialog = (title: string, body: string, ok: string) =>
+  h(`<div class="dim"><div class="modal small"><div class="mtitle">${esc(title)}</div>${body}
+     <div class="mbuttons"><span class="btn" data-x>やめる</span><span class="btn pri" data-ok>${esc(ok)}</span></div></div></div>`);
+
+/** A one-line question. Resolves to the text, or null when cancelled. */
+export const ask = (title: string, value = ""): Promise<string | null> =>
+  new Promise((resolve) => {
+    const dim = dialog(title, `<input class="field wide" value="${esc(value)}">`, "OK");
+    const input = dim.querySelector("input")!;
+    const done = (v: string | null) => (dim.remove(), resolve(v));
+    dim.addEventListener("click", (e) => {
+      const t = e.target as HTMLElement;
+      if (t === dim || t.closest("[data-x]")) done(null);
+      if (t.closest("[data-ok]")) done(input.value.trim() || null);
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing) done(input.value.trim() || null);
+      if (e.key === "Escape") done(null);
+    });
+    document.body.append(dim);
+    input.focus();
+    input.select();
+  });
+
+/** A yes or no question. */
+export const confirmDialog = (title: string, ok = "OK"): Promise<boolean> =>
+  new Promise((resolve) => {
+    const dim = dialog(title, "", ok);
+    dim.addEventListener("click", (e) => {
+      const t = e.target as HTMLElement;
+      if (t === dim || t.closest("[data-x]")) (dim.remove(), resolve(false));
+      if (t.closest("[data-ok]")) (dim.remove(), resolve(true));
+    });
+    document.body.append(dim);
+  });
+
+export type MenuItem = { label: string; icon?: string; run: () => void } | "-";
+
+export const menu = (anchor: HTMLElement, items: MenuItem[]) => {
+  document.querySelectorAll(".menu").forEach((m) => m.remove());
+  const r = anchor.getBoundingClientRect();
+  const m = h(`<div class="menu" style="position:fixed;top:${r.bottom + 4}px;left:${Math.max(4, Math.min(r.left, innerWidth - 260))}px"></div>`);
+  items.forEach((it) => {
+    if (it === "-") return m.append(h("<hr>"));
+    const d = h(`<div>${it.icon ?? ""}<span>${esc(it.label)}</span></div>`);
+    d.onclick = () => (m.remove(), it.run());
+    m.append(d);
+  });
+  document.body.append(m);
+  setTimeout(() => document.addEventListener("click", () => m.remove(), { once: true }), 0);
+};
