@@ -1,0 +1,1 @@
+[{"code":"G09014","severity":"error","span":{"file":"style.toml","start":0,"end":0,"line":1,"column":1},"message":"PDF/X-4 の要件を満たしていません: 出力インテントがありません（style.toml の [color] に intent を書きます）","related":[],"fixes":[],"facts":{"requirement":"出力インテント"}}]
