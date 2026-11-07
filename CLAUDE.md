@@ -9,6 +9,8 @@ Tauri で作る。ライセンスは MIT とする。
 - **docs/specifications.md** 今の振る舞いを定める仕様書。日本語で書く。ADR を参照するときはリンクを付ける。
 - **docs/adr/** ADR を置く。ファイル名は `0001-feature-details.md` のように連番の prefix と kebab-case の名前を付ける。内容はグローバルの CLAUDE.md の構成（ステータス、文脈、実装すること、実装しないこと、テスト設計、トレードオフ、参考文献）に従う。日本語で書く。
   - コミット済みの ADR はステータスの行とリンクを除き変更不可（adr-guard が強制する）。変更が必要な場合は新たな ADR を作成する。
+  - 同じディレクトリで ADR の番号を重複させない（CI が `adr-guard check-numbers` で検査する）。
+  - ほかのリポジトリの ADR を参照するときは、`[tett23/adr-guard ADR 0019: ...](https://github.com/...)` のように修飾子ごとリンクのテキストに入れる（adr-guard は `ADR NNNN` の直前の語を修飾子として読む）。
   - ADR は行頭が `ステータス:` のステータスの行をちょうど一つ持つ。
   - ADR からソースコードを参照するときは、コミットのハッシュを含む GitHub の URL で書く。Golem のコードを参照するときも同じ。
 - **docs/audit/**、**docs/benchmarks/** 監査と性能計測の記録。コミット済みのものは変更、削除、移動不可。
