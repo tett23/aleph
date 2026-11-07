@@ -52,3 +52,75 @@ jobs:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: sh scripts/check-translations.sh range "$BASE_SHA" "$HEAD_SHA"
+
+  # The app: the TypeScript side (type check, node --test, Vite build) and the
+  # Rust side (rustfmt, clippy, cargo test), on macOS, the platform Aleph
+  # targets first (docs/adr/0001, docs/adr/0002). Until the implementation
+  # (src-tauri/ at the root) exists, the throwaway prototype/ is checked.
+  app:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Find the app
+        id: app
+        run: |
+          if [ -f src-tauri/Cargo.toml ]; then dir=.
+          elif [ -f prototype/src-tauri/Cargo.toml ]; then dir=prototype
+          else dir=; fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "checking: ${dir:-nothing}"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.app.outputs.dir != ''
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: ${{ steps.app.outputs.dir }}/package-lock.json
+      - name: Install the packages
+        if: steps.app.outputs.dir != ''
+        working-directory: ${{ steps.app.outputs.dir }}
+        run: npm ci --no-audit --no-fund
+      - name: Type check
+        if: steps.app.outputs.dir != ''
+        working-directory: ${{ steps.app.outputs.dir }}
+        run: npx tsc --noEmit
+      - name: Tests of the TypeScript side
+        if: steps.app.outputs.dir != ''
+        working-directory: ${{ steps.app.outputs.dir }}
+        # Node strips the types of .ts files itself; no test runner is added
+        run: |
+          files=$(find . -name '*.test.ts' -not -path './node_modules/*' | sort)
+          if [ -z "$files" ]; then echo "no tests yet"; exit 0; fi
+          node --test $files
+      - name: Build the frontend
+        if: steps.app.outputs.dir != ''
+        working-directory: ${{ steps.app.outputs.dir }}
+        # tauri::generate_context! embeds the built frontend, so the Rust side
+        # needs it to compile
+        run: npx vite build
+      - name: Install Rust
+        if: steps.app.outputs.dir != ''
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.app.outputs.dir != ''
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ steps.app.outputs.dir }}/src-tauri/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles(format('{0}/src-tauri/Cargo.lock', steps.app.outputs.dir)) }}
+      - name: rustfmt
+        if: steps.app.outputs.dir != ''
+        working-directory: ${{ steps.app.outputs.dir }}/src-tauri
+        run: cargo fmt --check
+      - name: clippy
+        if: steps.app.outputs.dir != ''
+        working-directory: ${{ steps.app.outputs.dir }}/src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Tests of the Rust side
+        if: steps.app.outputs.dir != ''
+        working-directory: ${{ steps.app.outputs.dir }}/src-tauri
+        run: cargo test --locked

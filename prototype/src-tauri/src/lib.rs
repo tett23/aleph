@@ -89,7 +89,9 @@ fn read_text(path: String) -> R<String> {
 
 #[tauri::command]
 fn read_bytes(path: String) -> R<tauri::ipc::Response> {
-    std::fs::read(path).map(tauri::ipc::Response::new).map_err(err)
+    std::fs::read(path)
+        .map(tauri::ipc::Response::new)
+        .map_err(err)
 }
 
 #[tauri::command]
@@ -142,11 +144,17 @@ struct Hit {
     ranges: Vec<(usize, usize)>,
 }
 
-const TEXT_EXT: [&str; 10] = ["md", "gm", "emet", "csv", "tsv", "toml", "svg", "mmd", "mermaid", "txt"];
+const TEXT_EXT: [&str; 10] = [
+    "md", "gm", "emet", "csv", "tsv", "toml", "svg", "mmd", "mermaid", "txt",
+];
 
 #[tauri::command]
 fn search(roots: Vec<String>, pattern: String, regex: bool, case_sensitive: bool) -> R<Vec<Hit>> {
-    let src = if regex { pattern } else { regex::escape(&pattern) };
+    let src = if regex {
+        pattern
+    } else {
+        regex::escape(&pattern)
+    };
     let re = regex::RegexBuilder::new(&src)
         .case_insensitive(!case_sensitive)
         .build()
@@ -164,15 +172,27 @@ fn search(roots: Vec<String>, pattern: String, regex: bool, case_sensitive: bool
             if !ok || !p.is_file() {
                 continue;
             }
-            let Ok(text) = std::fs::read_to_string(p) else { continue };
+            let Ok(text) = std::fs::read_to_string(p) else {
+                continue;
+            };
             for (i, line) in text.lines().enumerate() {
                 // character offsets for the frontend
                 let ranges: Vec<(usize, usize)> = re
                     .find_iter(line)
-                    .map(|m| (line[..m.start()].chars().count(), line[..m.end()].chars().count()))
+                    .map(|m| {
+                        (
+                            line[..m.start()].chars().count(),
+                            line[..m.end()].chars().count(),
+                        )
+                    })
                     .collect();
                 if !ranges.is_empty() {
-                    hits.push(Hit { path: p.to_string_lossy().into(), line: i + 1, text: line.into(), ranges });
+                    hits.push(Hit {
+                        path: p.to_string_lossy().into(),
+                        line: i + 1,
+                        text: line.into(),
+                        ranges,
+                    });
                     if hits.len() >= 2000 {
                         return Ok(hits);
                     }
@@ -191,7 +211,11 @@ struct Out {
 }
 
 fn run(cmd: &str, cwd: &str, args: &[String]) -> R<Out> {
-    let o = Command::new(cmd).args(args).current_dir(cwd).output().map_err(|e| format!("{cmd}: {e}"))?;
+    let o = Command::new(cmd)
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .map_err(|e| format!("{cmd}: {e}"))?;
     Ok(Out {
         code: o.status.code().unwrap_or(-1),
         stdout: String::from_utf8_lossy(&o.stdout).into(),
@@ -210,16 +234,33 @@ fn tool_bin(app: &AppHandle, name: &str, configured: Option<String>) -> String {
     if let Some(p) = configured.filter(|p| !p.is_empty()) {
         return p;
     }
-    let bundled = app.path().resource_dir().ok().map(|d| d.join("resources").join(name));
+    let bundled = app
+        .path()
+        .resource_dir()
+        .ok()
+        .map(|d| d.join("resources").join(name));
     if let Some(b) = bundled.filter(|b| b.exists()) {
         return b.to_string_lossy().into();
     }
-    let local = format!("{}/.local/bin/{name}", std::env::var("HOME").unwrap_or_default());
-    if Path::new(&local).exists() { local } else { name.into() }
+    let local = format!(
+        "{}/.local/bin/{name}",
+        std::env::var("HOME").unwrap_or_default()
+    );
+    if Path::new(&local).exists() {
+        local
+    } else {
+        name.into()
+    }
 }
 
 #[tauri::command]
-fn tool(app: AppHandle, name: String, bin: Option<String>, cwd: String, args: Vec<String>) -> R<Out> {
+fn tool(
+    app: AppHandle,
+    name: String,
+    bin: Option<String>,
+    cwd: String,
+    args: Vec<String>,
+) -> R<Out> {
     if name != "golem" && name != "shem" {
         return Err(format!("unknown tool {name}"));
     }
@@ -229,8 +270,14 @@ fn tool(app: AppHandle, name: String, bin: Option<String>, cwd: String, args: Ve
 #[tauri::command]
 fn tool_version(app: AppHandle, name: String, bin: Option<String>) -> R<String> {
     let b = tool_bin(&app, &name, bin);
-    let o = Command::new(&b).arg("--version").output().map_err(|e| format!("{b}: {e}"))?;
-    Ok(format!("{} ({b})", String::from_utf8_lossy(&o.stdout).trim()))
+    let o = Command::new(&b)
+        .arg("--version")
+        .output()
+        .map_err(|e| format!("{b}: {e}"))?;
+    Ok(format!(
+        "{} ({b})",
+        String::from_utf8_lossy(&o.stdout).trim()
+    ))
 }
 
 /// A fresh temporary directory for rendered pages.
@@ -243,7 +290,13 @@ fn temp_dir(app: AppHandle, name: String) -> R<String> {
 }
 
 #[tauri::command]
-fn lsp_start(app: AppHandle, lsps: State<Lsps>, id: String, bin: Option<String>, cwd: String) -> R<()> {
+fn lsp_start(
+    app: AppHandle,
+    lsps: State<Lsps>,
+    id: String,
+    bin: Option<String>,
+    cwd: String,
+) -> R<()> {
     let mut map = lsps.0.lock().map_err(err)?;
     if map.contains_key(&id) {
         return Ok(());
@@ -291,7 +344,13 @@ fn lsp_start(app: AppHandle, lsps: State<Lsps>, id: String, bin: Option<String>,
 fn lsp_send(lsps: State<Lsps>, id: String, message: String) -> R<()> {
     let mut map = lsps.0.lock().map_err(err)?;
     let (_, stdin) = map.get_mut(&id).ok_or("lsp not running")?;
-    write!(stdin, "Content-Length: {}\r\n\r\n{}", message.len(), message).map_err(err)?;
+    write!(
+        stdin,
+        "Content-Length: {}\r\n\r\n{}",
+        message.len(),
+        message
+    )
+    .map_err(err)?;
     stdin.flush().map_err(err)
 }
 
@@ -314,25 +373,33 @@ struct WinState {
 }
 
 fn win_state_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("window.json"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|d| d.join("window.json"))
 }
 
 /// Whether the rectangle lies inside one monitor (physical pixels).
 fn fits(win: &tauri::WebviewWindow, s: &WinState) -> bool {
-    win.available_monitors().unwrap_or_default().iter().any(|m| {
-        let p = m.position();
-        let z = m.size();
-        s.x >= p.x
-            && s.y >= p.y
-            && s.x as i64 + s.w as i64 <= p.x as i64 + z.width as i64
-            && s.y as i64 + s.h as i64 <= p.y as i64 + z.height as i64
-            && s.w >= 400
-            && s.h >= 300
-    })
+    win.available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .any(|m| {
+            let p = m.position();
+            let z = m.size();
+            s.x >= p.x
+                && s.y >= p.y
+                && s.x as i64 + s.w as i64 <= p.x as i64 + z.width as i64
+                && s.y as i64 + s.h as i64 <= p.y as i64 + z.height as i64
+                && s.w >= 400
+                && s.h >= 300
+        })
 }
 
 fn restore_window(app: &AppHandle) {
-    let Some(win) = app.get_webview_window("main") else { return };
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
     let saved: Option<WinState> = win_state_path(app)
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|t| serde_json::from_str(&t).ok());
@@ -350,7 +417,10 @@ fn restore_window(app: &AppHandle) {
 }
 
 fn save_window(win: &tauri::Window) {
-    if win.label() != "main" || win.is_minimized().unwrap_or(false) || win.is_fullscreen().unwrap_or(false) {
+    if win.label() != "main"
+        || win.is_minimized().unwrap_or(false)
+        || win.is_fullscreen().unwrap_or(false)
+    {
         return;
     }
     let (p, z) = match (win.outer_position(), win.outer_size()) {
@@ -360,7 +430,12 @@ fn save_window(win: &tauri::Window) {
             return;
         }
     };
-    let s = WinState { x: p.x, y: p.y, w: z.width, h: z.height };
+    let s = WinState {
+        x: p.x,
+        y: p.y,
+        w: z.width,
+        h: z.height,
+    };
     if let Some(path) = win_state_path(win.app_handle()) {
         if let Err(e) = std::fs::write(&path, serde_json::to_string(&s).unwrap_or_default()) {
             eprintln!("aleph: {}: {e}", path.display());
@@ -378,13 +453,32 @@ pub fn run_app() {
             Ok(())
         })
         .on_window_event(|win, ev| match ev {
-            tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) | tauri::WindowEvent::CloseRequested { .. } => save_window(win),
+            tauri::WindowEvent::Moved(_)
+            | tauri::WindowEvent::Resized(_)
+            | tauri::WindowEvent::CloseRequested { .. } => save_window(win),
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
-            config_load, config_save, plugins_dir, list_tree, read_text, read_bytes, write_text,
-            exists, make_dir, rename_path, copy_file, list_dir, search, git, tool, tool_version, temp_dir,
-            lsp_start, lsp_send, lsp_stop
+            config_load,
+            config_save,
+            plugins_dir,
+            list_tree,
+            read_text,
+            read_bytes,
+            write_text,
+            exists,
+            make_dir,
+            rename_path,
+            copy_file,
+            list_dir,
+            search,
+            git,
+            tool,
+            tool_version,
+            temp_dir,
+            lsp_start,
+            lsp_send,
+            lsp_stop
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")
