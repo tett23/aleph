@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { afterHtml, confirmText, spotsOf } from "./replace.ts";
+import { afterHtml, confirmText, projectsTouched, spotsOf } from "./replace.ts";
 
 test("the line after the replacement: the match struck out, the new text strong, in characters", () => {
   assert.equal(afterHtml("𠮷は父<と>", 2, 3, "母"), "𠮷は<del>父</del><strong>母</strong>&lt;と&gt;");
@@ -19,4 +19,10 @@ test("the chosen matches by path", () => {
     { path: "/b", line: 1, column: 1, matched: "父" },
   ];
   assert.deepEqual(spotsOf(hits, new Set([0, 2])), { "/a": [{ line: 1, column: 0, matched: "父" }], "/b": [{ line: 1, column: 1, matched: "父" }] });
+});
+
+test("the projects to check after replacing: once each, only for kinds lint reads, not outside projects (docs/adr/0041)", () => {
+  const projects = ["/w/p", "/w/q", "/w/r"];
+  assert.deepEqual(projectsTouched(["/w/p/a.gm", "/w/p/b.gm", "/w/q/notes.md", "/w/r/style.toml", "/w/x.gm"], projects), ["/w/p", "/w/r"]);
+  assert.deepEqual(projectsTouched([], projects), []);
 });
