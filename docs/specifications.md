@@ -36,6 +36,21 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0019](adr/0019-one-editor-for-both-writing-modes.md) | 縦書きと横書きを一つのエディタで書く（一から作る、仮想化、IME、縦書きでも LSP と整形、複数ファイルでも縦書き）（実装済み） |
 | [ADR 0020](adr/0020-project-rows-in-the-tree.md) | ツリーのプロジェクトの行を高くし、太字と区切りの線で目立たせる（実装済み） |
 | [ADR 0021](adr/0021-json-files.md) | JSON、JSONC、JSON5、JSON Lines を開き、色付け、文法の検査、整形（⌥⇧F と ⌘S）を行う（実装済み） |
+| [ADR 0022](adr/0022-quick-open.md) | ⌘P でシートを名前から開く |
+| [ADR 0023](adr/0023-command-palette.md) | コマンドパレットとコマンドの登録 |
+| [ADR 0024](adr/0024-tabs-and-split.md) | タブと左右の分割 |
+| [ADR 0025](adr/0025-bookmarks.md) | ブックマーク |
+| [ADR 0026](adr/0026-recent-files.md) | 最近開いたシート |
+| [ADR 0027](adr/0027-wikilinks-in-markdown.md) | Markdown のシートのウィキリンク |
+| [ADR 0028](adr/0028-keywords.md) | シートのキーワード |
+| [ADR 0029](adr/0029-embeds.md) | Markdown のプレビューでのシートの埋め込み |
+| [ADR 0030](adr/0030-spelling-and-grammar.md) | 表記と綴りの検査 |
+| [ADR 0031](adr/0031-paste-images.md) | クリップボードの画像を貼り付けて添付する |
+| [ADR 0032](adr/0032-replace-across-workspace.md) | ワークスペースをまたいで置換する |
+| [ADR 0033](adr/0033-trash.md) | シートとフォルダをゴミ箱に移し、戻す |
+| [ADR 0034](adr/0034-key-bindings.md) | キーの割り当てを変える |
+
+ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
 ## アプリの構成
 
