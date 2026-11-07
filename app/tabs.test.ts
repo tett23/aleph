@@ -177,3 +177,21 @@ test("focusing a sheet's editor selects its pane and tab and follows that sheet"
   assert.equal(s.open[1].path, ch2);
   assert.equal(run([{ type: "focusDoc", path: "/none" }], s), s);
 });
+
+test("split again moves the selected tab to the end of the other pane and selects it (docs/adr/0037)", () => {
+  const s = run([{ type: "open", docs: [doc(A)] }, { type: "open", docs: [doc(B)], newTab: true }, { type: "open", docs: [doc(C)], newTab: true }, { type: "split" }, { type: "selectPane", pane: 0 }, { type: "split" }]);
+  assert.deepEqual(paths(s), [[A], [C, B]]);
+  assert.equal(s.pane, 1);
+  assert.equal(s.open[0].path, B);
+});
+
+test("the left pane emptied, by closing or by moving, ends the split too (docs/adr/0037)", () => {
+  const split = run([{ type: "open", docs: [doc(A)] }, { type: "open", docs: [doc(B)], newTab: true }, { type: "split" }]);
+  let s = run([{ type: "closeTab", pane: 0, index: 0 }], split);
+  assert.deepEqual(paths(s), [[B]]);
+  assert.equal(s.pane, 0);
+  assert.equal(s.open[0].path, B);
+  s = run([{ type: "moveTab", from: { pane: 0, index: 0 }, to: { pane: 1, index: 1 } }], split);
+  assert.deepEqual(paths(s), [[B, A]]);
+  assert.equal(s.open[0].path, A);
+});
