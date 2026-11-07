@@ -155,7 +155,7 @@ const expand = async (ctx: Ctx, src: string, path: string) => {
       }
     frontier = next;
   }
-  const html = expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml, breaks: ctx.config.markdownBreaks });
+  const html = expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml, breaks: ctx.config.markdownBreaks, name: (p) => ctx.titles.get(p) ?? null });
   // links to targets not found are drawn apart (docs/adr/0027)
   return markMissing(html, (t) => resolveLink(t, path, sheets, wsOf(ctx)).path !== null);
 };

@@ -81,3 +81,15 @@ test("the embedded Markdown follows the line-break setting (docs/adr/0035)", () 
   assert.ok(expandEmbeds("![[p]]", "/w/a.md", { ...io2, breaks: "newline" }).includes("一<br>二"));
   assert.ok(expandEmbeds("![[p]]", "/w/a.md", { ...io2, breaks: "blank-line" }).includes("一二"));
 });
+
+test("an embed's frame is titled by the sheet's name, the written target beside it when different (docs/adr/0039)", () => {
+  const names: Record<string, string> = { "/w/c.md": "C の章", "/w/b.md": "b" };
+  const io3 = { ...io, name: (p: string) => names[p] ?? null };
+  const head = (src: string) => /<div class="embed-head"[^>]*>(.*?)<\/div>/.exec(expandEmbeds(src, "/w/z.md", io3))![1];
+  assert.equal(head("![[c]]"), 'C の章<small class="embed-target">c</small>');
+  assert.equal(head("![[b]]"), "b");
+  assert.equal(head("![[b#B]]"), "b &gt; B");
+  assert.equal(head("![[e]]"), "e");
+  assert.equal(head("![[nope]]"), "nope");
+  assert.equal(head("![[pic.png]]"), "pic.png");
+});
