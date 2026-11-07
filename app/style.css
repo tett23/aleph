@@ -625,6 +625,9 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .pview.md li > input[type="checkbox"] { margin: 0 0.3em 0 0; vertical-align: middle; }
 .pview.md del { color: var(--text-2); }
 
+/* key overlaps in the settings list (docs/adr/0040) */
+.kbrow .kbover, .kbwarn { color: var(--accent); }
+.kbwarn { display: flex; align-items: center; gap: 4px; font-size: 12px; margin: 4px 0; }
 /* embed frames titled by the sheet's name (docs/adr/0039) */
 .pview .embed-head .embed-target { margin-left: 0.8em; color: var(--faint); font-size: 11px; }
 /* backlinks by sheet (docs/adr/0038) */

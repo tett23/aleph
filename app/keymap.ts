@@ -183,3 +183,16 @@ export const takeAway = (user: Record<string, string[]>, cmds: Cmd[], ids: strin
     const keys = u[id] ?? cmds.find((c) => c.id === id)?.keys ?? [];
     return setBinding(u, cmds, id, keys.filter((b) => readBinding(b, leader)?.join(" ") !== strokes.join(" ")));
   }, user);
+
+/**
+ * Every binding that starts another's or is started by one (docs/adr/0040),
+ * keyed by "<id> <strokes>", with the other commands' ids.
+ */
+export const overlaps = (bound: Bound[]): Map<string, string[]> => {
+  const out = new Map<string, string[]>();
+  for (const b of bound) {
+    const others = conflicts(bound, b.strokes, b.id).prefix;
+    if (others.length) out.set(`${b.id} ${b.strokes.join(" ")}`, others);
+  }
+  return out;
+};

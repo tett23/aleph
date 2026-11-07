@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  canonical, conflicts, cleanBindings, DEFAULT_LEADER, effectiveBindings, expire, leaderOf, press, readBinding, reservedKey, setBinding, strokeOf, takeAway, unusableFirst, writtenBinding, type Bound,
+  canonical, conflicts, cleanBindings, DEFAULT_LEADER, effectiveBindings, expire, leaderOf, overlaps, press, readBinding, reservedKey, setBinding, strokeOf, takeAway, unusableFirst, writtenBinding, type Bound,
 } from "./keymap.ts";
 
 const ev = (code: string, mods: Partial<{ meta: boolean; ctrl: boolean; alt: boolean; shift: boolean }> = {}, key = "") => ({
@@ -186,4 +186,23 @@ test("⇧⌘W is the menu's, ⌘W can be bound; ⌘W unbound from file.closeTab 
   assert.deepEqual(press(effectiveBindings(cmds, {}, "Mod-;"), null, "Mod-w", 0, 1000).run, ["file.closeTab"]);
   const off = effectiveBindings(cmds, { "file.closeTab": [] }, "Mod-;");
   assert.deepEqual(press(off, null, "Mod-w", 0, 1000), { pending: null, run: [], take: false, retry: false });
+});
+
+test("overlaps: each binding that starts or is started by another's, by command and binding (docs/adr/0040)", () => {
+  const cmds = [
+    { id: "git.status", keys: [] as string[] },
+    { id: "git.commit", keys: [] as string[] },
+    { id: "file.save", keys: ["Mod-s"] },
+    { id: "file.saveAll", keys: ["Mod-s Mod-a"] },
+  ];
+  const user = { "git.status": ["Leader g"], "git.commit": ["Leader g c"] };
+  const o = overlaps(effectiveBindings(cmds, user, "Mod-;"));
+  assert.deepEqual(o.get("git.status Mod-; g"), ["git.commit"]);
+  assert.deepEqual(o.get("git.commit Mod-; g c"), ["git.status"]);
+  // between a default and a default as well
+  assert.deepEqual(o.get("file.save Mod-s"), ["file.saveAll"]);
+  assert.equal(o.size, 4);
+  // the leader changed: the same overlaps
+  assert.deepEqual([...overlaps(effectiveBindings(cmds, user, "Ctrl-j")).keys()].filter((k) => k.startsWith("git")), ["git.status Ctrl-j g", "git.commit Ctrl-j g c"]);
+  assert.equal(overlaps(effectiveBindings(cmds, { "git.status": ["Leader x"] }, "Mod-;")).has("git.status Mod-; x"), false);
 });
