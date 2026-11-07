@@ -6,7 +6,7 @@ import { icon } from "../icons.ts";
 import { basename, rel, stem } from "../path.ts";
 import { dirty, focused, type LeftPanel, type RightPanel, type State } from "../store.ts";
 import { canVertical, effectiveSide, previewLabel, previewsFor } from "../toolbar.ts";
-import { menu } from "./dom.ts";
+import { menu, onPress } from "./dom.ts";
 import { openSettings } from "./settings.ts";
 
 const RIBBON: [LeftPanel | "plot", string, string][] = [
@@ -70,7 +70,7 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
   };
   const toolbar = $(".toolbar");
 
-  $(".ribbon").addEventListener("click", (e) => {
+  onPress($(".ribbon"), (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>("[data-rib],[data-settings]");
     if (!t) return;
     if (t.dataset.settings !== undefined) return void openSettings(ctx);
@@ -78,7 +78,7 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
     ctx.store.dispatch({ type: "left", panel: t.dataset.rib as LeftPanel });
   });
 
-  $(".wsbar").addEventListener("click", (e) => {
+  onPress($(".wsbar"), (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>("[data-wsmenu]");
     if (!t) return;
     const s = ctx.store.get();
@@ -89,7 +89,7 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
     ]);
   });
 
-  toolbar.addEventListener("click", (e) => {
+  onPress(toolbar, (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>("[data-tb],[data-side],[data-vert]");
     if (!t) return;
     const s = ctx.store.get();
@@ -104,7 +104,7 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
       );
   });
 
-  $(".rhead").addEventListener("click", (e) => {
+  onPress($(".rhead"), (e) => {
     const r = (e.target as HTMLElement).closest<HTMLElement>("[data-r]")?.dataset.r;
     if (r) ctx.store.dispatch({ type: "right", panel: r as RightPanel });
   });
