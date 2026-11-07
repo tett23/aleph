@@ -4,6 +4,9 @@ import { invoke } from "@tauri-apps/api/core";
 export type Entry = { path: string; name: string; dir: boolean; children: Entry[] };
 export type Out = { code: number; stdout: string; stderr: string };
 
+export type ToolInfo = { path: string; version: string; bundled: string };
+export type Tool = "golem" | "shem";
+
 export const api = {
   configLoad: () => invoke<string>("config_load"),
   configSave: (json: string) => invoke<void>("config_save", { json }),
@@ -17,5 +20,7 @@ export const api = {
   copyFile: (from: string, to: string) => invoke<void>("copy_file", { from, to }),
   listDir: (path: string) => invoke<string[]>("list_dir", { path }),
   tempDir: (name: string) => invoke<string>("temp_dir", { name }),
+  tool: (name: Tool, bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("tool", { name, bin, cwd, args }),
+  toolInfo: (name: Tool, bin: string | undefined) => invoke<ToolInfo>("tool_info", { name, bin }),
   git: (bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("git", { bin, cwd, args }),
 };

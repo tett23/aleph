@@ -108,6 +108,16 @@ fn git(app: AppHandle, bin: Option<String>, cwd: String, args: Vec<String>) -> R
     process::run(&git, Path::new(&cwd), &args)
 }
 
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_bundled_versions_come_from_tools_versions() {
+        assert!(super::bundled_version("golem").starts_with('v'));
+        assert!(super::bundled_version("shem").starts_with('v'));
+        assert_eq!(super::bundled_version("none"), "");
+    }
+}
+
 // ---- the main window's position and size (docs/adr/0004) ----
 
 fn window_file(app: &AppHandle) -> Option<PathBuf> {
@@ -171,6 +181,72 @@ fn save_window(win: &tauri::Window) {
     }
 }
 
+// ---- golem and shem (docs/adr/0008) ----
+
+fn tool_path(app: &AppHandle, name: &str, bin: Option<&str>) -> R<PathBuf> {
+    if name != "golem" && name != "shem" {
+        return Err(format!("unknown tool {name}"));
+    }
+    let r = roots(app);
+    process::find(name, bin, &process::TOOL_ORDER, &r).ok_or_else(|| {
+        match bin.filter(|b| !b.is_empty()) {
+            Some(b) => format!("{name} が見つかりません（設定の {b}）"),
+            None => format!(
+                "{name} が見つかりません（探した場所：{}）",
+                process::searched(name, &process::TOOL_ORDER, &r).join("、")
+            ),
+        }
+    })
+}
+
+/// Runs golem or shem with its arguments, in `cwd` (a project's root).
+#[tauri::command]
+fn tool(
+    app: AppHandle,
+    name: String,
+    bin: Option<String>,
+    cwd: String,
+    args: Vec<String>,
+) -> R<process::Out> {
+    process::run(
+        &tool_path(&app, &name, bin.as_deref())?,
+        Path::new(&cwd),
+        &args,
+    )
+}
+
+#[derive(serde::Serialize)]
+struct ToolInfo {
+    path: String,
+    version: String,
+    bundled: String,
+}
+
+/// The binary in use, its `--version`, and the version bundled with this build of Aleph.
+#[tauri::command]
+fn tool_info(app: AppHandle, name: String, bin: Option<String>) -> R<ToolInfo> {
+    let bundled = bundled_version(&name);
+    let path = tool_path(&app, &name, bin.as_deref())?;
+    let out = process::run(&path, Path::new("/"), &["--version".into()])?;
+    Ok(ToolInfo {
+        path: path.display().to_string(),
+        version: out.stdout.trim().into(),
+        bundled,
+    })
+}
+
+/// The tag tools.versions gives for a tool.
+fn bundled_version(name: &str) -> String {
+    include_str!("../../tools.versions")
+        .lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .find_map(|l| {
+            let mut w = l.split_whitespace();
+            (w.next() == Some(name)).then(|| w.next().unwrap_or("").to_string())
+        })
+        .unwrap_or_default()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run_app() {
     tauri::Builder::default()
@@ -202,7 +278,9 @@ pub fn run_app() {
             copy_file,
             list_dir,
             temp_dir,
-            git
+            git,
+            tool,
+            tool_info
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")

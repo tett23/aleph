@@ -49,7 +49,6 @@ impl Roots {
 
 /// Where to look for a program, in order.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(not(test), allow(dead_code))] // Bundled and LocalBin serve golem and shem (docs/adr/0008)
 pub enum Place {
     /// The bundled copy in the app's resources.
     Bundled,
@@ -64,7 +63,6 @@ pub enum Place {
 }
 
 /// golem and shem: the setting, the bundled copy, ~/.local/bin, Homebrew, PATH (docs/adr/0008).
-#[cfg_attr(not(test), allow(dead_code))]
 pub const TOOL_ORDER: [Place; 4] = [
     Place::Bundled,
     Place::LocalBin,

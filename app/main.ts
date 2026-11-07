@@ -9,6 +9,7 @@ import { item } from "./ui/settings.ts";
 import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
 import { openPaths } from "./docs.ts";
 import { mountTree, reloadTree } from "./ui/tree.ts";
+import { mountTools } from "./tools.ts";
 
 /** The parts of the state worth keeping between launches, per viewer (localStorage may be unavailable). */
 const KEPT = ["left", "showLeft", "right", "showRight", "side", "vertical", "expanded", "workspace"] as const;
@@ -69,6 +70,7 @@ const start = async () => {
     titles,
     projects: [],
     onRename: [],
+    onNewProject: [],
     refresh: (what = ["left", "right", "status", "side"]) => draw(store.get(), store.get(), what),
   };
 
@@ -123,6 +125,7 @@ const start = async () => {
   };
 
   mountTree(ctx);
+  mountTools(ctx);
   await reloadTree(ctx);
   store.subscribe((s, prev) => {
     if (s.workspace !== prev.workspace) void reloadTree(ctx).then(() => ctx.refresh(["left"]));
