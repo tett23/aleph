@@ -14,7 +14,7 @@ export type Doc = {
   grid: Grid;
 };
 
-export type LeftPanel = "files" | "search" | "git" | "diagnostics" | "library";
+export type LeftPanel = "files" | "bookmarks" | "search" | "git" | "diagnostics" | "library";
 export type RightPanel = "attach" | "outline" | "library";
 export type SidePane = "none" | "plain" | "pages";
 

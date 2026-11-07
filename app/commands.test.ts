@@ -76,7 +76,7 @@ test("recent commands keep 20, newest first, without repeats", () => {
 });
 
 // the ids ADR 0023 lists, except those their own ADRs add (file.quickOpen: 0022; file.closeTab and
-// view.split: 0024; view.left.bookmarks and bookmark.toggle: 0025)
+// view.split: 0024)
 const INITIAL = [
   "file.newSheet", "file.newFolder", "file.newProject", "file.save",
   "view.left.files", "view.left.search", "view.left.git", "view.left.diagnostics", "view.left.library", "view.toggleLeft",
@@ -85,6 +85,7 @@ const INITIAL = [
   "editor.undo", "editor.redo", "editor.selectAll", "editor.find", "editor.indent", "editor.outdent", "editor.complete", "editor.format",
   "git.commit", "git.push", "git.pull",
   "palette.open", "settings.open", "md.convertToGm", "library.copyFonts", "dev.recordIme",
+  "view.left.bookmarks", "bookmark.toggle",
 ];
 
 test("every command ADR 0023 lists is registered somewhere in the app", async () => {
