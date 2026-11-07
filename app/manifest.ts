@@ -140,3 +140,123 @@ export const paragraphSeparator = (manifest: string, rel: string, fileText: stri
     }
   return "blank-line";
 };
+
+// ---- taking chapters out for the trash and putting them back (docs/adr/0033) ----
+
+type Item = { start: number; end: number; files: string[]; children: Item[] | null };
+
+/** The items of the array whose brackets are at `open` and `close`. */
+const itemsOf = (src: string, open: number, close: number): Item[] => {
+  const toks = lex(src.slice(0, close), open + 1);
+  const out: Item[] = [];
+  for (let i = 0; i < toks.length; i++) {
+    const tk = toks[i];
+    if (tk.t === "str") {
+      out.push({ start: tk.at, end: tk.end, files: [tk.v], children: null });
+      continue;
+    }
+    if (tk.t !== "ch" || (tk.v !== "{" && tk.v !== "[")) continue;
+    let depth = 0;
+    let j = i;
+    for (; j < toks.length; j++) {
+      const t = toks[j];
+      if (t.t !== "ch") continue;
+      if (t.v === "[" || t.v === "{") depth++;
+      if (t.v === "]" || t.v === "}") depth--;
+      if (depth === 0) break;
+    }
+    const endAt = (toks[j] as { at: number }).at + 1;
+    if (tk.v === "[") {
+      const children = itemsOf(src, tk.at, endAt - 1);
+      out.push({ start: tk.at, end: endAt, files: children.flatMap((c) => c.files), children });
+    } else out.push({ start: tk.at, end: endAt, files: manifestChapters(`chapters = [${src.slice(tk.at, endAt)}]`), children: null });
+    i = j;
+  }
+  return out;
+};
+
+const multiline = (src: string, open: number, close: number) => src.slice(open + 1, close).includes("\n");
+
+/** The source with one item of a list taken out, with its comma and (one per line) its line. */
+const cut = (src: string, items: Item[], k: number, lines: boolean): string => {
+  const it = items[k];
+  if (lines) {
+    const from = src.lastIndexOf("\n", it.start - 1) + 1;
+    const nl = src.indexOf("\n", it.end);
+    return src.slice(0, from) + src.slice(nl < 0 ? src.length : nl + 1);
+  }
+  if (k + 1 < items.length) return src.slice(0, it.start) + src.slice(items[k + 1].start);
+  if (k > 0) return src.slice(0, items[k - 1].end) + src.slice(it.end);
+  return src.slice(0, it.start) + src.slice(it.end);
+};
+
+/** One item put into a list at `k` (the end when past it). */
+const put = (src: string, items: Item[], k: number, text: string, open: number, lines: boolean): string => {
+  if (lines && items.length) {
+    if (k < items.length) {
+      const from = src.lastIndexOf("\n", items[k].start - 1) + 1;
+      const indent = /^[ \t]*/.exec(src.slice(from))![0];
+      return src.slice(0, from) + `${indent}${text},\n` + src.slice(from);
+    }
+    const last = items[items.length - 1];
+    const from = src.lastIndexOf("\n", last.start - 1) + 1;
+    const indent = /^[ \t]*/.exec(src.slice(from))![0];
+    const nl = src.indexOf("\n", last.end);
+    const lineEnd = nl < 0 ? src.length : nl;
+    const comma = src.slice(last.end, lineEnd).trim().startsWith(",");
+    return comma
+      ? src.slice(0, lineEnd + 1) + `${indent}${text},\n` + src.slice(lineEnd + 1)
+      : src.slice(0, last.end) + `,\n${indent}${text}` + src.slice(last.end);
+  }
+  if (k < items.length) return src.slice(0, items[k].start) + `${text}, ` + src.slice(items[k].start);
+  if (items.length) return src.slice(0, items[items.length - 1].end) + `, ${text}` + src.slice(items[items.length - 1].end);
+  return src.slice(0, open + 1) + text + src.slice(open + 1);
+};
+
+export type RemovedChapter = { index: number[]; text: string };
+
+/**
+ * The manifest with the chapters `rels` taken out of `chapters` (in nested
+ * arrays too; a nested array left empty goes whole), and what was taken with
+ * its place, in the order to put it back.
+ */
+export const removeChapters = (src: string, rels: string[]): { src: string; removed: RemovedChapter[] } => {
+  const removed: RemovedChapter[] = [];
+  for (;;) {
+    const span = chaptersSpan(src);
+    if (!span) break;
+    const items = itemsOf(src, span.open, span.close);
+    // the last match first, so the earlier places stay as they were
+    const k = items.map((it) => it.files.some((f) => rels.includes(f))).lastIndexOf(true);
+    if (k < 0) break;
+    const it = items[k];
+    const kids = it.children;
+    if (kids && kids.some((c) => !c.files.some((f) => rels.includes(f)))) {
+      const j = kids.map((c) => c.files.some((f) => rels.includes(f))).lastIndexOf(true);
+      removed.push({ index: [k, j], text: src.slice(kids[j].start, kids[j].end) });
+      src = cut(src, kids, j, multiline(src, it.start, it.end - 1));
+      continue;
+    }
+    removed.push({ index: [k], text: src.slice(it.start, it.end) });
+    src = cut(src, items, k, multiline(src, span.open, span.close));
+  }
+  return { src, removed: removed.sort((a, b) => a.index[0] - b.index[0] || (a.index[1] ?? -1) - (b.index[1] ?? -1)) };
+};
+
+/** The manifest with removed chapters put back at their places (renamed when given). */
+export const restoreChapters = (src: string, removed: RemovedChapter[], rename?: { from: string; to: string }): string => {
+  for (const r of removed) {
+    const text = rename ? r.text.split(`"${rename.from}"`).join(`"${rename.to}"`) : r.text;
+    const span = chaptersSpan(src);
+    if (!span) {
+      src = `chapters = [${text}]\n${src}`;
+      continue;
+    }
+    const items = itemsOf(src, span.open, span.close);
+    if (r.index.length === 2 && items[r.index[0]]?.children) {
+      const it = items[r.index[0]];
+      src = put(src, it.children!, r.index[1], text, it.start, multiline(src, it.start, it.end - 1));
+    } else src = put(src, items, r.index[0], text, span.open, multiline(src, span.open, span.close));
+  }
+  return src;
+};

@@ -74,6 +74,49 @@ pub fn percent_decode(s: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
+/// Moves a file or folder (to the trash and back, docs/adr/0033), making the
+/// parent; across volumes, by copying and then removing.
+pub fn move_path(from: &Path, to: &Path) -> std::io::Result<()> {
+    if let Some(parent) = to.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    match std::fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(e) if e.raw_os_error() == Some(18) => copy_then_remove(from, to),
+        Err(e) => Err(e),
+    }
+}
+
+/// A move across volumes (EXDEV): the copy is made whole before the source goes.
+pub fn copy_then_remove(from: &Path, to: &Path) -> std::io::Result<()> {
+    fn copy(from: &Path, to: &Path) -> std::io::Result<()> {
+        if from.is_dir() {
+            std::fs::create_dir_all(to)?;
+            for e in std::fs::read_dir(from)? {
+                let e = e?;
+                copy(&e.path(), &to.join(e.file_name()))?;
+            }
+            Ok(())
+        } else {
+            if let Some(parent) = to.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::copy(from, to).map(|_| ())
+        }
+    }
+    copy(from, to)?;
+    remove_path(from)
+}
+
+/// Removes a file or a folder with all it holds.
+pub fn remove_path(path: &Path) -> std::io::Result<()> {
+    if path.is_dir() {
+        std::fs::remove_dir_all(path)
+    } else {
+        std::fs::remove_file(path)
+    }
+}
+
 pub fn copy_file(from: &Path, to: &Path) -> std::io::Result<()> {
     if let Some(parent) = to.parent() {
         std::fs::create_dir_all(parent)?;
@@ -185,5 +228,40 @@ mod tests {
         assert_eq!(percent_decode("plain"), Some("plain".to_string()));
         assert_eq!(percent_decode("%E7%9"), None);
         assert_eq!(percent_decode("%FF"), None);
+    }
+
+    #[test]
+    fn moving_a_folder_makes_the_parent_and_keeps_its_contents() {
+        let d = testdir::fresh("move");
+        write_text(&d.join("src/a/b.gm"), "x").unwrap();
+        move_path(&d.join("src/a"), &d.join("trash/1/a")).unwrap();
+        assert!(!d.join("src/a").exists());
+        assert_eq!(
+            std::fs::read_to_string(d.join("trash/1/a/b.gm")).unwrap(),
+            "x"
+        );
+    }
+
+    #[test]
+    fn copying_then_removing_is_the_same_as_a_move() {
+        let d = testdir::fresh("copymove");
+        write_text(&d.join("src/a/b.gm"), "x").unwrap();
+        write_text(&d.join("src/a/c/d.md"), "y").unwrap();
+        copy_then_remove(&d.join("src/a"), &d.join("dst/a")).unwrap();
+        assert!(!d.join("src/a").exists());
+        assert_eq!(
+            std::fs::read_to_string(d.join("dst/a/c/d.md")).unwrap(),
+            "y"
+        );
+    }
+
+    #[test]
+    fn removing_a_file_or_a_folder() {
+        let d = testdir::fresh("remove");
+        write_text(&d.join("f.gm"), "x").unwrap();
+        write_text(&d.join("dir/g.gm"), "y").unwrap();
+        remove_path(&d.join("f.gm")).unwrap();
+        remove_path(&d.join("dir")).unwrap();
+        assert!(!d.join("f.gm").exists() && !d.join("dir").exists());
     }
 }

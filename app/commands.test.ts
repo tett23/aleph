@@ -77,7 +77,7 @@ const INITIAL = [
   "editor.undo", "editor.redo", "editor.selectAll", "editor.find", "editor.indent", "editor.outdent", "editor.complete", "editor.format",
   "git.commit", "git.push", "git.pull",
   "palette.open", "settings.open", "md.convertToGm", "library.copyFonts", "dev.recordIme",
-  "view.left.bookmarks", "view.left.keywords", "bookmark.toggle", "file.quickOpen",
+  "view.left.bookmarks", "view.left.keywords", "view.left.trash", "file.trash", "bookmark.toggle", "file.quickOpen",
   "file.newTab", "file.closeTab", "view.nextTab", "view.prevTab", "view.split",
 ];
 

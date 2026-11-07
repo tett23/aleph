@@ -10,7 +10,7 @@ import { basename, dirname, stem } from "../path.ts";
 import { allDocs, focused } from "../store.ts";
 import { collectProjects, flatten, kindOf, selectChapters, titleOf, treeRows, type Row } from "../workspace.ts";
 import { golem } from "../tools.ts";
-import { ask, toast } from "./dom.ts";
+import { ask, menu, toast, type MenuItem } from "./dom.ts";
 import { item } from "./settings.ts";
 
 const ICONS: Record<string, string> = {
@@ -34,6 +34,9 @@ let entries: Entry[] = [];
 /** The workspace as the tree last read it. */
 export const treeEntries = () => entries;
 const chapters = new Map<string, string[]>();
+
+/** Items of a row's right-click menu, by the parts that add them (bookmarks, the trash). */
+export const treeMenus: ((path: string, dir: boolean, ctx: Ctx) => MenuItem[])[] = [];
 
 /** Run after the tree and the titles were read again (the wikilinks' index, docs/adr/0027). */
 export const treeReloaded: ((ctx: Ctx) => void | Promise<void>)[] = [];
@@ -228,6 +231,17 @@ export const mountTree = (ctx: Ctx) => {
       };
     },
   };
+
+  // a row's right-click: the items the other parts add
+  document.addEventListener("contextmenu", (e) => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>(".tree [data-file]:not([data-plot]), .tree [data-dir]");
+    const path = row?.dataset.file ?? row?.dataset.dir;
+    if (!row || !path) return;
+    const items = treeMenus.flatMap((f) => f(path, row.dataset.dir !== undefined, ctx));
+    if (!items.length) return;
+    e.preventDefault();
+    menu(row, items);
+  });
 
   // after saving a manifest or a style, chapters and grids are read again
   ctx.onRename.push((from) => {

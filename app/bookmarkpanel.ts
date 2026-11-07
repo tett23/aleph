@@ -8,7 +8,7 @@ import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
 import { basename, rel } from "./path.ts";
 import { allDocs, focused } from "./store.ts";
-import { menu } from "./ui/dom.ts";
+import { treeMenus } from "./ui/tree.ts";
 
 const cache = new Map<string, Bookmark[]>();
 const fileOf = (ws: string) => `${ws}/.aleph/bookmarks.json`;
@@ -163,14 +163,11 @@ export const mountBookmarks = (ctx: Ctx) => {
   );
 
   // the tree's row menu (right click): bookmark the sheet
-  document.addEventListener("contextmenu", (e) => {
-    const row = (e.target as HTMLElement).closest<HTMLElement>(".tree [data-file]");
-    const abs = row?.dataset.file;
-    if (!row || !abs) return;
-    e.preventDefault();
+  treeMenus.push((abs, dir) => {
+    if (dir) return [];
     const ws = ctx.store.get().workspace;
     const on = !!ws && (cache.get(ws) ?? []).some((b) => b.line === undefined && b.path === rel(ws, abs));
-    menu(row, [{ label: on ? "ブックマークを外す" : "ブックマークに足す", icon: icon("map-pin", 14), run: () => void toggle(ctx, abs) }]);
+    return [{ label: on ? "ブックマークを外す" : "ブックマークに足す", icon: icon("map-pin", 14), run: () => void toggle(ctx, abs) }];
   });
 
   // a file or folder renamed in Aleph: its bookmarks follow
