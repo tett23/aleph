@@ -365,7 +365,7 @@ const linesHtml = (ls: Line[], breaks: Breaks) =>
       if (breaks === "newline" || l.hard) return inlineHtml(l.c) + "<br>";
       const a = [...plainOf(l.c)].pop() ?? "";
       const b = [...plainOf(ls[n + 1].c)][0] ?? "";
-      return inlineHtml(l.c) + (CJK.test(a) && CJK.test(b) ? "" : "\n");
+      return inlineHtml(l.c) + (CJK.test(a) || CJK.test(b) ? "" : "\n");
     })
     .join("");
 

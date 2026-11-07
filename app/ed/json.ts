@@ -363,11 +363,13 @@ const needBreakFromComment = (toks: Tok[], k: number) => toks[k - 1]?.t === "com
 /** ⌘S: formats first when the setting is on (with the same notices as ⌥⇧F), then saves either way. */
 export const formatThenSave = async (o: {
   formatOnSave: boolean;
+  /** A save the writer asked for (⌘S); an autosave (false) never formats (docs/adr/0021). */
+  explicit?: boolean;
   format: () => "changed" | "same" | "error";
   save: () => Promise<void>;
   notify: (message: string) => void;
 }) => {
-  if (o.formatOnSave) {
+  if (o.formatOnSave && o.explicit !== false) {
     const r = o.format();
     o.notify(r === "error" ? "JSON に誤りがあるため整形しません" : r === "changed" ? "整形しました" : "変更はありません");
   }

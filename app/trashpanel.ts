@@ -2,6 +2,7 @@
 // into the app's config directory with what is needed to put them back (their
 // chapters in manifest.toml, their notes), a panel to restore or delete them
 // for good, and entries removed after 30 days. The records are in trash.ts.
+import { addCommands } from "./commands.ts";
 import { api } from "./api.ts";
 import { loadMeta, putMeta } from "./attach.ts";
 import type { Ctx } from "./ctx.ts";
@@ -188,7 +189,7 @@ export const mountTrash = (ctx: Ctx) => {
 
   treeMenus.push((path) => [{ label: "ゴミ箱に移す", icon: icon("trash-2", 14), run: () => void moveToTrash(ctx, path) }]);
 
-  ctx.commands.push(
+  addCommands(ctx.commands, 
     {
       id: "file.trash",
       label: "ゴミ箱に移す",

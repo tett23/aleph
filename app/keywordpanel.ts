@@ -1,6 +1,7 @@
 // The keywords panel in the left sidebar (docs/adr/0028): the writer's keywords
 // of every root of the workspace with their counts, and the plot's names by
 // column; pressing one lists its sheets, ⌘ narrows to sheets with all chosen.
+import { addCommands } from "./commands.ts";
 import { loadMeta, putMeta } from "./attach.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
@@ -114,7 +115,7 @@ export const mountKeywords = (ctx: Ctx) => {
       };
     },
   };
-  ctx.commands.push({
+  addCommands(ctx.commands, {
     id: "view.left.keywords",
     label: "サイドバー：キーワード",
     icon: "tag",

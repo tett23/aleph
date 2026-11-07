@@ -4,7 +4,7 @@
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
 import type { TextEditor } from "./ed/editor.ts";
-import { checkText, englishWords, RULES, segments, spellDiags } from "./proofread.ts";
+import { checkText, englishWords, RULES, segments, spellDiags, toAsk } from "./proofread.ts";
 import { focused } from "./store.ts";
 import { item, toggle } from "./ui/settings.ts";
 import { esc } from "./esc.ts";
@@ -34,7 +34,7 @@ const check = async (ctx: Ctx, t: TextEditor, kind: string) => {
   t.setDiagnostics(diags, SOURCE);
   if (!cfg.enabled || !cfg.rules.spelling) return;
   const words = englishWords(segments(kind, text), text);
-  const ask = [...new Set(words.map((w) => w.word))].filter((w) => !known.has(w));
+  const ask = toAsk(words.map((w) => w.word), known);
   if (ask.length) {
     const wrong = new Set(await api.spellCheck(ask).catch(() => []));
     for (const w of ask) known.set(w, wrong.has(w));

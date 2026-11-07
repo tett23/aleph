@@ -1,6 +1,7 @@
 // The editors of the open sheets (docs/adr/0006, docs/adr/0019): how each is made,
 // the status bar's grid and caret, and the editor settings. The panes and tabs
 // that hold them are in panes.ts (docs/adr/0024).
+import { addCommands } from "../commands.ts";
 import type { Ctx } from "../ctx.ts";
 import { createEditor, type Editor } from "../ed/editor.ts";
 import { dispatchKey } from "../keybind.ts";
@@ -66,7 +67,7 @@ export const mountEditors = (ctx: Ctx) => {
   });
 
   // the screen that records input events for the editor's tests (docs/adr/0019)
-  ctx.commands.push({
+  addCommands(ctx.commands, {
     id: "dev.recordIme",
     menu: true,
     label: "IME のイベントを記録（開発用）",

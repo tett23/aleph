@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { backlinks, buildIndex, completeAt, findHeading, parseWikilinks, renameEdits, resolveLink, type Sheet } from "./wikilink.ts";
+import { backlinks, buildIndex, completeAt, findHeading, markMissing, parseWikilinks, renameEdits, resolveLink, type Sheet } from "./wikilink.ts";
 
 test("the forms of a link: target, label, heading, and a heading of the same sheet", () => {
   const ls = parseWikilinks("[[霧笛]] [[ 人物 | 父 ]] [[場所#灯台]] [[場所#灯台|あの灯台]] [[#前の章]]");
@@ -113,4 +113,20 @@ test("a rename rewrites links by path and by file name, keeping labels and headi
   const edits = renameEdits(text, "/w/top.md", "/w/notes/人物.md", "/w/notes/家族.md", sheets, WS);
   const out = edits.reduceRight((s, e) => s.slice(0, e.from) + e.insert + s.slice(e.to), text);
   assert.equal(out, "[[家族]] [[notes/家族|父]] [[家族#家族]] [[登場人物]] [[場所]]");
+});
+
+// ---- found in the review against the ADRs ----
+
+test("an image path resolves to the image (docs/adr/0029)", () => {
+  const s: Sheet[] = [{ path: "/w/notes/images/a.png" }, { path: "/w/notes/images/b.jpg" }, { path: "/w/notes/x.md" }];
+  assert.equal(resolveLink("images/a.png", "/w/notes/x.md", s, "/w").path, "/w/notes/images/a.png");
+  assert.equal(resolveLink("images/b.jpg", "/w/notes/x.md", s, "/w").path, "/w/notes/images/b.jpg");
+});
+
+test("the preview's links to missing targets are marked (docs/adr/0027)", () => {
+  const html = '<p><a class="wikilink" data-wikilink="人物" href="#">人物</a> <a class="wikilink" data-wikilink="未定&amp;仮" href="#">x</a></p>';
+  assert.equal(
+    markMissing(html, (t) => t === "人物"),
+    '<p><a class="wikilink" data-wikilink="人物" href="#">人物</a> <a class="wikilink missing" data-wikilink="未定&amp;仮" href="#">x</a></p>',
+  );
 });

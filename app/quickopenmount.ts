@@ -1,4 +1,5 @@
 // ⌘P (docs/adr/0022): plugs the sheet finder into the palette's box.
+import { addCommands } from "./commands.ts";
 import type { Ctx } from "./ctx.ts";
 import { basename } from "./path.ts";
 import { openPalette } from "./palette.ts";
@@ -22,7 +23,7 @@ export const mountQuickOpen = (ctx: Ctx) => {
       };
     });
   };
-  ctx.commands.push({
+  addCommands(ctx.commands, {
     id: "file.quickOpen",
     label: "シートを開く",
     icon: "search",

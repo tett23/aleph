@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkText, defaultProofread, englishWords, segments, spellDiags, type ProofreadConfig } from "./proofread.ts";
+import { checkText, defaultProofread, englishWords, segments, spellDiags, toAsk, type ProofreadConfig } from "./proofread.ts";
 
 const texts = (kind: string, src: string) => segments(kind, src).map((s) => src.slice(s.from, s.to));
 const all = defaultProofread();
@@ -63,4 +63,10 @@ test("English words: two or more Latin letters, apostrophes inside; ignored word
   const d = spellDiags(ws, new Set(["wrold", "teh"]), ["teh"]);
   assert.deepEqual(d.map((x) => src.slice(x.from, x.to)), ["wrold"]);
   assert.equal(d[0].source, "spelling");
+});
+
+test("image URLs in .md are left out; only words not asked yet are asked (docs/adr/0030)", () => {
+  assert.deepEqual(texts("md", "見て ![図](images/見れる.png) です"), ["見て ![図", " です"]);
+  const known = new Map([["hello", false]]);
+  assert.deepEqual(toAsk(["hello", "wrold", "wrold"], known), ["wrold"]);
 });

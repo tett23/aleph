@@ -317,7 +317,7 @@ const jsonLanguage = (comments: boolean, json5: boolean): Language<JsonState> =>
         continue;
       }
       if (s.match(/(?:true|false|null)\b/, "t-keyword")) continue;
-      if (/[\d.+-]/.test(c)) {
+      if (/[\d.+-]/.test(c) || (json5 && /^(?:Infinity|NaN)\b/.test(text.slice(s.pos)))) {
         JSON_NUM.lastIndex = s.pos;
         const m = JSON_NUM.exec(text);
         if (m && m[0]) {
@@ -336,6 +336,7 @@ const jsonLanguage = (comments: boolean, json5: boolean): Language<JsonState> =>
           continue;
         }
       }
+      if (s.match(/[{}[\]:,]/, "t-punct")) continue;
       s.skip();
     }
     return { tokens: s.tokens(), state: { comment, str } };

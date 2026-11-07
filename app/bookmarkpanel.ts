@@ -1,6 +1,7 @@
 // Bookmarks in the left sidebar (docs/adr/0025): sheets and lines, kept in the
 // workspace's .aleph/bookmarks.json, toggled with ⌘D and from the tree's menu.
 // The recently opened sheets (docs/adr/0026) are drawn below them.
+import { addCommands } from "./commands.ts";
 import { api } from "./api.ts";
 import { moveBookmark, parseBookmarks, relocate, removeBookmark, renameBookmarks, toggleBookmark, writeBookmarks, type Bookmark } from "./bookmarks.ts";
 import type { Ctx } from "./ctx.ts";
@@ -125,7 +126,7 @@ export const mountBookmarks = (ctx: Ctx) => {
     },
   };
 
-  ctx.commands.push(
+  addCommands(ctx.commands, 
     {
       id: "bookmark.toggle",
       label: "カーソルの行をブックマーク",

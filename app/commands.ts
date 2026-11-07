@@ -28,6 +28,9 @@ export const addCommand = (list: Command[], c: Command) => {
   list.push(c);
 };
 
+/** Several commands, each through addCommand's checks. */
+export const addCommands = (list: Command[], ...cs: Command[]) => cs.forEach((c) => addCommand(list, c));
+
 export const menuCommands = (list: Command[], s: State) => list.filter((c) => c.menu && c.when(s));
 
 const SYMBOL: Record<string, string> = { Ctrl: "⌃", Alt: "⌥", Shift: "⇧", Meta: "⌘", Cmd: "⌘" };

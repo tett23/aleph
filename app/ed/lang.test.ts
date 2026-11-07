@@ -94,8 +94,11 @@ test("lines added or removed by a change: states after them shift with them", ()
   assert.deepEqual(h.tokens(c, 5), []);
 });
 
+/** The tokens without the punctuation (that has a test of its own). */
+const vals = (kind: string, src: string, lineNo = 1) => toks(kind, src, lineNo).filter(([, c]) => c !== "t-punct");
+
 test("JSON: keys, values, numbers, literals; an open string runs to the end of the line", () => {
-  assert.deepEqual(toks("json", `{"a": "b", "n": -1.5e3, "t": [true, null]}`), [
+  assert.deepEqual(vals("json", `{"a": "b", "n": -1.5e3, "t": [true, null]}`), [
     [`"a"`, "t-attr"],
     [`"b"`, "t-string"],
     [`"n"`, "t-attr"],
@@ -104,21 +107,21 @@ test("JSON: keys, values, numbers, literals; an open string runs to the end of t
     ["true", "t-keyword"],
     ["null", "t-keyword"],
   ]);
-  assert.deepEqual(toks("json", `["x\\"y", "z`), [
+  assert.deepEqual(vals("json", `["x\\"y", "z`), [
     [`"x\\"y"`, "t-string"],
     [`"z`, "t-string"],
   ]);
 });
 
 test("JSONC: line comments, and a block comment carried to the next line", () => {
-  assert.deepEqual(toks("jsonc", `"a": 1 // note`), [
+  assert.deepEqual(vals("jsonc", `"a": 1 // note`), [
     [`"a"`, "t-attr"],
     ["1", "t-number"],
     ["// note", "t-comment"],
   ]);
   const src = `/* open\nstill */ "k": 2`;
-  assert.deepEqual(toks("jsonc", src, 1), [["/* open", "t-comment"]]);
-  assert.deepEqual(toks("jsonc", src, 2), [
+  assert.deepEqual(vals("jsonc", src, 1), [["/* open", "t-comment"]]);
+  assert.deepEqual(vals("jsonc", src, 2), [
     ["still */", "t-comment"],
     [`"k"`, "t-attr"],
     ["2", "t-number"],
@@ -126,7 +129,7 @@ test("JSONC: line comments, and a block comment carried to the next line", () =>
 });
 
 test("JSON5: bare keys, single quotes, hex, Infinity, and a string continued with a backslash", () => {
-  assert.deepEqual(toks("json5", `{key: 'v', n: 0x1F, i: -Infinity, d: .5}`), [
+  assert.deepEqual(vals("json5", `{key: 'v', n: 0x1F, i: -Infinity, d: .5}`), [
     ["key", "t-attr"],
     ["'v'", "t-string"],
     ["n", "t-attr"],
@@ -137,11 +140,11 @@ test("JSON5: bare keys, single quotes, hex, Infinity, and a string continued wit
     [".5", "t-number"],
   ]);
   const src = `a: 'one \\\ntwo', b: 1`;
-  assert.deepEqual(toks("json5", src, 1), [
+  assert.deepEqual(vals("json5", src, 1), [
     ["a", "t-attr"],
     ["'one \\", "t-string"],
   ]);
-  assert.deepEqual(toks("json5", src, 2), [
+  assert.deepEqual(vals("json5", src, 2), [
     ["two'", "t-string"],
     ["b", "t-attr"],
     ["1", "t-number"],
@@ -149,7 +152,7 @@ test("JSON5: bare keys, single quotes, hex, Infinity, and a string continued wit
 });
 
 test("JSON Lines: each line read as JSON", () => {
-  assert.deepEqual(toks("jsonl", `{"a": 1}\n["b"]`, 2), [[`"b"`, "t-string"]]);
+  assert.deepEqual(vals("jsonl", `{"a": 1}\n["b"]`, 2), [[`"b"`, "t-string"]]);
 });
 
 test(".md: wikilinks, with their marks apart from the target (docs/adr/0027)", () => {
@@ -164,4 +167,13 @@ test(".md: an embed's leading ! is a mark (docs/adr/0029)", () => {
 test(".md: strikethrough, task marks, autolinks (docs/adr/0035)", () => {
   // the list mark and the task mark are one keyword token (same class, side by side)
   assert.deepEqual(toks("md", "- [x] ~~a~~ https://x.y"), [["- [x]", "t-keyword"], ["~~a~~", "t-del"], ["https://x.y", "t-link"]]);
+});
+
+test("JSON: the punctuation is a token of its own; JSON5's NaN and 8. are numbers (docs/adr/0021)", () => {
+  assert.deepEqual(toks("json", '{"a": [1, 2]}'), [["{", "t-punct"], ['"a"', "t-attr"], [":", "t-punct"], ["[", "t-punct"], ["1", "t-number"], [",", "t-punct"], ["2", "t-number"], ["]}", "t-punct"]]);
+  assert.deepEqual(toks("json5", "[NaN, 8.]").filter(([, c]) => c === "t-number").map(([t]) => t), ["NaN", "8."]);
+});
+
+test(".md: autolinks in angle brackets and www. (docs/adr/0035)", () => {
+  assert.deepEqual(toks("md", "<https://x.y> www.x.y"), [["<https://x.y>", "t-link"], ["www.x.y", "t-link"]]);
 });

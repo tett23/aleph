@@ -12,8 +12,8 @@ import { sheetsOf } from "./quickopen.ts";
 import { allDocs, focused } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree, treeEntries, treeReloaded } from "./ui/tree.ts";
-import { backlinks, buildIndex, completeAt, findHeading, outlinks, parseWikilinks, renameEdits, resolveLink, type Index, type Sheet, type Wikilink } from "./wikilink.ts";
-import { kindOf, TEXT_KINDS } from "./workspace.ts";
+import { backlinks, buildIndex, completeAt, findHeading, markMissing, outlinks, parseWikilinks, renameEdits, resolveLink, type Index, type Sheet, type Wikilink } from "./wikilink.ts";
+import { IMAGE_KINDS, kindOf, TEXT_KINDS } from "./workspace.ts";
 import { expandEmbeds } from "./embed.ts";
 import { parseMarkdown } from "./md.ts";
 import { markdownHook, plainHtml } from "./preview/render.ts";
@@ -49,7 +49,8 @@ const reindex = (ctx: Ctx) => {
 /** Every Markdown sheet of the workspace read again, with the sheets the links can point at. */
 const rebuild = async (ctx: Ctx) => {
   const ws = wsOf(ctx);
-  sheets = ws ? sheetsOf(treeEntries(), ws, ctx.titles).filter((s) => TEXT_KINDS.includes(kindOf(s.path))) : [];
+  // the text kinds, and the images an embed shows (docs/adr/0029)
+  sheets = ws ? sheetsOf(treeEntries(), ws, ctx.titles).filter((s) => TEXT_KINDS.includes(kindOf(s.path)) || IMAGE_KINDS.includes(kindOf(s.path))) : [];
   others.clear();
   texts.clear();
   await Promise.all(sheets.filter((s) => s.path.endsWith(".md")).map(async (s) => texts.set(s.path, ctx.editors.get(s.path)?.text() ?? (await api.readText(s.path).catch(() => "")))));
@@ -147,7 +148,9 @@ const expand = async (ctx: Ctx, src: string, path: string) => {
       }
     frontier = next;
   }
-  return expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml, breaks: ctx.config.markdownBreaks });
+  const html = expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml, breaks: ctx.config.markdownBreaks });
+  // links to targets not found are drawn apart (docs/adr/0027)
+  return markMissing(html, (t) => resolveLink(t, path, sheets, wsOf(ctx)).path !== null);
 };
 
 export const mountWikilinks = (ctx: Ctx) => {

@@ -2,6 +2,7 @@
 // side, each with a row of tabs. A tab's editors are kept, hidden, while
 // another tab is shown, so the caret, the scroll and the undo history stay.
 // The state's panes and tabs are in store.ts; this keeps the DOM in step.
+import { addCommands } from "../commands.ts";
 import type { Ctx } from "../ctx.ts";
 import type { Editor } from "../ed/editor.ts";
 import { esc } from "../esc.ts";
@@ -249,7 +250,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
   };
 
   const tabCount = (st: State) => st.panes[st.pane]?.tabs.length ?? 0;
-  ctx.commands.push(
+  addCommands(ctx.commands, 
     { id: "file.newTab", label: "新しいタブでシートを開く", icon: "plus", when: (st) => !!st.workspace, run: (c) => openPalette(c, "", { alt: true }) },
     {
       id: "file.closeTab",
