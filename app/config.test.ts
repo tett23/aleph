@@ -78,3 +78,9 @@ test("the writing checks: an old config without them gets the defaults; values a
   assert.equal(c.proofread.rules.spelling, true);
   assert.deepEqual(c.proofread.ignoreWords, ["Aleph"]);
 });
+
+test("Markdown line breaks: newline by default and for unknown values (docs/adr/0035)", () => {
+  assert.equal(normalize({}).markdownBreaks, "newline");
+  assert.equal(normalize({ markdownBreaks: "blank-line" }).markdownBreaks, "blank-line");
+  assert.equal(normalize({ markdownBreaks: "x" }).markdownBreaks, "newline");
+});

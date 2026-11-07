@@ -1,5 +1,6 @@
 // A small Markdown reader shared by the preview (docs/adr/0010) and the
-// conversion to .gm (docs/adr/0016): CommonMark's common parts, no HTML.
+// conversion to .gm (docs/adr/0016): CommonMark's common parts and GFM's
+// strikethrough, task lists, autolinks and tables (docs/adr/0035), no HTML.
 import { esc } from "./esc.ts";
 
 export type Inline =
@@ -7,9 +8,16 @@ export type Inline =
   | { t: "code"; v: string }
   | { t: "strong"; c: Inline[] }
   | { t: "em"; c: Inline[] }
+  | { t: "del"; c: Inline[] }
   | { t: "link"; href: string; c: Inline[] }
   | { t: "image"; src: string; alt: string }
   | { t: "wikilink"; target: string; heading: string | null; text: string | null };
+
+/** A list item; `checked` only for a task list item (docs/adr/0035). */
+export type ListItem = { depth: number; ordered: boolean; c: Inline[]; checked?: boolean };
+
+/** How a paragraph's newlines are drawn (docs/adr/0035). */
+export type Breaks = "newline" | "blank-line";
 
 /** A line of a paragraph or quote, and whether it ends in a hard break (two spaces or a backslash). */
 export type Line = { c: Inline[]; hard: boolean };
@@ -18,7 +26,7 @@ export type Block =
   | { t: "heading"; level: number; c: Inline[] }
   | { t: "para"; lines: Line[] }
   | { t: "quote"; lines: Line[] }
-  | { t: "list"; items: { depth: number; ordered: boolean; c: Inline[] }[] }
+  | { t: "list"; items: ListItem[] }
   | { t: "code"; lang: string; text: string }
   | { t: "table"; rows: string[] }
   | { t: "hr" }
@@ -62,6 +70,19 @@ const bracket = (s: string, open: number): number => {
     else if (s[i] === "]" && --depth === 0) return i;
   }
   return -1;
+};
+
+/** A URL at the start of `s` (https://, http://, www.), without trailing punctuation or an unmatched ")". */
+const bareUrl = (s: string): string | null => {
+  const m = /^(?:https?:\/\/|www\.)[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+/i.exec(s);
+  if (!m) return null;
+  let u = m[0];
+  for (;;) {
+    if (/[?!.,:*_~'";]$/.test(u)) u = u.slice(0, -1);
+    else if (u.endsWith(")") && (u.match(/\)/g) ?? []).length > (u.match(/\(/g) ?? []).length) u = u.slice(0, -1);
+    else break;
+  }
+  return /^(?:https?:\/\/|www\.)[^/]*[A-Za-z0-9]/i.test(u) ? u : null;
 };
 
 export const parseInline = (s: string): Inline[] => {
@@ -137,6 +158,35 @@ export const parseInline = (s: string): Inline[] => {
         flush();
         out.push({ t: "strong", c: parseInline(s.slice(i + 2, end)) });
         i = end + 2;
+        continue;
+      }
+    }
+    // GFM: strikethrough with two tildes
+    if (c === "~" && s[i + 1] === "~" && s[i + 2] !== "~") {
+      const end = s.indexOf("~~", i + 2);
+      if (end > i + 2) {
+        flush();
+        out.push({ t: "del", c: parseInline(s.slice(i + 2, end)) });
+        i = end + 2;
+        continue;
+      }
+    }
+    // GFM: autolinks, <scheme:...> and URLs in the text
+    if (c === "<") {
+      const m = /^<((?:https?|mailto):[^\s<>]+)>/i.exec(s.slice(i));
+      if (m) {
+        flush();
+        out.push({ t: "link", href: m[1], c: [{ t: "text", v: m[1] }] });
+        i += m[0].length;
+        continue;
+      }
+    }
+    if ((c === "h" || c === "H" || c === "w" || c === "W") && (i === 0 || !/[A-Za-z0-9]/.test(s[i - 1]))) {
+      const url = bareUrl(s.slice(i));
+      if (url) {
+        flush();
+        out.push({ t: "link", href: /^www\./i.test(url) ? `http://${url}` : url, c: [{ t: "text", v: url }] });
+        i += url.length;
         continue;
       }
     }
@@ -223,14 +273,19 @@ export const parseMarkdown = (src: string): Block[] => {
       continue;
     }
     if (ITEM.test(l)) {
-      const items: { depth: number; ordered: boolean; c: Inline[] }[] = [];
+      const items: ListItem[] = [];
       const indents: number[] = [];
       while (i < lines.length && ITEM.test(lines[i])) {
         const m = ITEM.exec(lines[i])!;
         const indent = m[1].replace(/\t/g, "    ").length;
         while (indents.length && indent < indents[indents.length - 1]) indents.pop();
         if (!indents.length || indent > indents[indents.length - 1]) indents.push(indent);
-        items.push({ depth: indents.length - 1, ordered: /\d/.test(m[2]), c: parseInline(m[3].trim()) });
+        const task = /^\[([ xX])\]\s+(.*)$/.exec(m[3].trim());
+        items.push(
+          task
+            ? { depth: indents.length - 1, ordered: /\d/.test(m[2]), c: parseInline(task[2]), checked: task[1] !== " " }
+            : { depth: indents.length - 1, ordered: /\d/.test(m[2]), c: parseInline(m[3].trim()) },
+        );
         i++;
       }
       out.push({ t: "list", items });
@@ -285,6 +340,8 @@ export const inlineHtml = (xs: Inline[]): string =>
           return `<strong>${inlineHtml(x.c)}</strong>`;
         case "em":
           return `<em>${inlineHtml(x.c)}</em>`;
+        case "del":
+          return `<del>${inlineHtml(x.c)}</del>`;
         case "link":
           return `<a href="${esc(safeUrl(x.href))}">${inlineHtml(x.c)}</a>`;
         case "image":
@@ -295,7 +352,22 @@ export const inlineHtml = (xs: Inline[]): string =>
     })
     .join("");
 
-const linesHtml = (ls: Line[]) => ls.map((l, n) => inlineHtml(l.c) + (n < ls.length - 1 ? (l.hard ? "<br>" : "\n") : "")).join("");
+const plainOf = (xs: Inline[]): string =>
+  xs.map((x) => (x.t === "text" || x.t === "code" ? x.v : x.t === "image" ? x.alt : x.t === "wikilink" ? wikiText(x) : plainOf(x.c))).join("");
+
+/** Characters around which a soft break draws no space (CSS Text's segment break transformation). */
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\u3000-\u303F\uFF00-\uFFEF]/u;
+
+const linesHtml = (ls: Line[], breaks: Breaks) =>
+  ls
+    .map((l, n) => {
+      if (n === ls.length - 1) return inlineHtml(l.c);
+      if (breaks === "newline" || l.hard) return inlineHtml(l.c) + "<br>";
+      const a = [...plainOf(l.c)].pop() ?? "";
+      const b = [...plainOf(ls[n + 1].c)][0] ?? "";
+      return inlineHtml(l.c) + (CJK.test(a) && CJK.test(b) ? "" : "\n");
+    })
+    .join("");
 
 const cells = (row: string) =>
   row
@@ -305,7 +377,7 @@ const cells = (row: string) =>
     .split(/(?<!\\)\|/)
     .map((c) => c.trim().replace(/\\\|/g, "|"));
 
-const listHtml = (items: { depth: number; ordered: boolean; c: Inline[] }[]): string => {
+const listHtml = (items: ListItem[]): string => {
   let html = "";
   const stack: boolean[] = [];
   for (const it of items) {
@@ -315,7 +387,8 @@ const listHtml = (items: { depth: number; ordered: boolean; c: Inline[] }[]): st
       stack.push(it.ordered);
       html += it.ordered ? "<ol>" : "<ul>";
     }
-    html += `<li>${inlineHtml(it.c)}`;
+    const box = it.checked === undefined ? "" : `<input type="checkbox"${it.checked ? " checked" : ""} disabled> `;
+    html += `<li>${box}${inlineHtml(it.c)}`;
   }
   while (stack.length) html += `</li></${stack.pop() ? "ol" : "ul"}>`;
   return html;
@@ -325,24 +398,33 @@ const listHtml = (items: { depth: number; ordered: boolean; c: Inline[] }[]): st
 const embedLink = (target: string, heading: string | null) =>
   `<p><a class="wikilink" data-wikilink="${esc(target)}"${heading ? ` data-heading="${esc(heading)}"` : ""} href="#">${esc(wikiText({ target, heading, text: null }))}</a></p>`;
 
-export const markdownHtml = (src: string, embed: (target: string, heading: string | null) => string = embedLink): string =>
+/** A table's column alignments from its separator row. */
+const aligns = (row: string) =>
+  cells(row).map((c) => (/^:-+:$/.test(c) ? "center" : /^:-+$/.test(c) ? "left" : /^-+:$/.test(c) ? "right" : null));
+
+const alignAttr = (a: string | null | undefined) => (a ? ` style="text-align:${a}"` : "");
+
+export type HtmlOptions = { embed?: (target: string, heading: string | null) => string; breaks?: Breaks };
+
+export const markdownHtml = (src: string, { embed = embedLink, breaks = "blank-line" }: HtmlOptions = {}): string =>
   parseMarkdown(src)
     .map((b) => {
       switch (b.t) {
         case "heading":
           return `<h${b.level}>${inlineHtml(b.c)}</h${b.level}>`;
         case "para":
-          return `<p>${linesHtml(b.lines)}</p>`;
+          return `<p>${linesHtml(b.lines, breaks)}</p>`;
         case "quote":
-          return `<blockquote><p>${linesHtml(b.lines)}</p></blockquote>`;
+          return `<blockquote><p>${linesHtml(b.lines, breaks)}</p></blockquote>`;
         case "list":
           return listHtml(b.items);
         case "code":
           return `<pre><code${b.lang ? ` class="language-${esc(b.lang)}"` : ""}>${esc(b.text)}</code></pre>`;
         case "table": {
-          const [head, , ...body] = b.rows;
-          return `<table><thead><tr>${cells(head).map((c) => `<th>${inlineHtml(parseInline(c))}</th>`).join("")}</tr></thead><tbody>${body
-            .map((r) => `<tr>${cells(r).map((c) => `<td>${inlineHtml(parseInline(c))}</td>`).join("")}</tr>`)
+          const [head, sep, ...body] = b.rows;
+          const al = aligns(sep);
+          return `<table><thead><tr>${cells(head).map((c, k) => `<th${alignAttr(al[k])}>${inlineHtml(parseInline(c))}</th>`).join("")}</tr></thead><tbody>${body
+            .map((r) => `<tr>${cells(r).map((c, k) => `<td${alignAttr(al[k])}>${inlineHtml(parseInline(c))}</td>`).join("")}</tr>`)
             .join("")}</tbody></table>`;
         }
         case "hr":

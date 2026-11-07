@@ -74,3 +74,45 @@ test("wikilinks are read inline and drawn as links to their target (docs/adr/002
   assert.equal(markdownHtml("[[場所#灯台]]"), '<p><a class="wikilink" data-wikilink="場所" data-heading="灯台" href="#">場所 &gt; 灯台</a></p>');
   assert.deepEqual(parseInline("`[[x]]` \\[[y]]"), [{ t: "code", v: "[[x]]" }, { t: "text", v: " [[y]]" }]);
 });
+
+// ---- line breaks and GFM (docs/adr/0035) ----
+
+test("line breaks: every newline a break, or CommonMark's soft breaks; blank lines part paragraphs either way", () => {
+  assert.equal(markdownHtml("一行目\n二行目\n\n次", { breaks: "newline" }), "<p>一行目<br>二行目</p>\n<p>次</p>");
+  assert.equal(markdownHtml("a\nb  \nc\n\nd", { breaks: "blank-line" }), "<p>a\nb<br>c</p>\n<p>d</p>");
+  // a soft break between Japanese characters adds no space
+  assert.equal(markdownHtml("一行目\n二行目", { breaks: "blank-line" }), "<p>一行目二行目</p>");
+  assert.equal(markdownHtml("英語 word\nnext", { breaks: "blank-line" }), "<p>英語 word\nnext</p>");
+});
+
+test("strikethrough with two tildes only, not in code", () => {
+  assert.deepEqual(parseInline("~~消す~~と~一つ~と`~~c~~`"), [
+    { t: "del", c: [{ t: "text", v: "消す" }] },
+    { t: "text", v: "と~一つ~と" },
+    { t: "code", v: "~~c~~" },
+  ]);
+  assert.deepEqual(parseInline("~~閉じない"), [{ t: "text", v: "~~閉じない" }]);
+  assert.equal(markdownHtml("~~**a**~~"), "<p><del><strong>a</strong></del></p>");
+});
+
+test("task lists in bullet and ordered lists, nested; no space after ] is no task", () => {
+  assert.equal(
+    markdownHtml("- [ ] 書く\n- [x] 読む\n  - [X] 入れ子\n\n1. [ ] 番号\n\n- [ ]なし"),
+    '<ul><li><input type="checkbox" disabled> 書く</li><li><input type="checkbox" checked disabled> 読む<ul><li><input type="checkbox" checked disabled> 入れ子</li></ul></li></ul>\n<ol><li><input type="checkbox" disabled> 番号</li></ol>\n<ul><li>[ ]なし</li></ul>',
+  );
+});
+
+test("autolinks: <url>, and URLs in text without trailing punctuation; not javascript:, not in code", () => {
+  assert.equal(markdownHtml("<https://example.com/a>"), '<p><a href="https://example.com/a">https://example.com/a</a></p>');
+  assert.equal(markdownHtml("見てhttps://example.com/x。"), '<p>見て<a href="https://example.com/x">https://example.com/x</a>。</p>');
+  assert.equal(markdownHtml("(see www.example.com)."), '<p>(see <a href="http://www.example.com">www.example.com</a>).</p>');
+  assert.equal(markdownHtml("<javascript:alert(1)>"), "<p>&lt;javascript:alert(1)&gt;</p>");
+  assert.equal(markdownHtml("`https://x.y`"), "<p><code>https://x.y</code></p>");
+});
+
+test("tables: column alignment", () => {
+  assert.equal(
+    markdownHtml("| a | b | c | d |\n|:--|:-:|--:|---|\n| 1 | 2 | 3 | 4 |"),
+    '<table><thead><tr><th style="text-align:left">a</th><th style="text-align:center">b</th><th style="text-align:right">c</th><th>d</th></tr></thead><tbody><tr><td style="text-align:left">1</td><td style="text-align:center">2</td><td style="text-align:right">3</td><td>4</td></tr></tbody></table>',
+  );
+});

@@ -85,3 +85,8 @@ test("an image alone on its line becomes @figure even when text follows on the n
 test("a wikilink keeps only the text it shows (docs/adr/0027)", () => {
   assert.equal(mdToGm("[[人物|父]]と[[場所]]", "blank-line").trim(), "父と場所");
 });
+
+test("GFM in gm: strikethrough keeps its text, task marks become ☐ and ☑, autolinks their URL (docs/adr/0035)", () => {
+  assert.equal(mdToGm("~~消す~~と https://x.y", "blank-line").trim(), "消すと https://x.y");
+  assert.equal(mdToGm("- [ ] 書く\n- [x] 読む", "blank-line").trim(), "- ☐ 書く\n- ☑ 読む");
+});

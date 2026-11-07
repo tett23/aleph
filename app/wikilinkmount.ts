@@ -147,7 +147,7 @@ const expand = async (ctx: Ctx, src: string, path: string) => {
       }
     frontier = next;
   }
-  return expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml });
+  return expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml, breaks: ctx.config.markdownBreaks });
 };
 
 export const mountWikilinks = (ctx: Ctx) => {

@@ -165,6 +165,7 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .t-code { font-family: var(--mono); }
 .t-em { font-style: italic; }
 .t-strong { font-weight: 600; }
+.t-del { text-decoration: line-through; }
 .ed:not(.no-fallback) :is(.t-mark, .t-comment, .t-escape, .t-meta) { color: var(--faint); }
 .ed:not(.no-fallback) :is(.t-cmd, .t-keyword, .t-operator, .t-attr, .t-tag) { color: var(--cmd); }
 .ed:not(.no-fallback) :is(.t-expr, .t-string, .t-type, .t-number) { color: var(--expr); }
@@ -612,3 +613,7 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .search .hit del { color: var(--faint); }
 .search .hit strong { color: var(--accent); }
 .search .hit input, .search .hf input { margin: 0 4px 0 0; }
+
+/* GFM in the Markdown preview (docs/adr/0035) */
+.pview.md li > input[type="checkbox"] { margin: 0 0.3em 0 0; vertical-align: middle; }
+.pview.md del { color: var(--text-2); }

@@ -3,7 +3,7 @@
 // nested up to three levels, without loops, within a total of 200,000
 // characters. Reading files is done by the caller; this is pure.
 import { esc } from "./esc.ts";
-import { markdownHtml, wikiText } from "./md.ts";
+import { markdownHtml, wikiText, type Breaks } from "./md.ts";
 
 export { embedOf } from "./md.ts";
 
@@ -42,6 +42,8 @@ export type EmbedIo = {
   read: (path: string) => string | null;
   /** A .gm's text without commands (the preview's plainHtml). */
   plain: (src: string) => string;
+  /** How the Markdown's newlines are drawn (docs/adr/0035). */
+  breaks?: Breaks;
 };
 
 const note = (s: string) => `<div class="embed-note">${esc(s)}</div>`;
@@ -59,7 +61,9 @@ export const expandEmbeds = (src: string, path: string, io: EmbedIo): string => 
     return [part, true];
   };
   const draw = (text: string, at: string, stack: string[]): string =>
-    markdownHtml(text, (target, heading) => {
+    markdownHtml(text, {
+      breaks: io.breaks,
+      embed: (target, heading) => {
       const title = wikiText({ target, heading, text: null });
       const to = target ? io.resolve(target, at) : at;
       if (!to) return frame(null, title, heading, note(`（見つかりません：${target}）`));
@@ -74,6 +78,7 @@ export const expandEmbeds = (src: string, path: string, io: EmbedIo): string => 
       const [body, cut] = take(part);
       const html = kind === "md" ? draw(body, to, [...stack, to]) : kind === "gm" ? io.plain(body) : `<pre>${esc(body)}</pre>`;
       return frame(to, title, heading, html + (cut ? note("（長すぎるため省きました）") : ""));
+      },
     });
   return draw(src, path, [path]);
 };

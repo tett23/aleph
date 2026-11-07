@@ -19,6 +19,9 @@ const inline = (xs: Inline[], slot: boolean): string =>
           return `[strong: ${inline(x.c, true)}]`;
         case "em":
           return `[italic: ${inline(x.c, true)}]`;
+        // Golem has no strikethrough: its text stays (docs/adr/0035)
+        case "del":
+          return inline(x.c, slot);
         case "link":
           return inline(x.c, slot);
         case "image":
@@ -61,7 +64,9 @@ const block = (b: Block, sep: Separator): string | null => {
     case "quote":
       return lines(b.lines, sep);
     case "list":
-      return b.items.map((it) => `${"  ".repeat(it.depth)}${it.ordered ? "+" : "-"} ${inline(it.c, false)}`).join("\n");
+      return b.items
+        .map((it) => `${"  ".repeat(it.depth)}${it.ordered ? "+" : "-"} ${it.checked === undefined ? "" : it.checked ? "☑ " : "☐ "}${inline(it.c, false)}`)
+        .join("\n");
     case "code":
       return "```" + b.lang + "\n" + b.text + "\n```";
     case "table":

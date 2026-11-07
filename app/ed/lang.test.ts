@@ -160,3 +160,8 @@ test(".md: wikilinks, with their marks apart from the target (docs/adr/0027)", (
 test(".md: an embed's leading ! is a mark (docs/adr/0029)", () => {
   assert.deepEqual(toks("md", "![[人物]]"), [["![[", "t-mark"], ["人物", "t-wikilink"], ["]]", "t-mark"]]);
 });
+
+test(".md: strikethrough, task marks, autolinks (docs/adr/0035)", () => {
+  // the list mark and the task mark are one keyword token (same class, side by side)
+  assert.deepEqual(toks("md", "- [x] ~~a~~ https://x.y"), [["- [x]", "t-keyword"], ["~~a~~", "t-del"], ["https://x.y", "t-link"]]);
+});
