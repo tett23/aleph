@@ -6,7 +6,7 @@ import type { Ctx } from "./ctx.ts";
 import { isMac } from "./ed/keys.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
-import { canonical, cleanBindings, conflicts, effectiveBindings, expire, press, readBinding, reservedKey, setBinding, strokeOf, takeAway, unusableFirst, writtenBinding, type Pending, type Stroke } from "./keymap.ts";
+import { canonical, cleanBindings, conflicts, effectiveBindings, expire, overlaps, press, readBinding, reservedKey, setBinding, strokeOf, takeAway, unusableFirst, writtenBinding, type Pending, type Stroke } from "./keymap.ts";
 import { runCommand } from "./palette.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { item } from "./ui/settings.ts";
@@ -132,10 +132,17 @@ const addBinding = async (ctx: Ctx, c: Command, strokes: Stroke[]) => {
   if (cf.prefix.length) ctx.toast(`「${cf.prefix.map((id) => nameOf(ctx, id)).join("」「")}」と先頭が重なるので、待つ時間が過ぎるまで短いほうは実行されません`);
 };
 
-const row = (ctx: Ctx, c: Command) => {
+const row = (ctx: Ctx, c: Command, over: Map<string, string[]>) => {
   const user = c.id in ctx.config.keyBindings;
+  // a binding that starts another or is started by one (docs/adr/0040)
+  const mark = (b: string) => {
+    const others = over.get(`${c.id} ${(readBinding(b, ctx.config.leaderKey) ?? []).join(" ")}`);
+    return others
+      ? `<span class="kbover" title="「${esc(others.map((id) => nameOf(ctx, id)).join("」「"))}」と先頭が重なります。待つ時間が過ぎるまで短いほうは実行されません">${icon("triangle-alert", 12)}</span>`
+      : "";
+  };
   const keys = bindingsOf(ctx, c)
-    .map((b, i) => `<span class="kb"><kbd>${esc(labelOf(ctx, b))}</kbd><span class="iconbtn" data-kb-rm="${esc(c.id)}" data-kb-i="${i}" title="外す">${icon("x", 11)}</span></span>`)
+    .map((b, i) => `<span class="kb"><kbd>${esc(labelOf(ctx, b))}</kbd>${mark(b)}<span class="iconbtn" data-kb-rm="${esc(c.id)}" data-kb-i="${i}" title="外す">${icon("x", 11)}</span></span>`)
     .join("");
   return `<div class="kbrow" data-kb-row="${esc(c.id)}"><div class="d"><div>${esc(c.label)}</div><small>${esc(c.id)}</small></div><div class="keys">${keys}<span class="btn small" data-kb-add="${esc(c.id)}">＋</span>${
     user ? `<span class="btn small" data-kb-reset="${esc(c.id)}">既定に戻す</span>` : ""
@@ -145,6 +152,7 @@ const row = (ctx: Ctx, c: Command) => {
 const renderSection = (ctx: Ctx) => {
   const q = filter.toLowerCase();
   const list = ctx.commands.filter((c) => !q || c.label.toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
+  const over = overlaps(effectiveBindings(ctx.commands, ctx.config.keyBindings, ctx.config.leaderKey));
   return (
     item("リーダーキー", `割り当ての Leader をこのキーに読み替えます。今は ${esc(keyLabel(ctx.config.leaderKey))}`, `<span class="btn" data-kb-leader>記録する</span>`) +
     item(
@@ -153,7 +161,8 @@ const renderSection = (ctx: Ctx) => {
       `<input class="field num" type="number" min="200" max="5000" step="100" data-kb-timeout value="${ctx.config.keySequenceTimeout}">`,
     ) +
     `<div class="kbhead"><input class="field" data-kb-filter placeholder="名前で絞り込む" value="${esc(filter)}"><span class="btn" data-kb-resetall>すべて既定に戻す</span></div>` +
-    `<div class="kblist">${list.map((c) => row(ctx, c)).join("")}</div>`
+    (over.size ? `<div class="kbwarn">${icon("triangle-alert", 12)} 先頭が重なる割り当て：${over.size}</div>` : "") +
+    `<div class="kblist">${list.map((c) => row(ctx, c, over)).join("")}</div>`
   );
 };
 

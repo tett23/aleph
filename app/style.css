@@ -624,3 +624,7 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 /* GFM in the Markdown preview (docs/adr/0035) */
 .pview.md li > input[type="checkbox"] { margin: 0 0.3em 0 0; vertical-align: middle; }
 .pview.md del { color: var(--text-2); }
+
+/* key overlaps in the settings list (docs/adr/0040) */
+.kbrow .kbover, .kbwarn { color: var(--accent); }
+.kbwarn { display: flex; align-items: center; gap: 4px; font-size: 12px; margin: 4px 0; }
