@@ -2,7 +2,7 @@
 
 aleph は、Golem（https://github.com/tett23/golem ）の原稿を書くためのエディタとプレビューの環境である。
 Tauri で作る。ライセンスは MIT とする。
-編集できる形式は md、gm、emet、csv、tsv、toml、svg、pdf、mermaid である。
+編集できる形式は md、gm、emet、csv、tsv、toml、json、jsonc、json5、jsonl、svg、pdf、mermaid である。
 
 ## ディレクトリ構成
 

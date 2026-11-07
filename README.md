@@ -20,6 +20,7 @@ It edits these formats:
 - Golem documents (`.gm`) and Emet (`.emet`)
 - CSV (`.csv`) and TSV (`.tsv`)
 - TOML (`.toml`)
+- JSON (`.json`), JSON with Comments (`.jsonc`), JSON5 (`.json5`) and JSON Lines (`.jsonl`)
 - SVG (`.svg`)
 - PDF (`.pdf`)
 - Mermaid

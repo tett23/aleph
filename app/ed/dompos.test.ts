@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { domToOffset, lineText, offsetToDom, type Walk } from "./dompos.ts";
+import { domToOffset, lineText, nearestLine, offsetToDom, type Walk } from "./dompos.ts";
 
 // a fake DOM: elements with children, text nodes, and skipped elements (gutters, widgets)
 type N = { text?: string; skip?: boolean; kids?: N[] };
@@ -44,4 +44,15 @@ test("the text of a line leaves out gutters and widgets; a block the browser put
   const split: N = { kids: [gutter, { text: "霧" }, { block: true, kids: [{ text: "笛" }] } as N] };
   assert.equal(lineText(walk, split, (n) => !!(n as N & { block?: boolean }).block), "霧\n笛");
   assert.equal(lineText(walk, { kids: [gutter] }, () => false), "");
+});
+
+test("a position between the editor's children goes to the nearest drawn line", () => {
+  // children: gap, line, line, gap, page break, line, gap
+  const lines = [false, true, true, false, false, true, false];
+  assert.deepEqual(nearestLine(lines, 1), { index: 1, end: false }); // just before a line: its start
+  assert.deepEqual(nearestLine(lines, 3), { index: 2, end: true }); // just after a line: its end
+  assert.deepEqual(nearestLine(lines, 4), { index: 2, end: true }); // past a gap: the line before, at its end
+  assert.deepEqual(nearestLine(lines, 7), { index: 5, end: true });
+  assert.deepEqual(nearestLine(lines, 0), { index: 1, end: false }); // before everything: the first line
+  assert.equal(nearestLine([false, false], 1), null);
 });

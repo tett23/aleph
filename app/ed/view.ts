@@ -4,7 +4,7 @@
 // core; the browser moves the caret, and the selection is read back from it.
 import type { Core, Tx } from "./core.ts";
 import type { Severity } from "./diag.ts";
-import { domToOffset, domWalk, lineText, offsetToDom } from "./dompos.ts";
+import { domToOffset, domWalk, lineText, nearestLine, offsetToDom } from "./dompos.ts";
 import { blockViewport, clampPoint, createHeights, estimateSize, renderRange, scrollTarget as targetStart, type Heights } from "./heights.ts";
 import { createInput } from "./control.ts";
 import type { Highlighter } from "./lang.ts";
@@ -266,14 +266,15 @@ export const createView = (o: ViewOptions) => {
     const doc = core.doc();
     let line = lineEl(node);
     if (!line && node === content) {
-      // between children of the content: the line after, or the end of the one before
-      const after = content.childNodes[offset];
-      const before = content.childNodes[offset - 1];
-      const a = after instanceof HTMLElement && after.classList.contains("ed-line") ? after : null;
-      const b = before instanceof HTMLElement && before.classList.contains("ed-line") ? before : null;
-      if (a) return doc.line(Number(a.dataset.line)).from;
-      if (b) return doc.line(Number(b.dataset.line)).to;
-      return null;
+      // between children of the content (WebKit puts the caret there after some clicks): the nearest drawn line
+      const kids = [...content.childNodes];
+      const near = nearestLine(
+        kids.map((k) => k instanceof HTMLElement && k.classList.contains("ed-line")),
+        offset,
+      );
+      if (!near) return null;
+      const l = doc.line(Number((kids[near.index] as HTMLElement).dataset.line));
+      return near.end ? l.to : l.from;
     }
     if (!line) {
       // inside a gap or a page break: the start of the next drawn line

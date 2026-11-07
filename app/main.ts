@@ -18,6 +18,7 @@ import { mountTree, reloadTree } from "./ui/tree.ts";
 import { git, mountTools } from "./tools.ts";
 import { startRecorder } from "./ed/recorder.ts";
 import { mountEditors } from "./editor/host.ts";
+import { mountJson } from "./jsonfeature.ts";
 import { mountLsp } from "./lsp/mount.ts";
 import { mountAttach } from "./attach.ts";
 import { mountLibrary } from "./libpanel.ts";
@@ -161,6 +162,7 @@ const start = async () => {
   mountTools(ctx);
   mountEditors(ctx);
   mountLsp(ctx);
+  mountJson(ctx);
   mountDiagnostics(ctx); // lint and preflight sit beside the LSP in the status bar
   mountPreview(ctx);
   mountGit(ctx);

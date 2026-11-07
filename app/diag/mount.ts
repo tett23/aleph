@@ -115,7 +115,7 @@ export const mountDiagnostics = (ctx: Ctx) => {
       if (project) showDiag(c, project, kind);
     };
 
-  // when a project is opened, and 2.5 s after saving its .gm, .emet or .toml: lint, then preflight
+  // when a project is opened, and 2.5 s after saving its .gm, .emet, .toml or .json (docs/adr/0021): lint, then preflight
   const background = async (project: string) => {
     await runDiag(ctx, project, "lint");
     await runDiag(ctx, project, "preflight");
@@ -130,7 +130,7 @@ export const mountDiagnostics = (ctx: Ctx) => {
         void background(d.project);
       }
       const before = prev.open.find((x) => x.path === d.path);
-      if (before && before.saved !== d.saved && /\.(gm|emet|toml)$/.test(d.path)) {
+      if (before && before.saved !== d.saved && /\.(gm|emet|toml|json)$/.test(d.path)) {
         clearTimeout(timers.get(d.project));
         const p = d.project;
         timers.set(p, window.setTimeout(() => void background(p), 2500));

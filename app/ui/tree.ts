@@ -24,6 +24,10 @@ const ICONS: Record<string, string> = {
   svg: "image",
   mmd: "workflow",
   pdf: "file-type",
+  json: "file",
+  jsonc: "file",
+  json5: "file",
+  jsonl: "file",
 };
 
 let entries: Entry[] = [];

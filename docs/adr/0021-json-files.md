@@ -1,6 +1,6 @@
 # ADR 0021: JSON、JSONC、JSON5、JSON Lines のファイルを扱う
 
-ステータス: 採択（未実装）
+ステータス: 採択
 
 ## 文脈
 
