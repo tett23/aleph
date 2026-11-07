@@ -389,3 +389,13 @@ table.grid tr.dragged td { opacity: 0.45; }
 .status .chk.ng { color: var(--del); }
 .status .chk.running { opacity: 0.55; }
 .status .chk:hover { text-decoration: underline; }
+/* small dialogs */
+.modal.small { width: 440px; height: auto; flex-direction: column; padding: 18px 20px; gap: 12px; }
+.modal.small .mtitle { font-weight: 600; line-height: 1.6; }
+.modal.small .mbuttons { display: flex; gap: 8px; justify-content: flex-end; }
+.field.wide { width: 100%; font-size: 13.5px; padding: 6px 8px; }
+/* the frame */
+.welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; color: var(--text-2); text-align: center; line-height: 1.9; }
+.welcome img { width: 96px; }
+.mhead { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
+.toolbar .title small { color: var(--faint); margin-left: 6px; }
