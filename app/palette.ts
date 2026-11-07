@@ -14,7 +14,7 @@ import { runTreeAct } from "./ui/tree.ts";
 import { uiState } from "./uistate.ts";
 
 /** One row of the box. */
-export type PaletteItem = { label: string; detail?: string; hint?: string; icon?: string; marks?: number[]; run: (alt: boolean) => void };
+export type PaletteItem = { label: string; detail?: string; detailMarks?: number[]; hint?: string; icon?: string; marks?: number[]; run: (alt: boolean) => void };
 
 const RECENT_KEY = "recentCommands";
 
@@ -71,11 +71,11 @@ export const openPalette = (ctx: Ctx, initial = "") => {
           .map(
             (it, k) =>
               `<li data-k="${k}" ${k === sel ? "aria-selected" : ""}>${it.icon ? icon(it.icon, 14) : ""}<span class="pl">${marked(it.label, it.marks)}</span>${
-                it.detail ? `<small>${esc(it.detail)}</small>` : ""
+                it.detail ? `<small>${marked(it.detail, it.detailMarks)}</small>` : ""
               }${it.hint ? `<kbd>${esc(it.hint)}</kbd>` : ""}</li>`,
           )
           .join("")
-      : `<li class="empty">${mode === "commands" ? "一致するコマンドはありません" : ctx.findSheets ? "一致するシートはありません" : "先頭に > を打つと、コマンドを探します"}</li>`;
+      : `<li class="empty">${mode === "commands" ? "一致するコマンドはありません" : ctx.findSheets ? (q ? "一致するシートはありません" : "最近開いたシートはありません。名前を打つと探します") : "先頭に > を打つと、コマンドを探します"}</li>`;
     ul.querySelector("[aria-selected]")?.scrollIntoView({ block: "nearest" });
   };
   const pick = (k: number, alt: boolean) => {
@@ -107,7 +107,11 @@ export const openPalette = (ctx: Ctx, initial = "") => {
     e.preventDefault();
     pick(Number(k), e.metaKey);
   });
+  // under the overlay title bar the press that ran a menu item can arrive after its mouseup (see onPress
+  // in ui/dom.ts), so a press just after opening is that one, not one outside the box
+  const opened = performance.now();
   const outside = (e: MouseEvent) => {
+    if (performance.now() - opened < 400) return;
     if (!box.contains(e.target as Node)) close(false);
   };
   document.addEventListener("mousedown", outside, true);

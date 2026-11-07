@@ -11,13 +11,12 @@ export const mountQuickOpen = (ctx: Ctx) => {
     const ws = ctx.store.get().workspace;
     if (!ws) return [];
     return rankSheets(sheetsOf(treeEntries(), ws, ctx.titles), q, recentSheets(ws)).map((s) => {
-      const label = s.title ?? basename(s.path);
       return {
-        label,
+        label: s.title ?? basename(s.path),
         detail: s.rel,
         icon: "file-text",
-        // the marks are drawn on the label; a match on the path marks the path's file name only when it is the label
-        marks: s.field === "title" || (!s.title && s.marks.every((m) => m >= s.rel.length - label.length)) ? s.marks.map((m) => (s.field === "rel" ? m - (s.rel.length - label.length) : m)) : [],
+        marks: s.field === "title" ? s.marks : [],
+        detailMarks: s.field === "rel" ? s.marks : [],
         // ⌘↩ opens a new tab once tabs exist (docs/adr/0024); until then both replace the sheet
         run: () => void ctx.open([s.path]),
       };
