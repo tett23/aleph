@@ -15,7 +15,7 @@ export type Doc = {
 };
 
 export type LeftPanel = "files" | "bookmarks" | "search" | "git" | "diagnostics" | "library";
-export type RightPanel = "attach" | "outline" | "library";
+export type RightPanel = "attach" | "outline" | "links" | "library";
 export type SidePane = "none" | "plain" | "pages";
 
 /** A tab: one sheet, chapters opened together (and the one the right panel follows), or a project's plot (docs/adr/0024). */

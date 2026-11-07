@@ -8,7 +8,8 @@ export type Inline =
   | { t: "strong"; c: Inline[] }
   | { t: "em"; c: Inline[] }
   | { t: "link"; href: string; c: Inline[] }
-  | { t: "image"; src: string; alt: string };
+  | { t: "image"; src: string; alt: string }
+  | { t: "wikilink"; target: string; heading: string | null; text: string | null };
 
 /** A line of a paragraph or quote, and whether it ends in a hard break (two spaces or a backslash). */
 export type Line = { c: Inline[]; hard: boolean };
@@ -89,6 +90,24 @@ export const parseInline = (s: string): Inline[] => {
       text += run;
       i += run.length;
       continue;
+    }
+    // a wikilink (docs/adr/0027)
+    if (c === "[" && s[i + 1] === "[") {
+      const close = s.indexOf("]]", i + 2);
+      const inner = close < 0 ? "" : s.slice(i + 2, close);
+      if (inner.trim() && !/[[\]]/.test(inner)) {
+        const bar = inner.indexOf("|");
+        const dest = bar < 0 ? inner : inner.slice(0, bar);
+        const hash = dest.indexOf("#");
+        const heading = hash < 0 ? null : dest.slice(hash + 1).trim() || null;
+        const target = (hash < 0 ? dest : dest.slice(0, hash)).trim();
+        if (target || heading) {
+          flush();
+          out.push({ t: "wikilink", target, heading, text: bar < 0 ? null : inner.slice(bar + 1).trim() || null });
+          i = close + 2;
+          continue;
+        }
+      }
     }
     if (c === "!" && s[i + 1] === "[") {
       const close = bracket(s, i + 1);
@@ -231,6 +250,10 @@ export const parseMarkdown = (src: string): Block[] => {
 
 const safeUrl = (u: string) => (/^\s*(javascript|vbscript|data):/i.test(u) ? "#" : u);
 
+/** What a wikilink shows: its label, or the target (with " > heading"). */
+export const wikiText = (x: { target: string; heading: string | null; text: string | null }) =>
+  x.text ?? (x.heading ? (x.target ? `${x.target} > ${x.heading}` : x.heading) : x.target);
+
 export const inlineHtml = (xs: Inline[]): string =>
   xs
     .map((x) => {
@@ -247,6 +270,8 @@ export const inlineHtml = (xs: Inline[]): string =>
           return `<a href="${esc(safeUrl(x.href))}">${inlineHtml(x.c)}</a>`;
         case "image":
           return `<img src="${esc(safeUrl(x.src))}" alt="${esc(x.alt)}">`;
+        case "wikilink":
+          return `<a class="wikilink" data-wikilink="${esc(x.target)}"${x.heading ? ` data-heading="${esc(x.heading)}"` : ""} href="#">${esc(wikiText(x))}</a>`;
       }
     })
     .join("");

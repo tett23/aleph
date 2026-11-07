@@ -25,6 +25,7 @@ const RIBBON: [LeftPanel | "plot", string, string][] = [
 const RIGHT: [RightPanel, string, string][] = [
   ["attach", "paperclip", "添付（目標、キーワード、書くこと、ノート）"],
   ["outline", "list", "アウトライン"],
+  ["links", "link", "リンク（このシートを指すリンク、このシートから出るリンク）"],
   ["library", "library-big", "このプロジェクトの共有ライブラリ"],
 ];
 

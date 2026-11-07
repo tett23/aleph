@@ -115,6 +115,21 @@ const md: Language<{ fence: boolean }> = {
     s.match(/\s*([-*+]|\d+[.)])\s/, "t-keyword") || s.match(/\s*>/, "t-quote");
     while (!s.eol()) {
       if (s.match(/`[^`]*`/, "t-code")) continue;
+      if (s.match(/\\./)) continue;
+      // a wikilink (docs/adr/0027): the marks apart from the target, heading and label
+      const at = s.pos;
+      const w = s.match(/\[\[([^[\]]+)\]\]/);
+      if (w) {
+        let o = at;
+        s.push(o, o + 2, "t-mark");
+        o += 2;
+        for (const part of w[1].split(/([#|])/)) {
+          s.push(o, o + part.length, part === "#" || part === "|" ? "t-mark" : "t-wikilink");
+          o += part.length;
+        }
+        s.push(o, o + 2, "t-mark");
+        continue;
+      }
       if (s.match(/(\*\*|__)(?=\S).*?\S\1/, "t-strong")) continue;
       if (s.match(/(\*|_)(?=\S).*?\S\1/, "t-em")) continue;
       if (s.match(/!?\[[^\]]*\]\([^)]*\)/, "t-link")) continue;

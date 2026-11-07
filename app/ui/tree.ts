@@ -35,6 +35,9 @@ let entries: Entry[] = [];
 export const treeEntries = () => entries;
 const chapters = new Map<string, string[]>();
 
+/** Run after the tree and the titles were read again (the wikilinks' index, docs/adr/0027). */
+export const treeReloaded: ((ctx: Ctx) => void | Promise<void>)[] = [];
+
 /** Reads the workspace again: the tree, the projects, their chapters and the sheets' titles. */
 export const reloadTree = async (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
@@ -56,6 +59,7 @@ export const reloadTree = async (ctx: Ctx) => {
         else ctx.titles.delete(e.path);
       }),
   );
+  for (const f of treeReloaded) await f(ctx);
 };
 
 const row = (r: Row, ctx: Ctx) => {

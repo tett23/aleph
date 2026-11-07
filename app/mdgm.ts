@@ -1,6 +1,6 @@
 // Markdown to Golem (docs/adr/0016), over the same reader as the Markdown preview.
 import type { Separator } from "./manifest.ts";
-import { parseMarkdown, type Block, type Inline, type Line } from "./md.ts";
+import { parseMarkdown, wikiText, type Block, type Inline, type Line } from "./md.ts";
 
 /** Running text: [ \ and %% are escaped, and ## before a digit (Golem's ##N## numbers). */
 const escText = (s: string) => s.replace(/\\/g, "\\\\").replace(/\[/g, "\\[").replace(/%%/g, "\\%%").replace(/##(?=[0-9])/g, "\\##");
@@ -23,6 +23,8 @@ const inline = (xs: Inline[], slot: boolean): string =>
           return inline(x.c, slot);
         case "image":
           return slot ? escSlot(x.alt) : escText(x.alt);
+        case "wikilink":
+          return slot ? escSlot(wikiText(x)) : escText(wikiText(x));
       }
     })
     .join("");

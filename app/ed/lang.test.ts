@@ -151,3 +151,8 @@ test("JSON5: bare keys, single quotes, hex, Infinity, and a string continued wit
 test("JSON Lines: each line read as JSON", () => {
   assert.deepEqual(toks("jsonl", `{"a": 1}\n["b"]`, 2), [[`"b"`, "t-string"]]);
 });
+
+test(".md: wikilinks, with their marks apart from the target (docs/adr/0027)", () => {
+  assert.deepEqual(toks("md", "見て[[人物#家族|父]]だ"), [["[[", "t-mark"], ["人物", "t-wikilink"], ["#", "t-mark"], ["家族", "t-wikilink"], ["|", "t-mark"], ["父", "t-wikilink"], ["]]", "t-mark"]]);
+  assert.deepEqual(toks("md", "`[[a]]`"), [["`[[a]]`", "t-code"]]);
+});

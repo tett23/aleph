@@ -43,3 +43,7 @@ test("manuscript lines count characters without spaces, as the character count d
   assert.equal(stats(["あ　".repeat(10) + "い".repeat(10)], 20, 1).sheets, 1);
   assert.equal(stats(["あ".repeat(20) + "　".repeat(10)], 20, 1).sheets, 1);
 });
+
+test("a wikilink counts as the text it shows (docs/adr/0027)", () => {
+  assert.deepEqual(paragraphsOf("md", "父は[[人物|あの人]]と[[場所#灯台]]へ"), ["父はあの人と場所 > 灯台へ"]);
+});

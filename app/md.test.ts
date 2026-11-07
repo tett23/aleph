@@ -63,3 +63,14 @@ test("HTML for the preview: escaped, lists nested, scripts in URLs dropped", () 
   assert.equal(markdownHtml("[x](javascript:alert(1))"), '<p><a href="#">x</a>)</p>');
   assert.equal(markdownHtml("| a | b |\n|---|---|\n| 1 | `\\|` |\n"), "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td><code>|</code></td></tr></tbody></table>");
 });
+
+test("wikilinks are read inline and drawn as links to their target (docs/adr/0027)", () => {
+  assert.deepEqual(parseInline("見て[[人物#家族|父]]と[[場所]]"), [
+    { t: "text", v: "見て" },
+    { t: "wikilink", target: "人物", heading: "家族", text: "父" },
+    { t: "text", v: "と" },
+    { t: "wikilink", target: "場所", heading: null, text: null },
+  ]);
+  assert.equal(markdownHtml("[[場所#灯台]]"), '<p><a class="wikilink" data-wikilink="場所" data-heading="灯台" href="#">場所 &gt; 灯台</a></p>');
+  assert.deepEqual(parseInline("`[[x]]` \\[[y]]"), [{ t: "code", v: "[[x]]" }, { t: "text", v: " [[y]]" }]);
+});

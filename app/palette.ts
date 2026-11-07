@@ -156,6 +156,7 @@ const LEFT: [LeftPanel, string, string][] = [
 const RIGHT: [RightPanel, string, string][] = [
   ["attach", "添付", "paperclip"],
   ["outline", "アウトライン", "list"],
+  ["links", "リンク", "link"],
   ["library", "このプロジェクトの共有ライブラリ", "library-big"],
 ];
 const PREVIEW: [SidePane, string][] = [
