@@ -14,6 +14,9 @@ import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree, treeEntries, treeReloaded } from "./ui/tree.ts";
 import { backlinks, buildIndex, completeAt, findHeading, outlinks, parseWikilinks, renameEdits, resolveLink, type Index, type Sheet, type Wikilink } from "./wikilink.ts";
 import { kindOf, TEXT_KINDS } from "./workspace.ts";
+import { expandEmbeds } from "./embed.ts";
+import { parseMarkdown } from "./md.ts";
+import { markdownHook, plainHtml } from "./preview/render.ts";
 
 let index: Index = { links: [] };
 /** The Markdown sheets' texts: the editor's for open ones, the disk's for the rest. */
@@ -126,8 +129,30 @@ const drawPanel = (el: HTMLElement, ctx: Ctx) => {
   }</div>`;
 };
 
+/** The embeds' targets of a Markdown text, resolved. */
+const embedTargets = (ctx: Ctx, src: string, from: string) =>
+  parseMarkdown(src).flatMap((b) => (b.t === "embed" ? [b.target ? resolveLink(b.target, from, sheets, wsOf(ctx)).path : from] : [])).filter((p): p is string => !!p);
+
+/** A Markdown sheet's HTML with its embeds (docs/adr/0029): the targets read first, three levels deep. */
+const expand = async (ctx: Ctx, src: string, path: string) => {
+  let frontier = [{ src, path }];
+  for (let depth = 0; depth < 4 && frontier.length; depth++) {
+    const next: { src: string; path: string }[] = [];
+    for (const f of frontier)
+      for (const to of embedTargets(ctx, f.src, f.path)) {
+        if (/\.(png|jpe?g|gif|webp|svg)$/i.test(to)) continue;
+        const known = textOf(ctx, to) !== null;
+        const text = await readText(ctx, to);
+        if (!known && to.endsWith(".md")) next.push({ src: text, path: to });
+      }
+    frontier = next;
+  }
+  return expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml });
+};
+
 export const mountWikilinks = (ctx: Ctx) => {
   treeReloaded.push(rebuild);
+  markdownHook.expand = (src, path) => expand(ctx, src, path);
   ctx.right.links = { icon: "link", title: "リンク", render: (el) => {
     drawPanel(el, ctx);
     el.onclick = async (e) => {
@@ -193,6 +218,19 @@ export const mountWikilinks = (ctx: Ctx) => {
     };
   });
 
+  // an embed's head opens its target
+  document.addEventListener("click", (e) => {
+    const h = (e.target as HTMLElement).closest<HTMLElement>("[data-embed-open]");
+    if (!h) return;
+    const path = h.dataset.embedOpen!;
+    const heading = h.dataset.embedHeading ?? null;
+    void (async () => {
+      const line = heading ? findHeading(await readText(ctx, path), kindOf(path), heading) : null;
+      await ctx.open([path], line ? { line, col: 0 } : undefined);
+      if (line) ctx.editors.get(path)?.goto(line, 0);
+    })();
+  });
+
   // the preview's links
   document.addEventListener("click", (e) => {
     const a = (e.target as HTMLElement).closest<HTMLAnchorElement>("a.wikilink");
@@ -210,6 +248,17 @@ export const mountWikilinks = (ctx: Ctx) => {
       if (before && before.saved !== d.saved) {
         texts.set(d.path, d.saved);
         reindex(ctx);
+      }
+    }
+    // a saved sheet may be embedded in the preview: draw it again (docs/adr/0029)
+    for (const d of allDocs(s)) {
+      const before = allDocs(prev).find((x) => x.path === d.path);
+      if (!before || before.saved === d.saved) continue;
+      others.delete(d.path);
+      const f = focused(s);
+      if (f?.kind === "md" && f.path !== d.path) {
+        markdownHook.version++;
+        ctx.refresh(["side"]);
       }
     }
     if (s.right === "links" && s.showRight && (s.focus !== prev.focus || s.open !== prev.open)) ctx.refresh(["right"]);

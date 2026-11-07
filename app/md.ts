@@ -22,7 +22,9 @@ export type Block =
   | { t: "code"; lang: string; text: string }
   | { t: "table"; rows: string[] }
   | { t: "hr" }
-  | { t: "image"; src: string; alt: string };
+  | { t: "image"; src: string; alt: string }
+  /** A whole line `![[target#heading]]` (docs/adr/0029). */
+  | { t: "embed"; target: string; heading: string | null };
 
 // ---- inline ----
 
@@ -162,6 +164,17 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([^`\s]*)/;
 const ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
 const QUOTE = /^ {0,3}> ?(.*)$/;
 const IMAGE_LINE = /^\s*!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)\s*$/;
+const EMBED_LINE = /^\s*!\[\[([^[\]|]+)\]\]\s*$/;
+
+/** A line that is a whole embed, read into its target and heading (docs/adr/0029). */
+export const embedOf = (line: string): { target: string; heading: string | null } | null => {
+  const m = EMBED_LINE.exec(line);
+  if (!m) return null;
+  const hash = m[1].indexOf("#");
+  const target = (hash < 0 ? m[1] : m[1].slice(0, hash)).trim();
+  const heading = hash < 0 ? null : m[1].slice(hash + 1).trim() || null;
+  return target || heading ? { target, heading } : null;
+};
 const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 
 const lineOf = (raw: string): Line => {
@@ -176,7 +189,7 @@ export const parseMarkdown = (src: string): Block[] => {
   let i = 0;
   const blank = (l: string | undefined) => l === undefined || !l.trim();
   // a line that starts another block ends a paragraph
-  const starts = (l: string) => HR.test(l) || HEADING.test(l) || FENCE.test(l) || ITEM.test(l) || QUOTE.test(l) || IMAGE_LINE.test(l);
+  const starts = (l: string) => HR.test(l) || HEADING.test(l) || FENCE.test(l) || ITEM.test(l) || QUOTE.test(l) || IMAGE_LINE.test(l) || !!embedOf(l);
   while (i < lines.length) {
     const l = lines[i];
     if (blank(l)) {
@@ -233,6 +246,12 @@ export const parseMarkdown = (src: string): Block[] => {
       continue;
     }
     // an image alone on its line is a block of its own (docs/adr/0016)
+    const em = embedOf(l);
+    if (em) {
+      out.push({ t: "embed", ...em });
+      i++;
+      continue;
+    }
     const img = IMAGE_LINE.exec(l);
     if (img) {
       out.push({ t: "image", alt: img[1], src: img[2] });
@@ -302,7 +321,11 @@ const listHtml = (items: { depth: number; ordered: boolean; c: Inline[] }[]): st
   return html;
 };
 
-export const markdownHtml = (src: string): string =>
+/** An embed as a link to its target, where nothing expands it (docs/adr/0029 expands it in the preview). */
+const embedLink = (target: string, heading: string | null) =>
+  `<p><a class="wikilink" data-wikilink="${esc(target)}"${heading ? ` data-heading="${esc(heading)}"` : ""} href="#">${esc(wikiText({ target, heading, text: null }))}</a></p>`;
+
+export const markdownHtml = (src: string, embed: (target: string, heading: string | null) => string = embedLink): string =>
   parseMarkdown(src)
     .map((b) => {
       switch (b.t) {
@@ -326,6 +349,8 @@ export const markdownHtml = (src: string): string =>
           return "<hr>";
         case "image":
           return `<p><img src="${esc(safeUrl(b.src))}" alt="${esc(b.alt)}"></p>`;
+        case "embed":
+          return embed(b.target, b.heading);
       }
     })
     .join("\n");

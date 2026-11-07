@@ -156,3 +156,7 @@ test(".md: wikilinks, with their marks apart from the target (docs/adr/0027)", (
   assert.deepEqual(toks("md", "見て[[人物#家族|父]]だ"), [["[[", "t-mark"], ["人物", "t-wikilink"], ["#", "t-mark"], ["家族", "t-wikilink"], ["|", "t-mark"], ["父", "t-wikilink"], ["]]", "t-mark"]]);
   assert.deepEqual(toks("md", "`[[a]]`"), [["`[[a]]`", "t-code"]]);
 });
+
+test(".md: an embed's leading ! is a mark (docs/adr/0029)", () => {
+  assert.deepEqual(toks("md", "![[人物]]"), [["![[", "t-mark"], ["人物", "t-wikilink"], ["]]", "t-mark"]]);
+});

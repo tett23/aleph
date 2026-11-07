@@ -29,6 +29,8 @@ const inline = (xs: Inline[], slot: boolean): string =>
     })
     .join("");
 
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
+
 /** A line that would start a block in Golem keeps its first character as text. */
 const guardStart = (line: string) => (/^[#\-+=@|]/.test(line) ? `\\${line}` : line);
 
@@ -68,6 +70,9 @@ const block = (b: Block, sep: Separator): string | null => {
       return null;
     case "image":
       return `@figure ${b.src} alt="${b.alt.replace(/"/g, "")}"`;
+    // an embedded image is a figure; an embedded sheet leaves its name (docs/adr/0029)
+    case "embed":
+      return IMAGE_EXT.test(b.target) ? `@figure ${b.target}` : escText(b.target || b.heading || "");
   }
 };
 

@@ -59,10 +59,18 @@ export const renderPlain = (pane: HTMLElement, sections: PlainSection[], vertica
   void loadImages(el);
 };
 
-export const renderMarkdown = (pane: HTMLElement, src: string, vertical: boolean) => {
+/**
+ * How a Markdown sheet becomes HTML with its embeds drawn (docs/adr/0029); set
+ * by the wikilinks' mount. `version` changes when an embedded sheet is saved.
+ */
+export const markdownHook: { expand: ((src: string, path: string) => Promise<string>) | null; version: number } = { expand: null, version: 0 };
+
+export const renderMarkdown = async (pane: HTMLElement, src: string, vertical: boolean, path = "") => {
+  const html = markdownHook.expand ? await markdownHook.expand(src, path) : markdownHtml(src);
   const el = surface(pane);
   el.className = `pview plain md ${vertical ? "vertical" : ""}`;
-  el.innerHTML = markdownHtml(src);
+  el.innerHTML = html;
+  void loadImages(el);
 };
 
 /** SVG as an image: its scripts do not run. */

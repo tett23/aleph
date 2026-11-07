@@ -23,6 +23,7 @@ import {
   plainHtml,
   renderHint,
   renderImage,
+  markdownHook,
   renderMarkdown,
   renderMermaid,
   renderPageImages,
@@ -180,10 +181,10 @@ const drawSide = (head: HTMLElement, body: HTMLElement, ctx: Ctx) => {
     // several chapters open: written horizontally (docs/adr/0006), and so is their text
     return renderPlain(body, sectionsOf(docs), verticalOn(s));
   }
-  const key = `${doc.kind}|${s.vertical}|${doc.path}|${doc.text}`;
+  const key = `${doc.kind}|${s.vertical}|${doc.path}|${doc.text}|${markdownHook.version}`;
   if (key === lastKey && body.querySelector(".pview")) return;
   lastKey = key;
-  if (doc.kind === "md") return renderMarkdown(body, doc.text, s.vertical);
+  if (doc.kind === "md") return void renderMarkdown(body, doc.text, s.vertical, doc.path);
   if (doc.kind === "svg") return renderSvg(body, doc.text);
   if (doc.kind === "mmd") return void renderMermaid(body, doc.text);
 };

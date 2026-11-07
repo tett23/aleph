@@ -117,10 +117,13 @@ const md: Language<{ fence: boolean }> = {
       if (s.match(/`[^`]*`/, "t-code")) continue;
       if (s.match(/\\./)) continue;
       // a wikilink (docs/adr/0027): the marks apart from the target, heading and label
+      // an embed (docs/adr/0029): its ! is a mark too
       const at = s.pos;
+      const bang = s.match(/!(?=\[\[[^[\]]+\]\])/, "t-mark");
       const w = s.match(/\[\[([^[\]]+)\]\]/);
+      if (bang && !w) continue;
       if (w) {
-        let o = at;
+        let o = bang ? at + 1 : at;
         s.push(o, o + 2, "t-mark");
         o += 2;
         for (const part of w[1].split(/([#|])/)) {
