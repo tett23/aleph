@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calendarOf, insertRow, linesCell, moveRow, namesCell, newRow, parsePlot, stackLanes, targetFor, writePlot, type PlotRow } from "./data.ts";
+import { columnWidths, PLOT_COLUMNS, calendarOf, insertRow, linesCell, moveRow, namesCell, newRow, parsePlot, stackLanes, targetFor, writePlot, type PlotRow } from "./data.ts";
 
 const CSV = "scene,file,subplots,pov,characters,place,must,flavor,target,memo,fragments,start,end,天気\n" +
   '霧笛,chapters/01.gm,本筋,私,私、父,岬,"父が油を量る;母の不在",霧笛の回数,900,,,冬のはじめ,冬至,霧\n' +
@@ -105,4 +105,14 @@ test("calendar without a file: years and full dates sort together as dates; numb
   assert.deepEqual(calendarOf([row("2030"), row("2026-01-15"), row("2027-03")], []), ["2026-01-15", "2027-03", "2030"]);
   assert.deepEqual(calendarOf([row("5"), row("2026-01-15"), row("1")], []), ["5", "2026-01-15", "1"]);
   assert.deepEqual(calendarOf([row("2030"), row("12"), row("3")], []), ["3", "12", "2030"]);
+});
+
+test("each column has a width; the memo and the fragments are the widest", () => {
+  const w = columnWidths(["天気"]);
+  assert.equal(w.length, PLOT_COLUMNS.length + 1);
+  const at = (k: string) => w[PLOT_COLUMNS.findIndex(([c]) => c === k)];
+  const others = PLOT_COLUMNS.filter(([k]) => k !== "memo" && k !== "fragments").map(([k]) => at(k));
+  assert.ok(at("memo") > Math.max(...others));
+  assert.ok(at("fragments") >= at("memo"));
+  assert.ok(w.every((x) => x >= 80));
 });

@@ -19,6 +19,12 @@ export const PLOT_COLUMNS = [
   ["end", "終了"],
 ] as const;
 
+/** Each column's width in pixels: the memo and the fragments get room for longer text. */
+const WIDTH: Record<string, number> = { scene: 130, file: 150, subplots: 130, pov: 90, characters: 130, place: 120, must: 240, flavor: 180, target: 80, memo: 360, fragments: 440, start: 100, end: 100 };
+
+/** The widths of the fixed columns, then of the added ones. */
+export const columnWidths = (extras: string[]): number[] => [...PLOT_COLUMNS.map(([k]) => WIDTH[k]), ...extras.map(() => 160)];
+
 export type PlotKey = (typeof PLOT_COLUMNS)[number][0];
 export type PlotRow = Record<PlotKey, string> & Record<string, string>;
 export type Plot = { rows: PlotRow[]; extras: string[] };
