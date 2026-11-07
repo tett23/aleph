@@ -7,6 +7,7 @@ import { gmBlocks } from "../gm.ts";
 import { icon } from "../icons.ts";
 import { markdownHtml } from "../md.ts";
 import { ext, resolve } from "../path.ts";
+import { uiState } from "../uistate.ts";
 
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
 
@@ -108,26 +109,14 @@ export const renderHint = (pane: HTMLElement, text: string, error = false) => {
   el.innerHTML = error ? `<pre class="error">${esc(text)}</pre>` : `<div class="hint">${esc(text)}</div>`;
 };
 
-// ---- zoom, kept per viewer ----
+// ---- zoom, kept in the settings' screen state ----
 
 export const ZOOM_MIN = 0.3;
 export const ZOOM_MAX = 4;
 export const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
 
-export const loadZoom = (): number => {
-  try {
-    return clampZoom(Number(localStorage.getItem("pageZoom")) || 1);
-  } catch {
-    return 1;
-  }
-};
-export const saveZoom = (z: number) => {
-  try {
-    localStorage.setItem("pageZoom", String(z));
-  } catch {
-    /* not kept */
-  }
-};
+export const loadZoom = (): number => clampZoom(uiState().get("pageZoom", 1));
+export const saveZoom = (z: number) => uiState().set("pageZoom", z);
 
 export const zoomControls = (z: number) =>
   `<span class="zoom"><span class="iconbtn" data-zoom="out" title="縮小">${icon("zoom-out", 14)}</span><span class="zoomv" data-zoom="fit" title="幅に合わせる（100%）">${Math.round(z * 100)}%</span><span class="iconbtn" data-zoom="in" title="拡大">${icon("zoom-in", 14)}</span></span>`;

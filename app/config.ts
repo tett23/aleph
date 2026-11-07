@@ -23,6 +23,8 @@ export type Config = {
   autoCommit: boolean;
   lastAutoCommit: Record<string, string>;
   disabledPlugins: string[];
+  /** The screen's state kept between launches (panels, preview, zooms), written by the main window. */
+  ui: Record<string, unknown>;
 };
 
 export const defaults = (): Config => ({
@@ -45,6 +47,7 @@ export const defaults = (): Config => ({
   autoCommit: true,
   lastAutoCommit: {},
   disabledPlugins: [],
+  ui: {},
 });
 
 const clamp = (v: unknown, lo: number, hi: number, d: number) =>
@@ -81,6 +84,7 @@ export const normalize = (raw: unknown): Config => {
         ? Object.fromEntries(Object.entries(r.lastAutoCommit).filter((e): e is [string, string] => typeof e[1] === "string"))
         : d.lastAutoCommit,
     disabledPlugins: Array.isArray(r.disabledPlugins) ? r.disabledPlugins.filter((p): p is string => typeof p === "string") : d.disabledPlugins,
+    ui: r.ui && typeof r.ui === "object" && !Array.isArray(r.ui) ? (r.ui as Record<string, unknown>) : d.ui,
   };
 };
 

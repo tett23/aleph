@@ -49,3 +49,11 @@ test("dark applies by the theme, or by the system in auto", () => {
   assert.equal(isDark("auto", true), true);
   assert.equal(isDark("auto", false), false);
 });
+
+test("the kept screen state: an object is kept as it is, anything else is empty", () => {
+  const ui = { left: "git", vertical: true, expanded: ["/w/a"], pageZoom: 1.5 };
+  assert.deepEqual(normalize({ ui }).ui, ui);
+  assert.deepEqual(normalize({ ui: "x" }).ui, {});
+  assert.deepEqual(normalize({ ui: [1] }).ui, {});
+  assert.deepEqual(normalize({}).ui, {});
+});

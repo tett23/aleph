@@ -7,6 +7,7 @@ import { api } from "../api.ts";
 import { esc } from "../esc.ts";
 import { h, icon } from "../icons.ts";
 import { basename } from "../path.ts";
+import { uiState } from "../uistate.ts";
 import { confirmDialog, ask, toast } from "../ui/dom.ts";
 import {
   PLOT_COLUMNS,
@@ -105,21 +106,6 @@ const editCalendar = (labels: string[]): Promise<string[] | null> =>
     ta.focus();
   });
 
-const kept = (key: string, d: number) => {
-  try {
-    return Number(localStorage.getItem(key)) || d;
-  } catch {
-    return d;
-  }
-};
-const keep = (key: string, v: number) => {
-  try {
-    localStorage.setItem(key, String(v));
-  } catch {
-    /* not kept */
-  }
-};
-
 export type PlotView = { reload: () => Promise<void>; destroy: () => void };
 
 export const openPlotWindow = (project: string) =>
@@ -134,7 +120,7 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
   let showTable = true;
   let showGantt = true;
   let filter: string | null = null;
-  let gz = Math.min(4, Math.max(0.4, kept("ganttZoom", 1)));
+  let gz = Math.min(4, Math.max(0.4, uiState().get("ganttZoom", 1)));
   let timer = 0;
   const el = h(`<div class="plot"></div>`);
   parent.replaceChildren(el);
@@ -150,7 +136,7 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
   };
   const setGz = (z: number) => {
     gz = Math.min(4, Math.max(0.4, z));
-    keep("ganttZoom", gz);
+    uiState().set("ganttZoom", gz);
   };
   const blank = () => newRow(extras, filter ? { subplots: filter } : {});
 
