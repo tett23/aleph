@@ -624,4 +624,3 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 /* GFM in the Markdown preview (docs/adr/0035) */
 .pview.md li > input[type="checkbox"] { margin: 0 0.3em 0 0; vertical-align: middle; }
 .pview.md del { color: var(--text-2); }
-||||||| 44c2c21
