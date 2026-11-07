@@ -1,8 +1,11 @@
-// A sheet's goal, note and checked items, in .aleph/notes.json of its project
-// (or of its workspace, outside projects), keyed by the path from that root (docs/adr/0012).
+// A sheet's goal, note, checked items and keywords, in .aleph/notes.json of its
+// project (or of its workspace, outside projects), keyed by the path from that
+// root (docs/adr/0012, keywords in docs/adr/0028).
 
-export type SheetMeta = { goal?: number; note: string; done: string[] };
+export type SheetMeta = { goal?: number; note: string; done: string[]; keywords?: string[] };
 export type Meta = Record<string, SheetMeta>;
+
+const empty = (m: SheetMeta) => !m.note && !m.done.length && !m.goal && !m.keywords?.length;
 
 export const parseMeta = (text: string): Meta => {
   let raw: unknown;
@@ -22,14 +25,26 @@ export const parseMeta = (text: string): Meta => {
       done: Array.isArray(v.done) ? v.done.filter((d): d is string => typeof d === "string") : [],
     };
     if (typeof v.goal === "number" && v.goal > 0) m.goal = v.goal;
-    out[k] = m;
+    const kws = Array.isArray(v.keywords) ? v.keywords.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
+    if (kws.length) m.keywords = kws;
+    if (!empty(m)) out[k] = m;
   }
   return out;
 };
 
-const empty = (m: SheetMeta) => !m.note && !m.done.length && !m.goal;
-
-export const writeMeta = (m: Meta): string => JSON.stringify(Object.fromEntries(Object.entries(m).filter(([, v]) => !empty(v))), null, 2) + "\n";
+export const writeMeta = (m: Meta): string =>
+  JSON.stringify(
+    Object.fromEntries(
+      Object.entries(m)
+        .filter(([, v]) => !empty(v))
+        .map(([k, v]) => {
+          const { keywords, ...rest } = v;
+          return [k, keywords?.length ? { ...rest, keywords } : rest];
+        }),
+    ),
+    null,
+    2,
+  ) + "\n";
 
 export const metaFor = (m: Meta, key: string): SheetMeta => m[key] ?? { note: "", done: [] };
 
