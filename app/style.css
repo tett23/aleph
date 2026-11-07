@@ -325,7 +325,8 @@ table.grid td:has(.chips) .cell { font-size: 11px; color: var(--faint); min-heig
 .inv-zsp { outline: 1px solid color-mix(in srgb, var(--faint) 60%, transparent); outline-offset: -3px; border-radius: 2px; }
 .inv-tab { position: relative; }
 .inv-tab::before { content: "→"; position: absolute; inset-inline-start: 0; color: var(--faint); font: 0.8em var(--ui); line-height: inherit; pointer-events: none; }
-.ed-eol { color: var(--faint); font: 11px var(--ui); margin-inline-start: 2px; pointer-events: none; user-select: none; -webkit-user-select: none; }
+/* the end-of-line mark; on an empty line it goes before the <br>, which would otherwise push it onto a second row */
+.ed-line[data-eol]:not(.empty)::after, .ed-line[data-eol].empty::before { content: "↵"; color: var(--faint); font: 11px var(--ui); margin-inline-start: 2px; pointer-events: none; user-select: none; -webkit-user-select: none; }
 .ed-special { background: color-mix(in srgb, var(--del) 35%, transparent); padding-inline-end: 3px; border-radius: 1px; }
 [hidden] { display: none !important; }
 .plain-note { color: var(--faint); font: 11px var(--ui); margin-bottom: 10px; writing-mode: horizontal-tb; }

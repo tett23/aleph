@@ -28,10 +28,10 @@ test("diagnostics are kept inside the text, and one at a point underlines the ne
   assert.deepEqual(
     out.map((d) => [d.from, d.to, d.cls]),
     [
-      [1, 2, "diag diag-error"],
-      [2, 2, "diag diag-error"],
-      [4, 6, "diag diag-warning"],
-      [6, 6, "diag diag-info"],
+      [1, 2, "ed-diag diag-error"],
+      [2, 2, "ed-diag diag-error"],
+      [4, 6, "ed-diag diag-warning"],
+      [6, 6, "ed-diag diag-info"],
     ],
   );
   assert.equal(out[0].message, "a");

@@ -25,6 +25,6 @@ export const clampDiagnostics = (doc: Text, list: Diag[]): (Diag & { cls: string
     const from = Math.min(Math.max(0, d.from), len);
     const to = Math.max(from, Math.min(d.to, len));
     const point = to === from && from < len && doc.slice(from, from + 1) !== "\n";
-    return { ...d, from, to: point ? from + 1 : to, cls: `diag diag-${d.severity}` };
+    return { ...d, from, to: point ? from + 1 : to, cls: `ed-diag diag-${d.severity}` };
   });
 };

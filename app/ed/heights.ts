@@ -79,3 +79,9 @@ const EDGE = 24;
 /** Where the viewport should start to show a line at `at` of `size`: centred, or moved just enough to bring it in. */
 export const scrollTarget = (at: number, size: number, vp: { start: number; size: number }, center: boolean) =>
   center ? at - vp.size * 0.4 : at < vp.start ? at - EDGE : at + size > vp.start + vp.size ? at + size - vp.size + EDGE : vp.start;
+
+/** A point moved just inside a box (a press right of the lines, or beyond their ends, finds the nearest line). */
+export const clampPoint = (box: Box, x: number, y: number) => ({
+  x: Math.min(Math.max(x, box.left + 1), box.right - 1),
+  y: Math.min(Math.max(y, box.top + 1), box.bottom - 1),
+});

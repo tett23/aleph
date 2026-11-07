@@ -5,7 +5,7 @@
 import type { Core, Tx } from "./core.ts";
 import type { Severity } from "./diag.ts";
 import { domToOffset, domWalk, lineText, offsetToDom } from "./dompos.ts";
-import { blockViewport, createHeights, estimateSize, renderRange, scrollTarget as targetStart, type Heights } from "./heights.ts";
+import { blockViewport, clampPoint, createHeights, estimateSize, renderRange, scrollTarget as targetStart, type Heights } from "./heights.ts";
 import { createInput } from "./control.ts";
 import type { Highlighter } from "./lang.ts";
 import { invisibleRanges, lineSpans, specialRanges, type Range } from "./spans.ts";
@@ -141,12 +141,10 @@ export const createView = (o: ViewOptions) => {
           line.append(sp);
         }
       }
-    if (invisibles && n < core.doc().lines) {
-      const eol = Object.assign(el("span", "ed-eol", false), { textContent: "↵" });
-      // on an empty line the mark goes before the <br>, which would otherwise push it onto a second row
-      if (text) line.append(eol);
-      else line.insertBefore(eol, line.lastChild);
-    }
+    // the end-of-line mark is drawn by CSS, not as an element: an element at the end of the line would
+    // give the DOM a caret position after it, which WebKit draws at the far edge of the line
+    if (invisibles && n < core.doc().lines) line.dataset.eol = "";
+    if (!text) line.classList.add("empty");
     return line;
   };
 
@@ -437,6 +435,23 @@ export const createView = (o: ViewOptions) => {
     revealCaret();
   };
 
+  /**
+   * A press in the editor but outside the lines' box (right of the column, past the last line): WebKit
+   * would put the caret wherever it likes, so the editor puts it on the nearest line itself.
+   */
+  const onOutsideDown = (e: MouseEvent) => {
+    if (e.button !== 0 || content.contains(e.target as Node)) return;
+    e.preventDefault();
+    const p = clampPoint(content.getBoundingClientRect(), e.clientX, e.clientY);
+    const pos = posAtCoords(p.x, p.y);
+    if (pos === null) return;
+    content.focus({ preventScroll: true });
+    core.select({ anchor: e.shiftKey ? core.sel().anchor : pos, head: pos }, true);
+    if (!units.has(core.doc().lineAt(pos).number)) draw();
+    writeSelection();
+    o.onUpdate?.(null);
+  };
+
   const onKeyDown = (e: KeyboardEvent) => {
     if (input.keyDown({ key: e.key, isComposing: e.isComposing, keyCode: e.keyCode })) return;
     syncFromDom(false);
@@ -470,6 +485,7 @@ export const createView = (o: ViewOptions) => {
       o.onBlur?.();
     }],
     [content, "dragstart", (e) => e.preventDefault()],
+    [scrollEl, "mousedown", onOutsideDown as EventListener],
     [document, "selectionchange", onSelectionChange],
   ];
   for (const [t, k, f, opt] of listeners) t.addEventListener(k, f, opt);
