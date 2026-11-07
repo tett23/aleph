@@ -34,6 +34,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0017](adr/0017-aleph-plugins.md) | Aleph のプラグイン（実装済み） |
 | [ADR 0018](adr/0018-drag-image-from-tree.md) | ツリーの画像をエディタにドラッグして図版を差し込む（実装済み） |
 | [ADR 0019](adr/0019-one-editor-for-both-writing-modes.md) | 縦書きと横書きを一つのエディタで書く（一から作る、仮想化、IME、縦書きでも LSP と整形、複数ファイルでも縦書き） |
+| [ADR 0020](adr/0020-project-rows-in-the-tree.md) | ツリーのプロジェクトの行を高くし、太字と区切りの線で目立たせる |
 
 ## アプリの構成
 
