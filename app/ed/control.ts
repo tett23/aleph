@@ -31,6 +31,8 @@ export const createInput = (core: Core) => {
     /** "prevent" when the editor took the event (the DOM is drawn from the core); "allow" when the browser should go on. */
     beforeInput: (e: BeforeInput): "prevent" | "allow" => {
       if (e.isComposing || ime.composing()) return "allow";
+      // text dragged within or into the editor is not taken in (images come through the app's own drops)
+      if (e.inputType === "insertFromDrop") return "prevent";
       const r = inputChange({ inputType: e.inputType, data: e.data }, core.range(), core.doc());
       if (r && "command" in r) {
         if (r.command === "compose") return "allow";

@@ -85,8 +85,11 @@ input.field:focus, textarea.field:focus { border-color: var(--text-2); }
 .tree .r .ic { color: var(--text-2); }
 /* project rows stand out from files and folders (docs/adr/0020) */
 .tree .r.proj { min-height: 34px; font-weight: 600; font-size: 13.5px; }
-.tree .r.proj > .ic.book { color: var(--text); }
-.tree .r.proj:not(:first-child) { margin-top: 6px; border-top: 1px solid var(--border); border-radius: 0 0 5px 5px; }
+/* the svg inside carries the .ic class too, so it is coloured directly */
+.tree .r.proj > .ic.book, .tree .r.proj > .ic.book .ic { color: var(--text); }
+/* the divider is drawn in the gap above, so the row keeps its rounded hover background */
+.tree .r.proj:not(:first-child) { margin-top: 6px; position: relative; }
+.tree .r.proj:not(:first-child)::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; border-top: 1px solid var(--border); }
 .tree .r .ttl { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .tree .r .fn { color: var(--faint); font-size: 11px; }
 .tree .r .c { margin-left: auto; color: var(--faint); font-size: 11px; display: flex; align-items: center; gap: 6px; padding-left: 6px; }
@@ -138,22 +141,17 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .ed-line { position: relative; }
 .ed-gap { pointer-events: none; }
 .ed-content ::selection { background: var(--sel); }
-.ed-gut { position: absolute; inset-inline-start: calc(-1 * var(--gw)); inset-block-start: 0; inline-size: var(--gw); block-size: calc(var(--fs) * var(--elh)); display: flex; align-items: stretch; color: var(--faint); font: 11px/1 var(--ui); user-select: none; -webkit-user-select: none; writing-mode: horizontal-tb; }
-.ed:not(.vertical) .ed-gut { height: calc(var(--fs) * var(--elh)); width: var(--gw); left: calc(-1 * var(--gw)); top: 0; }
-.chg-slot { width: 9px; display: flex; align-items: stretch; padding: 6px 0; flex: none; }
-.ed-gut .ln { flex: 1; min-width: 28px; padding: 0 12px 0 2px; display: flex; align-items: center; justify-content: flex-end; }
-.dg-slot { width: 14px; flex: none; display: flex; align-items: center; justify-content: center; }
-/* in vertical writing the gutter sits above the line: the change mark, the number, then the diagnostic */
-.ed.vertical .ed-gut { position: absolute; top: calc(-1 * var(--gw)); right: 0; left: auto; width: calc(var(--fs) * var(--elh)); height: var(--gw); flex-direction: column; align-items: center; }
-.ed.vertical .chg-slot { width: auto; height: 9px; padding: 0 6px; flex-direction: column; justify-content: center; }
-.ed.vertical .ed-gut .ln { flex: none; min-width: 0; padding: 4px 0 2px; justify-content: center; font-size: 10.5px; }
-.ed.vertical .dg-slot { width: auto; height: 12px; }
-.chg { width: 3px; border-radius: 1px; }
-.ed.vertical .chg { width: 16px; height: 3px; }
+/* the gutter takes the editor's writing mode: logical positions put it left of each line in horizontal writing and above it in vertical (docs/adr/0019) */
+.ed-gut { position: absolute; inset-inline-start: calc(-1 * var(--gw)); inset-block-start: 0; inline-size: var(--gw); block-size: calc(var(--fs) * var(--elh)); display: flex; align-items: stretch; color: var(--faint); font: 11px/1 var(--ui); user-select: none; -webkit-user-select: none; }
+.chg-slot { inline-size: 9px; flex: none; display: flex; align-items: stretch; padding-block: 6px; }
+.ed-gut .ln { flex: 1; min-inline-size: 28px; padding-inline: 2px 12px; display: flex; align-items: center; justify-content: flex-end; }
+.dg-slot { inline-size: 14px; flex: none; display: flex; align-items: center; justify-content: center; }
+/* in vertical writing the number stands upright in one column (tate-chu-yoko) */
+.ed.vertical .ed-gut .ln { min-inline-size: 0; padding-inline: 2px 4px; font-size: 10.5px; text-combine-upright: all; }
+.chg { inline-size: 3px; border-radius: 1px; }
 .chg-add { background: var(--add); }
 .chg-mod { background: var(--mod); }
-.chg-del { width: 0; height: 0; border-left: 5px solid var(--del); border-top: 4px solid transparent; border-bottom: 4px solid transparent; align-self: flex-start; margin-top: -4px; }
-.ed.vertical .chg-del { width: 8px; height: 3px; border: none; background: var(--del); margin: 0; align-self: center; }
+.chg-del { inline-size: 0; block-size: 0; border-inline-start: 5px solid var(--del); border-block: 4px solid transparent; align-self: flex-start; margin-block-start: -4px; }
 .dg { width: 9px; height: 9px; border-radius: 50%; }
 .dg-error { background: var(--del); }
 .dg-warning { background: var(--mod); }

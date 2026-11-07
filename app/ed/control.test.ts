@@ -158,3 +158,21 @@ test("composing works the same in either writing mode: the controller sees only 
   };
   assert.equal(seq(createCore("霧")), "霧笛");
 });
+
+test("pasting comes in through beforeinput as one step, with CRLF made LF and the selection replaced", () => {
+  const core = createCore("灯台の海");
+  const input = createInput(core);
+  core.select({ anchor: 2, head: 3 });
+  assert.equal(input.beforeInput({ inputType: "insertFromPaste", data: "霧\r\n笛", isComposing: false }), "prevent");
+  assert.equal(core.text(), "灯台霧\n笛海");
+  assert.deepEqual(core.sel(), { anchor: 5, head: 5 });
+  core.undo();
+  assert.equal(core.text(), "灯台の海");
+});
+
+test("a drop of text is not taken in", () => {
+  const core = createCore("灯台");
+  const input = createInput(core);
+  assert.equal(input.beforeInput({ inputType: "insertFromDrop", data: "x", isComposing: false }), "prevent");
+  assert.equal(core.text(), "灯台");
+});
