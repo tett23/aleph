@@ -30,11 +30,11 @@ import {
   renderPlain,
   renderSvg,
   saveZoom,
-  withImagePaths,
   zoomByClick,
   zoomControls,
 } from "./render.ts";
-import { chapterBody, xhtmlPath } from "./xhtml.ts";
+import { xhtmlPath } from "./xhtml.ts";
+import { chapterBody } from "./xhtmldom.ts";
 
 // ---- builds ----
 
@@ -65,8 +65,8 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
     if (o.code === 0)
       for (const p of paths) {
         const x = xhtmlPath(project, p);
-        const body = chapterBody(await api.readText(x).catch(() => ""));
-        if (body.html) html.set(p, withImagePaths(body.html, dirname(x)));
+        const body = chapterBody(await api.readText(x).catch(() => ""), { dir: dirname(x), root: `${project}/build/html` });
+        if (body.html) html.set(p, body.html);
       }
   } catch (e) {
     b.error = String(e);

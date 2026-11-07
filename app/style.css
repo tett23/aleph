@@ -635,3 +635,6 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .links .lkh { padding: 4px 6px; border-radius: 5px; font-weight: 600; font-size: 12.5px; cursor: default; }
 .links .lkh:hover { background: var(--bg-3); }
 .links .lkg .lk { padding-left: 14px; }
+
+/* an image of Golem's HTML outside build/html, dropped (docs/adr/0043) */
+.plain .img-alt { color: var(--faint); font-size: 0.85em; }
