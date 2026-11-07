@@ -10,7 +10,8 @@ import { mountPlotFeature, startPlotWindow } from "./plot/mount.ts";
 import { listen } from "@tauri-apps/api/event";
 import type { Ctx } from "./ctx.ts";
 import { allDocs, createStore, initialState, type State } from "./store.ts";
-import { toast } from "./ui/dom.ts";
+import { confirmDialog, toast } from "./ui/dom.ts";
+import { guardLinks } from "./links.ts";
 import { item } from "./ui/settings.ts";
 import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
 import { openPaths } from "./docs.ts";
@@ -215,6 +216,8 @@ const start = async () => {
   void mountPlugins(ctx);
 };
 
+// links never move a window; http(s) opens in the browser after asking (docs/adr/0044)
+guardLinks(api.openUrl, confirmDialog);
 const view = new URLSearchParams(location.search).get("view");
 if (view === "plot") void startPlotWindow(new URLSearchParams(location.search).get("project") ?? "");
 else if (view === "pages" || view === "plain") void startPreviewWindow(view, new URLSearchParams(location.search).get("project") ?? "");
