@@ -442,7 +442,7 @@ fn git(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
             process::searched("git", &process::GIT_ORDER, &r).join("、")
         )
     })?;
-    process::run(&git, Path::new(&cwd), &args)
+    process::run(&git, Path::new(&cwd), &process::git_args(&args))
 }
 
 #[cfg(test)]
