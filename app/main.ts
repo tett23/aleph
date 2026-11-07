@@ -5,6 +5,8 @@ import { normalize, type Config } from "./config.ts";
 import { applyTheme } from "./theme.ts";
 import { mountPreview } from "./preview/mount.ts";
 import { startPreviewWindow } from "./preview/window.ts";
+import { mountPlotFeature, startPlotWindow } from "./plot/mount.ts";
+import { listen } from "@tauri-apps/api/event";
 import type { Ctx } from "./ctx.ts";
 import { createStore, initialState, type State } from "./store.ts";
 import { toast } from "./ui/dom.ts";
@@ -148,6 +150,9 @@ const start = async () => {
   mountLsp(ctx);
   mountPreview(ctx);
   mountGit(ctx);
+  mountPlotFeature(ctx);
+  // a file to open, sent by another window (the plot window)
+  void listen<{ path: string }>("aleph:open", (e) => void ctx.open([e.payload.path]));
   ctx.verticalEditor = createVertical;
   await reloadTree(ctx);
   store.subscribe((s, prev) => {
@@ -165,5 +170,6 @@ const start = async () => {
 };
 
 const view = new URLSearchParams(location.search).get("view");
-if (view === "pages" || view === "plain") void startPreviewWindow(view, new URLSearchParams(location.search).get("project") ?? "");
+if (view === "plot") void startPlotWindow(new URLSearchParams(location.search).get("project") ?? "");
+else if (view === "pages" || view === "plain") void startPreviewWindow(view, new URLSearchParams(location.search).get("project") ?? "");
 else void start();

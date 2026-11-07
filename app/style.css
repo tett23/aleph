@@ -431,3 +431,7 @@ table.grid tr.dragged td { opacity: 0.45; }
 .pwin .phead { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--text-2); font-size: 12px; border-bottom: 1px solid var(--border); flex: none; }
 .pwin .phead .sp { flex: 1; }
 .pwin .pbody { flex: 1; overflow: auto; min-height: 0; }
+.plotwin .pbody { overflow: hidden; }
+.modal.cal { width: 440px; }
+.modal.cal textarea { width: 100%; height: 280px; font: 13px/1.7 var(--body); }
+.modal.cal .muted { font-size: 12px; line-height: 1.7; margin-bottom: 8px; }
