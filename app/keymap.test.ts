@@ -178,3 +178,12 @@ test("replacing takes the binding away from the other command (docs/adr/0034)", 
   ];
   assert.deepEqual(takeAway({}, cmds, ["git.commit"], ["Mod-s"], "Mod-;"), { "git.commit": ["Mod-Shift-k"] });
 });
+
+test("⇧⌘W is the menu's, ⌘W can be bound; ⌘W unbound from file.closeTab reaches nothing (docs/adr/0036)", () => {
+  assert.equal(reservedKey("Mod-Shift-w"), true);
+  assert.equal(reservedKey("Mod-w"), false);
+  const cmds = [{ id: "file.closeTab", keys: ["Mod-w"] }];
+  assert.deepEqual(press(effectiveBindings(cmds, {}, "Mod-;"), null, "Mod-w", 0, 1000).run, ["file.closeTab"]);
+  const off = effectiveBindings(cmds, { "file.closeTab": [] }, "Mod-;");
+  assert.deepEqual(press(off, null, "Mod-w", 0, 1000), { pending: null, run: [], take: false, retry: false });
+});
