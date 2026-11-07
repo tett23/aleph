@@ -16,6 +16,8 @@ export const api = {
   configSave: (json: string) => invoke<void>("config_save", { json }),
   listTree: (root: string) => invoke<Entry[]>("list_tree", { root }),
   readText: (path: string) => invoke<string>("read_text", { path }),
+  /** The English words spelled wrong, by macOS (docs/adr/0030). */
+  spellCheck: (words: string[]) => invoke<string[]>("spell_check", { words }),
   readBytes: (path: string) => invoke<ArrayBuffer>("read_bytes", { path }),
   writeText: (path: string, content: string) => invoke<void>("write_text", { path, content }),
   exists: (path: string) => invoke<boolean>("exists", { path }),

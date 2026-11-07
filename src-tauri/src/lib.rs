@@ -5,6 +5,7 @@ mod fsops;
 mod lsp;
 mod process;
 mod search;
+mod spell;
 mod window;
 
 use std::path::{Path, PathBuf};
@@ -75,6 +76,12 @@ fn rename_path(from: String, to: String) -> R<()> {
 #[tauri::command]
 fn copy_file(from: String, to: String) -> R<()> {
     fsops::copy_file(Path::new(&from), Path::new(&to)).map_err(err)
+}
+
+/// The English words of a sheet that are spelled wrong (docs/adr/0030).
+#[tauri::command]
+fn spell_check(words: Vec<String>) -> Vec<String> {
+    spell::misspelled(&words)
 }
 
 #[tauri::command]
@@ -438,6 +445,7 @@ pub fn run_app() {
             config_load,
             config_save,
             list_tree,
+            spell_check,
             read_text,
             read_bytes,
             write_text,

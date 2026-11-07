@@ -28,3 +28,9 @@ export const clampDiagnostics = (doc: Text, list: Diag[]): (Diag & { cls: string
     return { ...d, from, to: point ? from + 1 : to, cls: `ed-diag diag-${d.severity}` };
   });
 };
+
+/** Diagnostics by source (the LSP, the writing checks of docs/adr/0030): a source's list replaced, the others kept. */
+export const withSource = (by: Map<string, Diag[]>, source: string, list: Diag[]): Map<string, Diag[]> => new Map(by).set(source, list);
+
+/** Every source's diagnostics together, in document order. */
+export const allSources = (by: Map<string, Diag[]>): Diag[] => [...by.values()].flat().sort((a, b) => a.from - b.from || a.to - b.to);

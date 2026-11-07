@@ -1,6 +1,7 @@
 // The app's settings, kept in config.json in the app's config directory (docs/adr/0004).
 // The pure part (defaults and clamping) is tested with node --test.
 import { clampTimeout, DEFAULT_LEADER, DEFAULT_TIMEOUT, leaderOf } from "./keymap.ts";
+import { defaultProofread, readProofread, type ProofreadConfig } from "./proofread.ts";
 
 export type Theme = "auto" | "light" | "dark";
 
@@ -29,6 +30,8 @@ export type Config = {
   leaderKey: string;
   /** How long to wait for the next stroke of a sequence, in milliseconds. */
   keySequenceTimeout: number;
+  /** The writing checks (docs/adr/0030). */
+  proofread: ProofreadConfig;
   /** The screen's state kept between launches (panels, preview, zooms), written by the main window. */
   ui: Record<string, unknown>;
 };
@@ -56,6 +59,7 @@ export const defaults = (): Config => ({
   keyBindings: {},
   leaderKey: DEFAULT_LEADER,
   keySequenceTimeout: DEFAULT_TIMEOUT,
+  proofread: defaultProofread(),
   ui: {},
 });
 
@@ -102,6 +106,7 @@ export const normalize = (raw: unknown): Config => {
         : d.keyBindings,
     leaderKey: leaderOf(r.leaderKey),
     keySequenceTimeout: clampTimeout(r.keySequenceTimeout),
+    proofread: readProofread(r.proofread),
     ui: r.ui && typeof r.ui === "object" && !Array.isArray(r.ui) ? (r.ui as Record<string, unknown>) : d.ui,
   };
 };
