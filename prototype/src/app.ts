@@ -13,11 +13,13 @@ import { esc, h, icon } from "./icons";
 import { lspFor } from "./lsp";
 import { dropIntoLibrary, mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
 import { mountPlot } from "./plot";
+import { applyZoom, setZoom, zoom, zoomControls, renderImage } from "./preview";
 import { buildChapterHtml, buildPages, renderEvaluated, renderMarkdown, renderMermaid, renderPages, renderPdf, renderSvg, type BuildResult } from "./preview";
-import { addChapter, copyFonts, flatten, gridOf, kindOf, loadMeta, loadPlot, manifestChapters, projectOf, rowsForFile, TEXT_KINDS, workspaceOf, type PlotRow } from "./project";
+import { IMAGE_KINDS, addChapter, copyFonts, flatten, gridOf, kindOf, loadMeta, loadPlot, manifestChapters, projectOf, rowsForFile, TEXT_KINDS, workspaceOf, type PlotRow } from "./project";
 import { loadPlugins, registry } from "./plugins";
 import { ask, menu, toast } from "./ui";
 
+type Open = { doc: Doc; editor: Editor };
 type Doc = { path: string; kind: string; text: string; saved: string; project: string | null; workspace: string | null; grid: Grid };
 
 const store = {
@@ -44,6 +46,9 @@ const state = {
   dirty: new Set<string>(),
   doc: null as Doc | null,
   editor: null as Editor | null,
+  multi: [] as Open[], // several chapters shown together (shift-click); doc/editor is the focused one
+  selected: [] as string[], // selected rows in the tree
+  anchor: null as string | null, // where a shift-click range starts
   plotView: null as { project: string } | null,
   plot: [] as PlotRow[],
   plotProject: "",
@@ -172,11 +177,11 @@ const fileRow = (e: Entry, depth: number, project: string | null) => {
   const k = kindOf(e.path);
   const t = state.titles.get(e.path);
   const goal = project ? metaCache.get(project)?.goals.get(e.path) : undefined;
-  const ic = { gm: "file-text", md: "file-text", emet: "sigma", toml: "settings-2", csv: "sheet", tsv: "sheet", svg: "image", mmd: "workflow", pdf: "file-type", txt: "file" }[k] ?? "file";
+  const ic = { gm: "file-text", md: "file-text", emet: "sigma", toml: "settings-2", csv: "sheet", tsv: "sheet", svg: "image", mmd: "workflow", pdf: "file-type", txt: "file", png: "image", jpg: "image", jpeg: "image", gif: "image", webp: "image" }[k] ?? "file";
   const isPlot = project && e.path === `${project}/plot.csv`;
   const name = isPlot ? "プロット" : t ? t.title : stem(e.name);
   const fn = isPlot ? "" : k === "gm" && t ? stem(e.name) : k;
-  return `<div class="r ${state.doc?.path === e.path || (isPlot && state.plotView?.project === project) ? "on" : ""}" style="padding-left:${8 + depth * 16}px" data-file="${esc(e.path)}" ${isPlot ? `data-plotfor="${esc(project!)}"` : ""}>
+  return `<div class="r ${state.doc?.path === e.path || state.selected.includes(e.path) || (isPlot && state.plotView?.project === project) ? "on" : ""}" style="padding-left:${8 + depth * 16}px" data-file="${esc(e.path)}" ${isPlot ? `data-plotfor="${esc(project!)}"` : ""}>
     ${icon(isPlot ? "table-2" : ic, 14)}<span class="ttl">${esc(name)}</span><span class="fn">${esc(fn)}</span>
     <span class="c">${t && k === "gm" ? `${t.chars.toLocaleString()}` : ""}${state.dirty.has(e.path) ? `<span class="dot"></span>` : ""}${goal ? ring((t?.chars ?? 0) / goal) : ""}</span></div>`;
 };
@@ -184,7 +189,7 @@ const fileRow = (e: Entry, depth: number, project: string | null) => {
 const dirRows = (entries: Entry[], depth: number, project: string | null): string =>
   entries
     .map((e) => {
-      if (!e.dir) return TEXT_KINDS.includes(kindOf(e.path)) || kindOf(e.path) === "pdf" ? fileRow(e, depth, project) : "";
+      if (!e.dir) return TEXT_KINDS.includes(kindOf(e.path)) || kindOf(e.path) === "pdf" || IMAGE_KINDS.includes(kindOf(e.path)) ? fileRow(e, depth, project) : "";
       const proj = isProject(e);
       const open = state.expanded.has(e.path);
       const total = proj ? flatten(e.children).reduce((a, c) => a + (kindOf(c.path) === "gm" ? (state.titles.get(c.path)?.chars ?? 0) : 0), 0) : 0;
@@ -266,7 +271,27 @@ sideEl.addEventListener("click", async (e) => {
     return renderSide();
   }
   if (d.plotfor) return openPlot(d.plotfor);
-  if (d.file) return openFile(d.file);
+  if (d.file) {
+    const me = e as MouseEvent;
+    const isGm = kindOf(d.file) === "gm";
+    if (isGm && (me.shiftKey || me.metaKey) && state.anchor && kindOf(state.anchor) === "gm") {
+      // shift: the range of chapters from the anchor; cmd: toggle one
+      const rows = [...sideEl.querySelectorAll<HTMLElement>("[data-file]")].map((r) => r.dataset.file!).filter((p) => kindOf(p) === "gm");
+      let sel: string[];
+      if (me.shiftKey) {
+        const [a, b] = [rows.indexOf(state.anchor), rows.indexOf(d.file)].sort((x, y) => x - y);
+        sel = rows.slice(a, b + 1);
+      } else {
+        const cur = state.selected.length ? state.selected : [state.anchor];
+        sel = cur.includes(d.file) ? cur.filter((p) => p !== d.file) : rows.filter((p) => [...cur, d.file!].includes(p));
+      }
+      if (sel.length >= 2) return openMulti(sel);
+      if (sel.length === 1) return openFile(sel[0]);
+      return;
+    }
+    state.anchor = d.file;
+    return openFile(d.file);
+  }
   const ws = currentWs();
   switch (d.act) {
     case "add-ws":
@@ -377,9 +402,10 @@ app.querySelector(".ribbon")!.addEventListener("click", (e) => {
 let buildTimer = 0;
 
 // autosave: every few seconds when the sheet has changed (⌘S saves at once)
+const allOpen = (): Open[] => (state.multi.length ? state.multi : state.doc && state.editor ? [{ doc: state.doc, editor: state.editor }] : []);
+
 setInterval(() => {
-  const d = state.doc;
-  if (d && state.editor && state.editor.text() !== d.saved) save(false);
+  for (const o of allOpen()) if (o.editor.text() !== o.doc.saved) save(false, o);
 }, Math.max(2, config.autosaveSeconds || 10) * 1000);
 
 const today = () => {
@@ -389,14 +415,14 @@ const today = () => {
 
 /** Commits every change of a workspace; returns git's last line. */
 const commitAll = async (ws: string, message: string) => {
-  await save(true);
+  for (const o of allOpen()) await save(true, o);
   const st = await api.git(ws, ["status", "--porcelain=v1"]);
   if (st.code !== 0) return "Git のリポジトリではありません";
   if (!st.stdout.trim()) return "変更はありません";
   await api.git(ws, ["add", "-A"]);
   const out = await api.git(ws, ["commit", "-m", message]);
   await refreshTree();
-  state.editor?.refreshMarks(true);
+  allOpen().forEach((o) => o.editor.refreshMarks(true));
   return (out.stdout + out.stderr).trim().split("\n")[0] || "コミットしました";
 };
 
@@ -418,11 +444,52 @@ const autoCommit = async () => {
 };
 
 const closeDoc = async () => {
-  if (state.doc && state.editor && state.editor.text() !== state.doc.saved) await save();
-  state.editor?.destroy();
+  for (const o of allOpen()) if (o.editor.text() !== o.doc.saved) await save(false, o);
+  allOpen().forEach((o) => o.editor.destroy());
+  state.multi = [];
   state.editor = null;
   state.doc = null;
   state.plotView = null;
+};
+
+const loadDoc = async (path: string): Promise<Doc> => {
+  const kind = kindOf(path);
+  const workspace = workspaceOf(path);
+  const project = workspace ? await projectOf(path, workspace) : null;
+  const text = kind === "pdf" || IMAGE_KINDS.includes(kind) ? "" : await api.readText(path);
+  return { path, kind, text, saved: text, project, workspace, grid: await gridOf(project) };
+};
+
+/** Several chapters, one editor each, one after another. */
+const openMulti = async (paths: string[]) => {
+  await closeDoc();
+  state.selected = paths;
+  const docs = await Promise.all(paths.map(loadDoc));
+  mainBody.innerHTML = `<div class="multi"></div>`;
+  const host = mainBody.firstElementChild as HTMLElement;
+  if (state.vertical) toast("複数の章をまとめて開くときは横書きで表示します");
+  state.multi = docs.map((d) => {
+    const sec = h(`<section class="msec"><div class="mhead">${esc(state.titles.get(d.path)?.title ?? stem(d.path))}<small>${esc(d.workspace ? rel(d.workspace, d.path) : d.path)}</small></div><div class="mhost"></div></section>`);
+    host.append(sec);
+    const o: Open = { doc: d, editor: null as never };
+    o.editor = newEditor(sec.querySelector(".mhost")!, d, o);
+    sec.addEventListener("focusin", () => {
+      state.doc = o.doc;
+      state.editor = o.editor;
+      renderTitle();
+      scheduleStatus();
+      renderRight();
+    });
+    return o;
+  });
+  state.doc = state.multi[0].doc;
+  state.editor = state.multi[0].editor;
+  const p = state.doc.project;
+  if (p && state.plotProject !== p) {
+    state.plot = await loadPlot(p);
+    state.plotProject = p;
+  }
+  renderAll();
 };
 
 const openFile = async (path: string, line?: number, col?: number) => {
@@ -431,12 +498,11 @@ const openFile = async (path: string, line?: number, col?: number) => {
     return;
   }
   await closeDoc();
-  const kind = kindOf(path);
-  const workspace = workspaceOf(path);
-  const project = workspace ? await projectOf(path, workspace) : null;
+  state.selected = [];
+  const doc = await loadDoc(path);
+  const { project, workspace } = doc;
   if (project && path === `${project}/plot.csv`) return openPlot(project);
-  const text = kind === "pdf" ? "" : await api.readText(path);
-  state.doc = { path, kind, text, saved: text, project, workspace, grid: await gridOf(project) };
+  state.doc = doc;
   if (project && !state.fontsChecked.has(project)) {
     state.fontsChecked.add(project);
     copyFonts(project).then((c) => c.length && toast(`共有ライブラリからフォントをコピーしました: ${c.join(", ")}`));
@@ -466,17 +532,9 @@ const openPlot = async (project: string) => {
   renderAll();
 };
 
-const mountMain = () => {
-  const d = state.doc!;
-  mainBody.innerHTML = "";
-  if (d.kind === "pdf") {
-    renderPdf(inner(mainBody), d.path, dirname(d.path));
-    return;
-  }
-  if (d.kind === "csv" || d.kind === "tsv") return mountTable(d);
-  if (state.vertical && ["gm", "md", "txt"].includes(d.kind)) return mountVertical(d);
-  state.editor = createEditor({
-    parent: mainBody,
+const newEditor = (parent: HTMLElement, d: Doc, o?: Open) =>
+  createEditor({
+    parent,
     path: d.path,
     kind: d.kind,
     text: d.text,
@@ -489,9 +547,21 @@ const mountMain = () => {
       const out = await api.git(d.workspace, ["show", `HEAD:${rel(d.workspace, d.path)}`]).catch(() => null);
       return out && out.code === 0 ? out.stdout : null;
     },
-    onChange: (text) => onEdit(text),
-    onSave: () => void save(true),
+    onChange: (text) => onEdit(text, d),
+    onSave: () => void save(true, o),
   });
+
+const mountMain = () => {
+  const d = state.doc!;
+  mainBody.innerHTML = "";
+  if (d.kind === "pdf") {
+    renderPdf(inner(mainBody), d.path, dirname(d.path));
+    return;
+  }
+  if (IMAGE_KINDS.includes(d.kind)) return void renderImage(inner(mainBody), d.path);
+  if (d.kind === "csv" || d.kind === "tsv") return mountTable(d);
+  if (state.vertical && ["gm", "md", "txt"].includes(d.kind)) return mountVertical(d);
+  state.editor = newEditor(mainBody, d);
   state.editor.view.focus();
 };
 
@@ -607,18 +677,19 @@ const mountTable = (d: Doc) => {
   };
 };
 
-const onEdit = (text: string) => {
-  if (!state.doc) return;
-  state.doc.text = text;
+const onEdit = (text: string, d: Doc | null = state.doc) => {
+  if (!d) return;
+  d.text = text;
   renderTitle();
   scheduleStatus();
   if (state.side === "plain") scheduleSide();
 };
 
-const save = async (explicit = false) => {
-  const d = state.doc;
-  if (!d || !state.editor) return;
-  const text = state.editor.text();
+const save = async (explicit = false, o?: Open) => {
+  const it = o ?? (state.doc && state.editor ? { doc: state.doc, editor: state.editor } : null);
+  if (!it) return;
+  const d = it.doc;
+  const text = it.editor.text();
   if (text === d.saved && !explicit) return;
   await api.writeText(d.path, text);
   d.saved = text;
@@ -664,7 +735,7 @@ const refreshHtml = async (d: Doc) => {
   const r = await buildChapterHtml(d.project, d.path).catch((e) => ({ ok: false, html: "", log: String(e) }));
   const prev = state.html.get(d.path);
   state.html.set(d.path, r.ok ? { html: r.html, note: "" } : { html: prev?.html ?? null, note: `組めませんでした: ${r.log.split("\n")[0] ?? ""}` });
-  if (state.doc?.path === d.path) renderSidePane();
+  if (state.doc?.path === d.path || state.multi.some((o) => o.doc.path === d.path)) renderSidePane();
 };
 
 // ---------------- toolbar, side pane, right, status ----------------
@@ -707,7 +778,13 @@ toolbar.addEventListener("click", async (e) => {
   }
   if (t.dataset.vert) {
     const v = t.dataset.vert === "1";
-    if (v !== state.vertical && state.doc) {
+    if (v !== state.vertical && state.multi.length) {
+      // several chapters stay horizontal in the editor; the preview follows the switch
+      state.vertical = v;
+      store.set("vertical", v);
+      renderToolbar();
+      renderSidePane();
+    } else if (v !== state.vertical && state.doc) {
       const d = state.doc;
       d.text = state.editor?.text() ?? d.text;
       state.vertical = v;
@@ -813,13 +890,23 @@ const renderSidePane = () => {
   if (state.side === "pages" && d.project) {
     const busy = state.building.has(d.project);
     sideHead.innerHTML = `${icon("book-open", 13)}<span>ページ · ${esc(basename(d.project))}</span><span class="sp"></span><span class="iconbtn" data-build title="組む">${icon("refresh-cw", 14)}</span><span class="iconbtn" data-pagewin title="別ウィンドウ">${icon("external-link", 14)}</span>`;
+    sideHead.insertAdjacentHTML("beforeend", zoomControls());
     renderPages(inner(sideBody), state.pages.get(d.project) ?? null, busy);
+    applyZoom(sideBody);
   } else {
     sideHead.innerHTML = `${icon("eye", 13)}<span>${d.kind === "gm" ? "本文 · 命令と式を反映" : "プレビュー"}</span><span class="sp"></span>${d.kind === "gm" ? `<span class="iconbtn" data-plainwin title="別ウィンドウ">${icon("external-link", 14)}</span>` : ""}`;
     if (d.kind === "gm") {
-      const h = state.html.get(d.path);
-      if (!h && d.project) refreshHtml(d);
-      renderEvaluated(inner(sideBody), h?.html ?? null, text, state.vertical, h?.note ?? (d.project ? "組んでいます…" : ""));
+      const box = inner(sideBody);
+      const docs = state.multi.length ? state.multi.map((o) => o.doc) : [d];
+      for (const x of docs) {
+        const hh = state.html.get(x.path);
+        if (!hh && x.project) refreshHtml(x);
+        const part = document.createElement("div");
+        box.append(part);
+        const src = state.multi.find((o) => o.doc === x)?.editor.text() ?? (x === d ? text : x.text);
+        renderEvaluated(part, hh?.html ?? null, src, state.vertical, hh?.note ?? (x.project ? "組んでいます…" : ""));
+      }
+      box.className = state.vertical ? "plain-stack vertical" : "plain-stack";
     }
     else if (d.kind === "md") renderMarkdown(inner(sideBody), text, state.vertical);
     else if (d.kind === "svg") renderSvg(inner(sideBody), text);
@@ -827,10 +914,29 @@ const renderSidePane = () => {
   }
 };
 
+// pinch (or ⌘ + scroll) zooms the pages
+sideBody.addEventListener(
+  "wheel",
+  (e) => {
+    if (!e.ctrlKey || state.side !== "pages") return;
+    e.preventDefault();
+    setZoom(zoom() * (e.deltaY < 0 ? 1.05 : 1 / 1.05));
+    applyZoom(sideBody);
+    const v = sideHead.querySelector(".zoomv");
+    if (v) v.textContent = `${Math.round(zoom() * 100)}%`;
+  },
+  { passive: false },
+);
+
 sideHead.addEventListener("click", (e) => {
-  const t = (e.target as HTMLElement).closest<HTMLElement>("[data-build],[data-pagewin],[data-plainwin]");
+  const t = (e.target as HTMLElement).closest<HTMLElement>("[data-build],[data-pagewin],[data-plainwin],[data-zoom]");
   const d = state.doc;
   if (!t || !d) return;
+  if (t.dataset.zoom) {
+    setZoom(t.dataset.zoom === "in" ? zoom() * 1.25 : t.dataset.zoom === "out" ? zoom() / 1.25 : 1);
+    applyZoom(sideBody);
+    sideHead.querySelector(".zoomv")!.textContent = `${Math.round(zoom() * 100)}%`;
+  }
   if (t.dataset.build !== undefined && d.project) save(true).then(() => build(d.project!));
   if (t.dataset.pagewin !== undefined && d.project) openPagesWindow(d.project);
   if (t.dataset.plainwin !== undefined) openPlainWindow(d.path);
@@ -848,6 +954,7 @@ const renderRight = async () => {
   )
     .map(([k, i, t]) => `<span class="iconbtn ${state.right === k ? "on" : ""}" data-r="${k}" title="${t}">${icon(i)}</span>`)
     .join("");
+  rightBody.className = `rbody ${state.right}`;
   if (state.right === "attach") await mountAttachments(rightBody, ctx, state.plot, docCounts());
   else if (state.right === "outline") mountOutline(rightBody, ctx);
   else await mountLibrary(rightBody, ctx);
@@ -931,6 +1038,44 @@ listen<{ project: string }>("aleph:plot-saved", async (e) => {
 listen<{ project: string }>("aleph:build-request", (e) => build(e.payload.project));
 listen<{ project: string }>("aleph:pages-window", (e) => pagesWindows.add(e.payload.project));
 
+/** Images dropped on the editor go to the project's images/ and get a @figure line;
+ * files dropped on a folder in the tree are copied into it. */
+const dropAssets = async (paths: string[], p: { x: number; y: number }) => {
+  const at = document.elementFromPoint(p.x / devicePixelRatio, p.y / devicePixelRatio);
+  if (!at) return;
+  const unique = async (dir: string, name: string) => {
+    let to = `${dir}/${name}`;
+    for (let n = 2; await api.exists(to); n++) to = `${dir}/${stem(name)}-${n}.${name.split(".").pop()}`;
+    return to;
+  };
+  const row = at.closest<HTMLElement>("[data-dir],[data-file]");
+  if (row && sideEl.contains(row)) {
+    const dir = row.dataset.dir ?? dirname(row.dataset.file!);
+    for (const f of paths) await api.copyFile(f, await unique(dir, basename(f)));
+    toast(`${paths.length} 件を ${basename(dir)} にコピーしました`);
+    state.expanded.add(dir);
+    return refreshTree();
+  }
+  const sec = at.closest<HTMLElement>(".cm-editor");
+  const o = allOpen().find((x) => x.editor.view?.dom === sec);
+  if (!o || o.doc.kind !== "gm" || !o.doc.project) return toast("画像は gm のエディタか、ツリーのフォルダに落としてください");
+  const images = paths.filter((f) => /\.(png|jpe?g|svg|pdf)$/i.test(f));
+  if (!images.length) return toast("@figure で使える画像は PNG、JPEG、SVG、PDF です");
+  const lines: string[] = [];
+  for (const f of images) {
+    const to = await unique(`${o.doc.project}/images`, basename(f));
+    await api.copyFile(f, to);
+    lines.push(`@figure ${rel(o.doc.project, to)} alt="${stem(to)}"\n  キャプション`);
+  }
+  const view = o.editor.view;
+  const pos = view.posAtCoords({ x: p.x / devicePixelRatio, y: p.y / devicePixelRatio }) ?? view.state.selection.main.head;
+  const line = view.state.doc.lineAt(pos);
+  const insert = `${line.length ? "\n" : ""}${lines.join("\n\n")}\n`;
+  view.dispatch({ changes: { from: line.to, insert: `\n${insert}` } });
+  toast(`images/ にコピーし、@figure を差し込みました`);
+  refreshTree();
+};
+
 // files dropped on the right panel go into the shared library (the WebView's own
 // drop event carries no paths, so this uses Tauri's)
 const overRight = (p: { x: number; y: number }) => {
@@ -943,7 +1088,7 @@ getCurrentWebview().onDragDropEvent(async (e) => {
   if (t === "leave") rightEl.classList.remove("drop-over");
   if (t !== "drop") return;
   rightEl.classList.remove("drop-over");
-  if (!overRight(e.payload.position)) return;
+  if (!overRight(e.payload.position)) return void dropAssets(e.payload.paths, e.payload.position);
   if (!config.libraryDir) return toast("設定で共有ライブラリのフォルダを決めてください");
   const { done, skipped } = await dropIntoLibrary(e.payload.paths);
   toast([done.length ? `コピーしました: ${done.join(", ")}` : "", skipped.length ? `扱えないファイル: ${skipped.join(", ")}` : ""].filter(Boolean).join("\n"));

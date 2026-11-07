@@ -5,7 +5,7 @@ import { marked } from "marked";
 import { api, basename, type Out } from "./api";
 import { bin, config } from "./config";
 import { gmBlocks } from "./gm";
-import { esc } from "./icons";
+import { esc, icon } from "./icons";
 
 export const renderPlain = (el: HTMLElement, src: string, vertical: boolean) => {
   el.className = `plain ${vertical ? "vertical" : ""}`;
@@ -124,3 +124,29 @@ export const renderPdf = async (el: HTMLElement, path: string, cwd: string) => {
   el.className = "media";
   el.innerHTML = `<div class="hint">shem で描けない PDF です（${esc(r?.out.stderr.split("\n")[0] ?? "")}）。WebView で表示します。</div><iframe src="${url}"></iframe>`;
 };
+
+export const renderImage = async (el: HTMLElement, path: string) => {
+  el.className = "media";
+  const type = /\.svg$/i.test(path) ? "image/svg+xml" : /\.png$/i.test(path) ? "image/png" : /\.gif$/i.test(path) ? "image/gif" : /\.webp$/i.test(path) ? "image/webp" : "image/jpeg";
+  const url = URL.createObjectURL(new Blob([await api.readBytes(path)], { type }));
+  el.innerHTML = `<img src="${url}" alt=""><div class="hint">${esc(basename(path))}</div>`;
+};
+
+// ---- zoom of the page preview, kept per viewer ----
+export const zoom = () => {
+  try {
+    return Number(localStorage.getItem("pageZoom")) || 1;
+  } catch {
+    return 1;
+  }
+};
+export const setZoom = (z: number) => {
+  try {
+    localStorage.setItem("pageZoom", String(Math.min(4, Math.max(0.3, z))));
+  } catch {
+    /* private storage: the zoom just is not kept */
+  }
+};
+export const applyZoom = (scroller: HTMLElement) => scroller.style.setProperty("--zoom", String(zoom()));
+export const zoomControls = () =>
+  `<span class="zoom"><span class="iconbtn" data-zoom="out" title="縮小">${icon("zoom-out", 14)}</span><span class="zoomv" data-zoom="fit" title="幅に合わせる">${Math.round(zoom() * 100)}%</span><span class="iconbtn" data-zoom="in" title="拡大">${icon("zoom-in", 14)}</span></span>`;

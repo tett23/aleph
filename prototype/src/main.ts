@@ -5,7 +5,7 @@ import { api, basename } from "./api";
 import { loadConfig } from "./config";
 import { icon } from "./icons";
 import { mountPlot } from "./plot";
-import { buildChapterHtml, renderEvaluated, renderPages, type BuildResult } from "./preview";
+import { applyZoom, buildChapterHtml, renderEvaluated, renderPages, setZoom, zoom, zoomControls, type BuildResult } from "./preview";
 
 const q = new URLSearchParams(location.search);
 const view = q.get("view") ?? "main";
@@ -24,13 +24,22 @@ const main = async () => {
   await loadConfig();
   if (view === "pages") {
     const project = q.get("project")!;
-    const { tools, body } = detached(`ページ — ${basename(project)}`);
-    tools.innerHTML = `<span class="iconbtn" title="組む">${icon("refresh-cw")}</span>`;
+    const { tools, body, scroller } = detached(`ページ — ${basename(project)}`);
+    const drawTools = () => (tools.innerHTML = `${zoomControls()}<span class="iconbtn" data-build title="組む">${icon("refresh-cw")}</span>`);
+    drawTools();
+    applyZoom(scroller);
     let last: BuildResult | null = null;
     renderPages(body, null, false);
-    tools.onclick = () => {
-      renderPages(body, last, true);
-      emit("aleph:build-request", { project });
+    tools.onclick = (e) => {
+      const t = (e.target as HTMLElement).closest<HTMLElement>("[data-zoom],[data-build]");
+      if (t?.dataset.zoom) {
+        setZoom(t.dataset.zoom === "in" ? zoom() * 1.25 : t.dataset.zoom === "out" ? zoom() / 1.25 : 1);
+        applyZoom(scroller);
+        drawTools();
+      } else if (t?.dataset.build !== undefined) {
+        renderPages(body, last, true);
+        emit("aleph:build-request", { project });
+      }
     };
     await listen<BuildResult & { project: string }>("aleph:pages", (e) => {
       if (e.payload.project !== project) return;

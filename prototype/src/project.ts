@@ -5,6 +5,7 @@ import { parseDelimited, writeDelimited } from "./csv";
 import { readGrid, type Grid } from "./gm";
 
 export const TEXT_KINDS = ["gm", "emet", "md", "toml", "csv", "tsv", "svg", "mmd", "mermaid", "txt"];
+export const IMAGE_KINDS = ["png", "jpg", "jpeg", "gif", "webp"];
 export const SHEET_KINDS = [...TEXT_KINDS, "pdf"];
 
 export const kindOf = (path: string) => {
