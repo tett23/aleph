@@ -1,5 +1,6 @@
 // The main window: ribbon, workspace tree, toolbar, editor and previews, right panel, status.
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { api, basename, dirname, rel, stem, type Entry } from "./api";
@@ -10,7 +11,7 @@ import { lineMarks } from "./diff";
 import { gmBlocks, mdToGm, plainParagraphs, stats, type Grid } from "./gm";
 import { esc, h, icon } from "./icons";
 import { lspFor } from "./lsp";
-import { mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
+import { dropIntoLibrary, mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
 import { mountPlot } from "./plot";
 import { buildChapterHtml, buildPages, renderEvaluated, renderMarkdown, renderMermaid, renderPages, renderPdf, renderSvg, type BuildResult } from "./preview";
 import { addChapter, copyFonts, flatten, gridOf, kindOf, loadMeta, loadPlot, manifestChapters, projectOf, rowsForFile, TEXT_KINDS, workspaceOf, type PlotRow } from "./project";
@@ -929,6 +930,27 @@ listen<{ project: string }>("aleph:plot-saved", async (e) => {
 });
 listen<{ project: string }>("aleph:build-request", (e) => build(e.payload.project));
 listen<{ project: string }>("aleph:pages-window", (e) => pagesWindows.add(e.payload.project));
+
+// files dropped on the right panel go into the shared library (the WebView's own
+// drop event carries no paths, so this uses Tauri's)
+const overRight = (p: { x: number; y: number }) => {
+  const el = document.elementFromPoint(p.x / devicePixelRatio, p.y / devicePixelRatio);
+  return !!el && rightEl.contains(el);
+};
+getCurrentWebview().onDragDropEvent(async (e) => {
+  const t = e.payload.type;
+  if (t === "over" || t === "enter") rightEl.classList.toggle("drop-over", state.showRight && overRight(e.payload.position));
+  if (t === "leave") rightEl.classList.remove("drop-over");
+  if (t !== "drop") return;
+  rightEl.classList.remove("drop-over");
+  if (!overRight(e.payload.position)) return;
+  if (!config.libraryDir) return toast("設定で共有ライブラリのフォルダを決めてください");
+  const { done, skipped } = await dropIntoLibrary(e.payload.paths);
+  toast([done.length ? `コピーしました: ${done.join(", ")}` : "", skipped.length ? `扱えないファイル: ${skipped.join(", ")}` : ""].filter(Boolean).join("\n"));
+  state.right = "library";
+  store.set("right", "library");
+  renderRight();
+});
 
 document.addEventListener("keydown", (e) => {
   if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {

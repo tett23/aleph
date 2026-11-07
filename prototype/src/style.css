@@ -1,5 +1,7 @@
 :root {
   --lh: 1.75;
+  --fs-body: 16px;
+  --fs-code: 13px;
   --bg: #ffffff;
   --bg-2: #f6f6f6;
   --bg-3: #ebebeb;
@@ -124,8 +126,8 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .welcome { margin: auto; text-align: center; color: var(--text-2); line-height: 2; }
 .welcome img { width: 96px; margin-bottom: 8px; }
 /* CodeMirror */
-.cm-editor { --fs: 16px; --elh: var(--lh); height: 100%; font: var(--fs)/var(--elh) var(--body); color: var(--text); }
-.cm-editor.code { --fs: 13px; --elh: 1.65; font-family: var(--mono); }
+.cm-editor { --fs: var(--fs-body); --elh: var(--lh); height: 100%; font: var(--fs)/var(--elh) var(--body); color: var(--text); }
+.cm-editor.code { --fs: var(--fs-code); --elh: 1.65; font-family: var(--mono); }
 .cm-editor.cm-focused { outline: none; }
 .cm-scroller { font-family: inherit !important; line-height: var(--elh) !important; padding: 24px 0 40vh; }
 .cm-content { margin: 0 auto 0 0; padding-right: 24px; caret-color: var(--text); }
@@ -150,7 +152,7 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .cm-panels { background: var(--bg-2) !important; color: var(--text); border-color: var(--border) !important; }
 /* vertical editor */
 /* the scroll origin is the right edge (direction: rtl), like a vertical book */
-.vwrap { --vfs: 17px; --vtop: 46px; height: 100%; overflow: auto; direction: rtl; padding: 24px 30px; }
+.vwrap { --vfs: var(--fs-body); --vtop: 46px; height: 100%; overflow: auto; direction: rtl; padding: 24px 30px; }
 .vstack { position: relative; direction: ltr; height: calc(var(--vchars) * var(--vfs) + var(--vtop) + 6px); }
 .vedit, .vmirror { position: absolute; top: 0; right: 0; height: 100%; writing-mode: vertical-rl; font: var(--vfs)/var(--lh) var(--body); padding: var(--vtop) 0 0; margin: 0; border: none; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; letter-spacing: 0; box-sizing: border-box; }
 .vedit { outline: none; resize: none; background: transparent; color: var(--text); overflow: hidden; z-index: 1; }
@@ -161,7 +163,7 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .vl[data-m="mod"]::after { background: var(--mod); }
 .vl[data-m="del"]::after { background: var(--del); width: 8px; right: calc(var(--vfs) * var(--lh) / 2 - 4px); }
 /* previews */
-.plain { padding: 30px 34px; font: 15px/var(--lh) var(--body); max-width: 42em; }
+.plain { padding: 30px 34px; font: calc(var(--fs-body) - 1px)/var(--lh) var(--body); max-width: 42em; }
 .plain.vertical { writing-mode: vertical-rl; max-width: none; height: 100%; overflow: visible; padding: 30px 26px; }
 .plain h1, .plain h2, .plain h3, .plain h4 { font-weight: 600; margin: 0.6em 0; }
 .plain h2 { font-size: 1.3em; }
@@ -263,8 +265,9 @@ table.grid td:has(.chips) .cell { font-size: 11px; color: var(--faint); min-heig
 .item { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-top: 1px solid var(--border); }
 .item .d { flex: 1; min-width: 0; }
 .item .d div { font-size: 13.5px; }
-.item .d small { color: var(--text-2); font-size: 12px; display: block; }
-.item input.field { width: 300px; font-family: var(--mono); font-size: 12px; }
+.item .d small { color: var(--text-2); font-size: 12px; display: block; overflow-wrap: anywhere; }
+.item input.field { width: 300px; min-width: 120px; flex: 0 1 300px; font-family: var(--mono); font-size: 12px; }
+.item > .btn, .item > .toggle { flex: none; }
 .item input.num { width: 70px; }
 .app-ico { width: 56px; height: 56px; }
 .toggle { width: 34px; height: 20px; border-radius: 10px; background: var(--bg-3); position: relative; cursor: default; flex: none; }
@@ -287,3 +290,8 @@ table.grid td:has(.chips) .cell { font-size: 11px; color: var(--faint); min-heig
 .plain.evaluated table { border-collapse: collapse; margin: 0.6em 0; font-size: 0.9em; }
 .plain.evaluated td, .plain.evaluated th { border: 1px solid var(--border); padding: 2px 8px; }
 .plain.evaluated figure img { max-width: 100%; }
+
+/* dropping files on the shared library */
+.dropzone { border: 1.5px dashed var(--border); border-radius: 6px; padding: 14px; text-align: center; color: var(--text-2); font-size: 12px; line-height: 1.7; }
+.right.drop-over .dropzone { border-color: var(--accent); background: var(--accent-bg); color: var(--text); }
+.item input.field.num { flex: 0 0 72px; width: 72px; min-width: 0; }

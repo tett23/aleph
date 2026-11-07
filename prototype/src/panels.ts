@@ -253,7 +253,8 @@ export const mountLibrary = async (el: HTMLElement, ctx: Ctx) => {
     return;
   }
   if (!project) {
-    el.innerHTML = `<div class="hint">Golem のプロジェクトのシートを開くと、共有ライブラリのプラグインと関数を入れられます。</div>`;
+    el.innerHTML = `<div class="hint">Golem のプロジェクトのシートを開くと、共有ライブラリのプラグインと関数を入れられます。</div>
+      <div class="sec"><div class="dropzone">.wasm、.emet、フォントのファイルをここにドロップすると、<br>共有ライブラリの plugins/、functions/、fonts/ にコピーします。</div></div>`;
     return;
   }
   const items = await libraryItems(project);
@@ -266,7 +267,8 @@ export const mountLibrary = async (el: HTMLElement, ctx: Ctx) => {
   el.innerHTML = `<div class="sec"><h5>プラグイン <small>plugins/*.wasm</small></h5>${plugins.map(row).join("") || `<div class="muted">ありません</div>`}</div>
     <div class="sec"><h5>関数 <small>functions/*.emet</small></h5>${fns.map(row).join("") || `<div class="muted">ありません</div>`}
     <div class="muted" style="font-size:11.5px;margin-top:8px">.gm からは <code>@import functions/名前.emet as 名前</code> で使います。</div></div>
-    <div class="sec"><h5>フォント</h5><div class="muted" style="font-size:12px">style.toml が指すフォントは、プロジェクトを開いたときに fonts/ にコピーします。</div></div>`;
+    <div class="sec"><h5>フォント</h5><div class="muted" style="font-size:12px">style.toml が指すフォントは、プロジェクトを開いたときに fonts/ にコピーします。</div></div>
+    <div class="sec"><div class="dropzone">.wasm、.emet、フォントのファイルをここにドロップすると、<br>共有ライブラリの plugins/、functions/、fonts/ にコピーします。</div></div>`;
   el.onclick = async (e) => {
     const from = (e.target as HTMLElement).closest<HTMLElement>("[data-i]")?.dataset.i;
     const it = items.find((i) => i.from === from);
@@ -276,6 +278,24 @@ export const mountLibrary = async (el: HTMLElement, ctx: Ctx) => {
     await ctx.refreshTree();
     await mountLibrary(el, ctx);
   };
+};
+
+/** Copies dropped files into the library by kind; returns what was copied where. */
+export const dropIntoLibrary = async (paths: string[]) => {
+  const sub = (p: string) =>
+    /\.wasm$/i.test(p) ? "plugins" : /\.emet$/i.test(p) ? "functions" : /\.(otf|ttf|ttc|woff2?)$/i.test(p) || /^LICENSE/i.test(basename(p)) ? "fonts" : null;
+  const done: string[] = [];
+  const skipped: string[] = [];
+  for (const p of paths) {
+    const s = sub(p);
+    if (!s) {
+      skipped.push(basename(p));
+      continue;
+    }
+    await api.copyFile(p, `${config.libraryDir}/${s}/${basename(p)}`);
+    done.push(`${s}/${basename(p)}`);
+  }
+  return { done, skipped };
 };
 
 // ---------------- settings ----------------
@@ -304,6 +324,8 @@ export const openSettings = async (ctx: Ctx) => {
                <div class="item"><div class="d"><div>ページの解像度</div><small>shem render --dpi</small></div><input class="field num" type="number" data-num="dpi" value="${config.dpi}"></div>`
             : section.v === "editor"
               ? `<div class="item"><div class="d"><div>1 行の字数</div><small>空なら style.toml の [page.grid] characters</small></div><input class="field num" type="number" data-num="charsOverride" value="${config.charsOverride ?? ""}" placeholder="—"></div>
+                 <div class="item"><div class="d"><div>本文の文字サイズ</div><small>gm、md、txt のエディタ、縦書き、本文のプレビュー（既定 16 px）</small></div><input class="field num" type="number" min="10" max="32" data-num="fontSize" value="${config.fontSize}"> px</div>
+                 <div class="item"><div class="d"><div>コードの文字サイズ</div><small>toml、emet などのエディタ（既定 13 px）。gm の中の命令と式は本文の大きさに合わせて少し小さくする</small></div><input class="field num" type="number" min="9" max="28" data-num="codeFontSize" value="${config.codeFontSize}"> px</div>
                  <div class="item"><div class="d"><div>行間</div><small>文字の大きさに対する行の高さ（既定 1.75）。エディタ、縦書き、本文のプレビューに効く</small></div><input class="field num" type="number" step="0.05" min="1" max="3" data-num="lineHeight" value="${config.lineHeight}"></div>
                  <div class="item"><div class="d"><div>自動保存の間隔</div><small>変更があれば、この秒数ごとに保存する。⌘S ですぐ保存する</small></div><input class="field num" type="number" min="2" data-num="autosaveSeconds" value="${config.autosaveSeconds}"> 秒</div>
                  <div class="item"><div class="d"><div>不可視文字を表示</div><small>半角スペース ·、全角スペース □、タブ →、改行 ↵。ゼロ幅の文字などはいつも表示する</small></div><span class="toggle ${config.showInvisibles ? "on" : ""}" data-toggle="showInvisibles"></span></div>
@@ -357,7 +379,7 @@ export const openSettings = async (ctx: Ctx) => {
   dim.addEventListener("change", async (e) => {
     const x = e.target as HTMLInputElement;
     if (x.dataset.str) (config as unknown as Record<string, string>)[x.dataset.str] = x.value.trim();
-    if (x.dataset.num) (config as unknown as Record<string, number | null>)[x.dataset.num] = x.value ? Number(x.value) : x.dataset.num === "lineHeight" ? 1.75 : null;
+    if (x.dataset.num) (config as unknown as Record<string, number | null>)[x.dataset.num] = x.value ? Number(x.value) : ({ lineHeight: 1.75, fontSize: 16, codeFontSize: 13 } as Record<string, number>)[x.dataset.num] ?? null;
     if (x.dataset.ms) config.manuscript[x.dataset.ms as "cols" | "rows"] = Number(x.value) || 20;
     await saveConfig();
   });

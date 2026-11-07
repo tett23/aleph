@@ -11,6 +11,8 @@ export type Config = {
   rebuildOnSave: boolean;
   showInvisibles: boolean;
   lineHeight: number;
+  fontSize: number; // body, px
+  codeFontSize: number; // px
   autosaveSeconds: number;
   autoCommit: boolean;
   lastAutoCommit: Record<string, string>; // workspace -> YYYY-MM-DD
@@ -29,6 +31,8 @@ const defaults: Config = {
   rebuildOnSave: true,
   showInvisibles: false,
   lineHeight: 1.75,
+  fontSize: 16,
+  codeFontSize: 13,
   autosaveSeconds: 10,
   autoCommit: true,
   lastAutoCommit: {},
@@ -51,11 +55,18 @@ export const saveConfig = async () => {
 
 export const bin = (name: "golem" | "shem") => (name === "golem" ? config.golemPath : config.shemPath) || undefined;
 
+const clamp = (v: number, lo: number, hi: number, d: number) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
+
 export const applyTheme = () => {
+  config.fontSize = clamp(config.fontSize, 10, 32, 16);
+  config.codeFontSize = clamp(config.codeFontSize, 9, 28, 13);
+  config.lineHeight = clamp(config.lineHeight, 1, 3, 1.75);
   const dark =
     config.theme === "dark" || (config.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.body.classList.toggle("theme-dark", dark);
   document.body.style.setProperty("--lh", String(config.lineHeight || 1.75));
+  document.body.style.setProperty("--fs-body", `${config.fontSize || 16}px`);
+  document.body.style.setProperty("--fs-code", `${config.codeFontSize || 13}px`);
 };
 
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
