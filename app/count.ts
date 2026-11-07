@@ -28,7 +28,8 @@ export const stats = (paragraphs: string[], cols: number, rows: number): Stats =
   const chars = paragraphs.reduce((a, p) => a + [...p.replace(/\s/g, "")].length, 0);
   let w = 0;
   for (const s of words.segment(paragraphs.join("\n"))) if (s.isWordLike) w++;
-  const lines = paragraphs.reduce((a, p) => a + Math.max(1, Math.ceil([...p].length / cols)), 0);
+  // the same characters as the count: without spaces
+  const lines = paragraphs.reduce((a, p) => a + Math.max(1, Math.ceil([...p.replace(/\s/g, "")].length / cols)), 0);
   return { chars, words: w, sheets: Math.round((lines / rows) * 10) / 10 };
 };
 

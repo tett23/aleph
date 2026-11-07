@@ -157,7 +157,7 @@ export const parseMarkdown = (src: string): Block[] => {
   let i = 0;
   const blank = (l: string | undefined) => l === undefined || !l.trim();
   // a line that starts another block ends a paragraph
-  const starts = (l: string) => HR.test(l) || HEADING.test(l) || FENCE.test(l) || ITEM.test(l) || QUOTE.test(l);
+  const starts = (l: string) => HR.test(l) || HEADING.test(l) || FENCE.test(l) || ITEM.test(l) || QUOTE.test(l) || IMAGE_LINE.test(l);
   while (i < lines.length) {
     const l = lines[i];
     if (blank(l)) {
@@ -213,8 +213,9 @@ export const parseMarkdown = (src: string): Block[] => {
       out.push({ t: "quote", lines: q });
       continue;
     }
+    // an image alone on its line is a block of its own (docs/adr/0016)
     const img = IMAGE_LINE.exec(l);
-    if (img && blank(lines[i + 1])) {
+    if (img) {
       out.push({ t: "image", alt: img[1], src: img[2] });
       i++;
       continue;

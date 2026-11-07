@@ -46,7 +46,8 @@ const htmlBuilds = new Map<string, HtmlBuild>();
 export type Pages = { pdf: string; pngs: string[]; dpi: number; ok: boolean; log: string };
 const pages = new Map<string, Pages>();
 const pageUrls = new Map<string, string[]>();
-type PageBuild = { busy: boolean; again: boolean };
+/** A build in progress, and what to run after it: null, a full build, or a redraw at a dpi. */
+type PageBuild = { busy: boolean; again: null | { redraw: boolean; dpi?: number } };
 const pageBuilds = new Map<string, PageBuild>();
 
 const out = (o: { stdout: string; stderr: string }) => (o.stderr || o.stdout).trim();
@@ -101,9 +102,14 @@ const publishPages = async (ctx: Ctx, project: string, p: Pages) => {
 
 /** golem build --target pdf, then shem; with `redraw`, only shem on the PDF already built. */
 const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wantedDpi(ctx, project)) => {
-  const b = pageBuilds.get(project) ?? { busy: false, again: false };
+  const b = pageBuilds.get(project) ?? { busy: false, again: null };
   pageBuilds.set(project, b);
-  if (b.busy) return void (b.again = true);
+  // a full build asked for meanwhile wins over a redraw
+  if (b.busy) {
+    const fullPending = b.again !== null && !b.again.redraw;
+    if (!fullPending) b.again = { redraw, dpi };
+    return;
+  }
   b.busy = true;
   ctx.refresh(["side"]);
   try {
@@ -124,8 +130,9 @@ const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wante
   b.busy = false;
   ctx.refresh(["side"]);
   if (b.again) {
-    b.again = false;
-    void buildPages(ctx, project);
+    const next = b.again;
+    b.again = null;
+    void buildPages(ctx, project, next.redraw, next.redraw ? next.dpi : undefined);
   }
 };
 
@@ -170,7 +177,8 @@ const drawSide = (head: HTMLElement, body: HTMLElement, ctx: Ctx) => {
     if (key === lastKey && body.querySelector(".pview")) return;
     lastKey = key;
     if (project && docs.some((x) => !html.has(x.path)) && !hb?.busy && !hb?.error) void buildHtml(ctx, project, docs.map((x) => x.path));
-    return renderPlain(body, sectionsOf(docs), s.vertical);
+    // several chapters open: written horizontally (docs/adr/0006), and so is their text
+    return renderPlain(body, sectionsOf(docs), s.vertical && s.open.length === 1);
   }
   const key = `${doc.kind}|${s.vertical}|${doc.path}|${doc.text}`;
   if (key === lastKey && body.querySelector(".pview")) return;

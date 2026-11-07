@@ -200,6 +200,8 @@ export const mountTree = (ctx: Ctx) => {
         if (!name || name === basename(from)) return;
         const to = `${dirname(from)}/${name}`;
         if (await api.exists(to)) return toast(`${name} はもうあります`);
+        // an open sheet is saved first, so its unsaved text goes with it (docs/adr/0011)
+        if (ctx.store.get().open.some((d) => d.path === from)) await ctx.save([from]);
         await api.rename(from, to);
         ctx.store.dispatch({ type: "rename", from, to });
         for (const f of ctx.onRename) await f(from, to, ctx);

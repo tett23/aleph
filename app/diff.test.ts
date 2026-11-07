@@ -46,3 +46,7 @@ test("a huge change gives up and marks the changed middle as modified", () => {
   assert.equal(m.size, 3000);
   assert.equal(m.get(0), "mod");
 });
+
+test("an empty base: the first line is modified, the rest added", () => {
+  assert.deepEqual(marks("", "a\nb"), { 0: "mod", 1: "add" });
+});

@@ -77,3 +77,7 @@ test("the result passes golem check", { skip: !golem && "golem is not installed"
   const errors = (JSON.parse(r.stderr.trim() || "[]") as { severity: string; message: string; span?: { file: string } }[]).filter((x) => x.severity === "error" && x.span?.file === "chapters/01.gm");
   assert.deepEqual(errors, []);
 });
+
+test("an image alone on its line becomes @figure even when text follows on the next line", () => {
+  assert.equal(gm("![a](x.png)\n次の行\n"), '@figure x.png alt="a"\n\n次の行\n');
+});
