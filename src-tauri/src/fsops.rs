@@ -18,17 +18,33 @@ fn shown(name: &str, dir: bool) -> bool {
     !name.starts_with('.') && !(dir && HIDDEN_DIRS.contains(&name))
 }
 
-/// The tree under `p`: directories first, then by name.
+/// How deep the tree goes (docs/adr/0045).
+pub const MAX_DEPTH: usize = 64;
+
+/// The tree under `p`: directories first, then by name. Symbolic links are
+/// neither followed nor shown (docs/adr/0045).
 pub fn tree(p: &Path) -> Vec<Entry> {
+    tree_at(p, 0)
+}
+
+fn tree_at(p: &Path, level: usize) -> Vec<Entry> {
+    if level >= MAX_DEPTH {
+        return vec![];
+    }
     let mut items: Vec<Entry> = std::fs::read_dir(p)
         .map(|rd| {
             rd.filter_map(Result::ok)
+                .filter(|e| e.file_type().is_ok_and(|t| !t.is_symlink()))
                 .filter_map(|e| {
                     let path = e.path();
-                    let dir = path.is_dir();
+                    let dir = e.file_type().is_ok_and(|t| t.is_dir());
                     let name = e.file_name().to_string_lossy().to_string();
                     shown(&name, dir).then(|| Entry {
-                        children: if dir { tree(&path) } else { vec![] },
+                        children: if dir {
+                            tree_at(&path, level + 1)
+                        } else {
+                            vec![]
+                        },
                         path: path.to_string_lossy().into(),
                         name,
                         dir,
@@ -41,7 +57,19 @@ pub fn tree(p: &Path) -> Vec<Entry> {
     items
 }
 
+/// Refuses to write where a symbolic link is (docs/adr/0045).
+pub fn not_link(path: &Path) -> std::io::Result<()> {
+    match std::fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => Err(std::io::Error::other(format!(
+            "シンボリックリンクには書きません：{}",
+            path.display()
+        ))),
+        _ => Ok(()),
+    }
+}
+
 pub fn write_text(path: &Path, content: &str) -> std::io::Result<()> {
+    not_link(path)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -50,6 +78,7 @@ pub fn write_text(path: &Path, content: &str) -> std::io::Result<()> {
 
 /// Writes bytes (a pasted image, docs/adr/0031), making the parent directories.
 pub fn write_bytes(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    not_link(path)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -77,6 +106,7 @@ pub fn percent_decode(s: &str) -> Option<String> {
 /// Moves a file or folder (to the trash and back, docs/adr/0033), making the
 /// parent; across volumes, by copying and then removing.
 pub fn move_path(from: &Path, to: &Path) -> std::io::Result<()> {
+    not_link(to)?;
     if let Some(parent) = to.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -118,6 +148,7 @@ pub fn remove_path(path: &Path) -> std::io::Result<()> {
 }
 
 pub fn copy_file(from: &Path, to: &Path) -> std::io::Result<()> {
+    not_link(to)?;
     if let Some(parent) = to.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -128,6 +159,7 @@ pub fn list_dir(path: &Path) -> Vec<String> {
     let mut v: Vec<String> = std::fs::read_dir(path)
         .map(|rd| {
             rd.filter_map(Result::ok)
+                .filter(|e| e.file_type().is_ok_and(|t| !t.is_symlink()))
                 .map(|e| e.path().to_string_lossy().to_string())
                 .collect()
         })
@@ -263,5 +295,64 @@ mod tests {
         remove_path(&d.join("f.gm")).unwrap();
         remove_path(&d.join("dir")).unwrap();
         assert!(!d.join("f.gm").exists() && !d.join("dir").exists());
+    }
+}
+
+#[cfg(test)]
+mod link_tests {
+    // symbolic links are not followed nor written through (docs/adr/0045)
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn a_looping_link_ends_the_tree_and_is_not_shown() {
+        let d = testdir::fresh("loop");
+        write_text(&d.join("a.gm"), "x").unwrap();
+        symlink(&d, d.join("again")).unwrap();
+        let t = tree(&d);
+        assert_eq!(
+            t.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(),
+            vec!["a.gm"]
+        );
+    }
+
+    #[test]
+    fn links_to_the_outside_are_not_shown_nor_listed() {
+        let d = testdir::fresh("outlinks");
+        write_text(&d.join("out/secret.md"), "x").unwrap();
+        write_text(&d.join("ws/a.md"), "x").unwrap();
+        symlink(d.join("out"), d.join("ws/docs")).unwrap();
+        symlink(d.join("out/secret.md"), d.join("ws/memo.md")).unwrap();
+        let names: Vec<_> = tree(&d.join("ws")).into_iter().map(|e| e.name).collect();
+        assert_eq!(names, vec!["a.md"]);
+        assert_eq!(list_dir(&d.join("ws")).len(), 1);
+    }
+
+    #[test]
+    fn the_tree_stops_at_its_depth_limit() {
+        let d = testdir::fresh("deep");
+        let deep = (0..70).fold(d.clone(), |p, i| p.join(format!("d{i}")));
+        write_text(&deep.join("x.gm"), "x").unwrap();
+        fn depth(es: &[Entry]) -> usize {
+            es.iter().map(|e| 1 + depth(&e.children)).max().unwrap_or(0)
+        }
+        assert_eq!(depth(&tree(&d)), MAX_DEPTH);
+    }
+
+    #[test]
+    fn writing_through_a_link_is_refused_and_its_target_stays() {
+        let d = testdir::fresh("writelink");
+        write_text(&d.join("target.txt"), "original").unwrap();
+        write_text(&d.join("src.txt"), "new").unwrap();
+        symlink(d.join("target.txt"), d.join("memo.md")).unwrap();
+        assert!(write_text(&d.join("memo.md"), "x").is_err());
+        assert!(write_bytes(&d.join("memo.md"), b"x").is_err());
+        assert!(copy_file(&d.join("src.txt"), &d.join("memo.md")).is_err());
+        assert!(move_path(&d.join("src.txt"), &d.join("memo.md")).is_err());
+        assert_eq!(
+            std::fs::read_to_string(d.join("target.txt")).unwrap(),
+            "original"
+        );
+        assert!(d.join("src.txt").exists());
     }
 }

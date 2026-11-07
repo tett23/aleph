@@ -145,6 +145,7 @@ fn make_dir(app: AppHandle, path: String) -> R<()> {
 fn rename_path(app: AppHandle, from: String, to: String) -> R<()> {
     may(&app, &from, WR)?;
     may(&app, &to, WR)?;
+    fsops::not_link(Path::new(&to)).map_err(err)?;
     std::fs::rename(from, to).map_err(err)
 }
 
