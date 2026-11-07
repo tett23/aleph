@@ -91,6 +91,14 @@ fn temp_dir(app: AppHandle, name: String) -> R<String> {
     Ok(d.to_string_lossy().into())
 }
 
+/// The folder of Aleph's own plugins (docs/adr/0017), made when missing.
+#[tauri::command]
+fn plugins_dir(app: AppHandle) -> R<String> {
+    let d = config_dir(&app)?.join("plugins");
+    std::fs::create_dir_all(&d).map_err(err)?;
+    Ok(d.to_string_lossy().into())
+}
+
 fn roots(app: &AppHandle) -> process::Roots {
     process::Roots::from_env(app.path().resource_dir().ok().map(|d| d.join("resources")))
 }
@@ -430,7 +438,8 @@ pub fn run_app() {
             lsp_send,
             lsp_stop,
             quit,
-            search_files
+            search_files,
+            plugins_dir
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")
