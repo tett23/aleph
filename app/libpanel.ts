@@ -153,15 +153,15 @@ const copyInto = async (dir: string, paths: string[]) => {
 
 const dropOnEditor = async (ctx: Ctx, path: string, paths: string[], x: number, y: number) => {
   const d = ctx.store.get().open.find((o) => o.path === path);
-  const view = ctx.editors.get(path)?.view;
-  if (!d?.project || !view) return;
+  const t = ctx.editors.get(path)?.edit;
+  if (!d?.project || !t) return;
   const images = paths.filter((p) => FIGURE_KINDS.test(p));
   if (!images.length) return ctx.toast("落とせるのは PNG、JPEG、SVG、PDF の画像です");
   const copied = await copyInto(`${d.project}/images`, images);
-  const pos = view.posAtCoords({ x, y }) ?? view.state.selection.main.head;
-  const line = view.state.doc.lineAt(pos).number;
-  const { at, insert } = figureInsert(view.state.doc.toString(), line, copied.map((p) => rel(d.project!, p)));
-  view.dispatch({ changes: { from: at, insert } });
+  const pos = t.view.posAtCoords(x, y) ?? t.core.sel().head;
+  const line = t.core.doc().lineAt(pos).number;
+  const { at, insert } = figureInsert(t.core.text(), line, copied.map((p) => rel(d.project!, p)));
+  t.apply([{ from: at, insert }], "input.drop");
   ctx.toast(`images/ にコピーし、@figure を差し込みました`);
   await reloadTree(ctx);
   ctx.refresh(["left"]);
@@ -183,9 +183,9 @@ const mountDrops = (ctx: Ctx) => {
     right?.classList.remove("drop-over");
     if (overLibrary(el)) return dropIntoLibrary(ctx, p.paths);
     // the editor of a .gm: images become figures
-    const editor = el?.closest<HTMLElement>(".cm-editor");
+    const editor = el?.closest<HTMLElement>(".ed");
     if (editor) {
-      const path = [...ctx.editors.entries()].find(([, ed]) => ed.view?.dom === editor)?.[0];
+      const path = [...ctx.editors.entries()].find(([, ed]) => ed.edit?.view.root === editor)?.[0];
       if (path?.endsWith(".gm")) return dropOnEditor(ctx, path, p.paths, x, y);
     }
     // a folder of the tree, or the folder of a file

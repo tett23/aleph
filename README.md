@@ -27,7 +27,7 @@ It edits these formats:
 
 ## Status
 
-The first version is implemented: the editors (horizontal and vertical), golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, the conversion from Markdown, and plugins.
+The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, the conversion from Markdown, and plugins.
 Each decision is an ADR (Architecture Decision Record) under [docs/adr/](docs/adr/), and the current behaviour is in [docs/specifications.md](docs/specifications.md).
 It targets macOS on Apple Silicon first.
 

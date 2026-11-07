@@ -1,6 +1,6 @@
 # ADR 0007: 縦書きのエディタ
 
-ステータス: 採択
+ステータス: 採択→[ADR 0019](0019-one-editor-for-both-writing-modes.md)
 
 ## 文脈
 

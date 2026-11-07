@@ -1,0 +1,139 @@
+{
+  "name": "kana committed one at a time at the start of a line (input injected by key events)",
+  "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+  "note": "horizontal",
+  "initial": "灯台の灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。",
+  "events": [
+    {
+      "type": "select",
+      "anchor": 0,
+      "head": 0
+    },
+    {
+      "type": "compositionstart"
+    },
+    {
+      "type": "compositionupdate",
+      "data": "k"
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertCompositionText",
+      "data": "k",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertCompositionText",
+      "data": "k"
+    },
+    {
+      "type": "keydown",
+      "key": "k",
+      "keyCode": 229,
+      "isComposing": true
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "deleteCompositionText",
+      "data": null,
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "deleteCompositionText",
+      "data": null
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertFromComposition",
+      "data": "き",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertFromComposition",
+      "data": "き"
+    },
+    {
+      "type": "compositionend",
+      "data": "き",
+      "dom": "き灯台の灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。"
+    },
+    {
+      "type": "select",
+      "anchor": 1,
+      "head": 1
+    },
+    {
+      "type": "keydown",
+      "key": "i",
+      "keyCode": 229,
+      "isComposing": false
+    },
+    {
+      "type": "compositionstart"
+    },
+    {
+      "type": "compositionupdate",
+      "data": "r"
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertCompositionText",
+      "data": "r",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertCompositionText",
+      "data": "r"
+    },
+    {
+      "type": "keydown",
+      "key": "r",
+      "keyCode": 229,
+      "isComposing": true
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "deleteCompositionText",
+      "data": null,
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "deleteCompositionText",
+      "data": null
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertFromComposition",
+      "data": "り",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertFromComposition",
+      "data": "り"
+    },
+    {
+      "type": "compositionend",
+      "data": "り",
+      "dom": "きり灯台の灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。"
+    },
+    {
+      "type": "select",
+      "anchor": 2,
+      "head": 2
+    },
+    {
+      "type": "keydown",
+      "key": "i",
+      "keyCode": 229,
+      "isComposing": false
+    }
+  ],
+  "expected": "きり灯台の灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。",
+  "caret": 2
+}
