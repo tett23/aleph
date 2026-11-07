@@ -103,7 +103,8 @@ const start = async () => {
       const out = await git(ctx, d.workspace, ["show", `HEAD:${rel(d.workspace, d.path)}`]).catch(() => null);
       return out && out.code === 0 ? out.stdout : null;
     },
-    refresh: (what = ["left", "right", "status", "side"]) => draw(store.get(), store.get(), what),
+    // before the frame is drawn there is nothing to redraw (the daily commit may finish first)
+    refresh: (what = ["left", "right", "status", "side"]) => void (shell && draw(store.get(), store.get(), what)),
   };
 
   ctx.settings.push({

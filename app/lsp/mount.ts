@@ -287,8 +287,19 @@ const extensionsFor = (doc: Doc, ctx: Ctx): Extension[] => {
     Prec.highest(
       keymap.of([
         { key: "Mod-s", run: () => (void formatAndSave(ctx, ctx.store.get().open.find((d) => d.path === path) ?? doc), true) },
-        { key: "Shift-Alt-f", run: () => (void formatNow(ctx, ctx.store.get().open.find((d) => d.path === path) ?? doc), true) },
       ]),
+    ),
+    // ⌥⇧F by the key's place: on macOS the option key turns F into another character ("Ï"),
+    // which a keymap of "Shift-Alt-f" does not match
+    Prec.highest(
+      EditorView.domEventHandlers({
+        keydown: (e) => {
+          if (e.code !== "KeyF" || !e.altKey || !e.shiftKey || e.metaKey || e.ctrlKey) return false;
+          e.preventDefault();
+          void formatNow(ctx, ctx.store.get().open.find((d) => d.path === path) ?? doc);
+          return true;
+        },
+      }),
     ),
   ];
 };

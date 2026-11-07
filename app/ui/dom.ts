@@ -46,6 +46,16 @@ export const confirmDialog = (title: string, ok = "OK"): Promise<boolean> =>
 
 export type MenuItem = { label: string; icon?: string; run: () => void } | "-";
 
+/**
+ * Calls `f` for a primary-button press on `el`. Taken at mouseup: under the overlay
+ * title bar (the toolbar, the ribbon's top, the panel heads) the mousedown was seen
+ * arriving after the mouseup, so no click reached the button that was pressed.
+ */
+export const onPress = (el: HTMLElement, f: (e: MouseEvent) => void) =>
+  el.addEventListener("mouseup", (e) => {
+    if (e.button === 0) f(e);
+  });
+
 export const menu = (anchor: HTMLElement, items: MenuItem[]) => {
   document.querySelectorAll(".menu").forEach((m) => m.remove());
   const r = anchor.getBoundingClientRect();
@@ -53,9 +63,20 @@ export const menu = (anchor: HTMLElement, items: MenuItem[]) => {
   items.forEach((it) => {
     if (it === "-") return m.append(h("<hr>"));
     const d = h(`<div>${it.icon ?? ""}<span>${esc(it.label)}</span></div>`);
-    d.onclick = () => (m.remove(), it.run());
+    d.onmouseup = (e) => {
+      if (e.button !== 0) return;
+      m.remove();
+      it.run();
+    };
     m.append(d);
   });
   document.body.append(m);
-  setTimeout(() => document.addEventListener("click", () => m.remove(), { once: true }), 0);
+  // a press anywhere but on the menu or its button closes it
+  const close = (e: MouseEvent) => {
+    const t = e.target as Node;
+    if (m.contains(t) || anchor.contains(t)) return;
+    m.remove();
+    document.removeEventListener("mouseup", close, true);
+  };
+  setTimeout(() => document.addEventListener("mouseup", close, true), 0);
 };
