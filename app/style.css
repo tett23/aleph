@@ -83,7 +83,10 @@ input.field:focus, textarea.field:focus { border-color: var(--text-2); }
 .tree .r:hover { background: var(--hover); }
 .tree .r.on { background: var(--sel); }
 .tree .r .ic { color: var(--text-2); }
-.tree .r.proj > .ic.book { color: var(--text-2); }
+/* project rows stand out from files and folders (docs/adr/0020) */
+.tree .r.proj { min-height: 34px; font-weight: 600; font-size: 13.5px; }
+.tree .r.proj > .ic.book { color: var(--text); }
+.tree .r.proj:not(:first-child) { margin-top: 6px; border-top: 1px solid var(--border); border-radius: 0 0 5px 5px; }
 .tree .r .ttl { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .tree .r .fn { color: var(--faint); font-size: 11px; }
 .tree .r .c { margin-left: auto; color: var(--faint); font-size: 11px; display: flex; align-items: center; gap: 6px; padding-left: 6px; }
