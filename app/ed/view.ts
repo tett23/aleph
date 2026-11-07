@@ -401,8 +401,8 @@ export const createView = (o: ViewOptions) => {
 
   const onBeforeInput = (e: InputEvent) => {
     if (e.isComposing || ime.composing()) return;
-    if (e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop") return e.preventDefault(); // handled by paste; drops of text are not taken
     syncFromDom(false);
+    // a paste carries its text in dataTransfer (insertFromPaste)
     const data = e.data ?? e.dataTransfer?.getData("text/plain") ?? null;
     const before = core.doc();
     if (input.beforeInput({ inputType: e.inputType, data, isComposing: e.isComposing }) === "allow") return;
@@ -453,21 +453,12 @@ export const createView = (o: ViewOptions) => {
       applyInput([{ from, to, insert: "" }], "input.cut", from);
     }
   };
-  const onPaste = (e: ClipboardEvent) => {
-    e.preventDefault();
-    const text = (e.clipboardData?.getData("text/plain") ?? "").replace(/\r\n?/g, "\n");
-    if (!text) return;
-    syncFromDom(false);
-    const { from, to } = core.range();
-    applyInput([{ from, to, insert: text }], "input.paste", from + text.length);
-  };
 
   const listeners: [EventTarget, string, EventListener, AddEventListenerOptions?][] = [
     [content, "beforeinput", onBeforeInput as EventListener],
     [content, "keydown", onKeyDown as EventListener],
     [content, "copy", ((e: ClipboardEvent) => onCopy(e, false)) as EventListener],
     [content, "cut", ((e: ClipboardEvent) => onCopy(e, true)) as EventListener],
-    [content, "paste", onPaste as EventListener],
     [content, "compositionstart", () => {
       syncFromDom(false);
       input.compositionStart();
