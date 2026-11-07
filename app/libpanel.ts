@@ -2,9 +2,9 @@
 // left, the open project's on the right, files dropped on them, fonts copied to
 // projects, and images dropped on the editor or the tree.
 import { addCommands } from "./commands.ts";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api } from "./api.ts";
+import { adopt } from "./config.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
@@ -242,11 +242,10 @@ export const mountLibrary = (ctx: Ctx) => {
       if (!k) return false;
       if (k === "clear") c.config.libraryDir = "";
       else {
-        const dir = (await openDialog({ directory: true, multiple: false, title: k === "make" ? "共有ライブラリを作る場所" : "共有ライブラリのフォルダ" })) as string | null;
-        if (!dir) return false;
-        const lib = k === "make" ? `${dir}/Aleph Library` : dir;
-        if (k === "make") for (const sub of ["fonts", "plugins", "functions"]) await api.makeDir(`${lib}/${sub}`);
-        c.config.libraryDir = lib;
+        // Rust opens the dialog, makes the folders and keeps the path (docs/adr/0050)
+        const written = await api.chooseLibrary(k === "make");
+        if (!written) return false;
+        adopt(c.config, written);
       }
       await c.saveConfig();
       c.refresh(["left", "right"]);

@@ -60,7 +60,7 @@ const clientFor = (ctx: Ctx, project: string): Client | null => {
   const c = clients.get(project);
   if (c && c.state() !== "failed" && c.state() !== "stopped") return c;
   if (Date.now() - (failedAt.get(project) ?? 0) < RETRY_AFTER) return null;
-  const n = startClient(project, ctx.config.golemPath || undefined, {
+  const n = startClient(project, {
     onDiagnostics: (uri, list) => {
       const path = [...synced.keys()].find((p) => uriOf(p) === uri);
       if (!path) return;

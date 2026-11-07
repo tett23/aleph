@@ -117,3 +117,12 @@ export const normalize = (raw: unknown): Config => {
 
 /** Whether the dark colours apply. */
 export const isDark = (theme: Theme, systemDark: boolean) => theme === "dark" || (theme === "auto" && systemDark);
+
+/** The settings only Rust changes (docs/adr/0050): adding a workspace, the library, the programs. */
+const OWNED = ["workspaces", "libraryDir", "gitPath", "golemPath", "shemPath"] as const;
+
+/** Takes the paths Rust kept from the settings it wrote, leaving the rest as it is. */
+export const adopt = (config: Config, written: string) => {
+  const r = normalize(JSON.parse(written));
+  for (const k of OWNED) (config as Record<string, unknown>)[k] = r[k];
+};

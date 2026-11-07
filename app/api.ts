@@ -33,12 +33,22 @@ export const api = {
   writeBytes: (path: string, bytes: Uint8Array) => invoke<void>("write_bytes", bytes, { headers: { path: encodeURIComponent(path) } }),
   listDir: (path: string) => invoke<string[]>("list_dir", { path }),
   tempDir: (name: string) => invoke<string>("temp_dir", { name }),
-  tool: (name: Tool, bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("tool", { name, bin, cwd, args }),
-  toolInfo: (name: Tool, bin: string | undefined) => invoke<ToolInfo>("tool_info", { name, bin }),
-  lspStart: (id: string, bin: string | undefined, cwd: string) => invoke<void>("lsp_start", { id, bin, cwd }),
+  // the programs come from the settings Rust keeps (docs/adr/0042)
+  tool: (name: Tool, cwd: string, args: string[]) => invoke<Out>("tool", { name, cwd, args }),
+  toolInfo: (name: Tool) => invoke<ToolInfo>("tool_info", { name }),
+  lspStart: (id: string, cwd: string) => invoke<void>("lsp_start", { id, cwd }),
   lspSend: (id: string, message: string) => invoke<void>("lsp_send", { id, message }),
   lspStop: (id: string) => invoke<void>("lsp_stop", { id }),
   pluginsDir: () => invoke<string>("plugins_dir"),
+  /** Plugins added and removed through native dialogs (docs/adr/0042); null or false when the writer stopped. */
+  installPlugin: () => invoke<string | null>("install_plugin"),
+  removePlugin: (name: string) => invoke<boolean>("remove_plugin", { name }),
+  openPluginsFolder: () => invoke<void>("open_plugins_folder"),
+  /** Paths the writer picks in native dialogs (docs/adr/0050): the settings written, or null. */
+  addWorkspace: () => invoke<string | null>("add_workspace"),
+  chooseLibrary: (make: boolean) => invoke<string | null>("choose_library", { make }),
+  chooseBinary: (name: "git" | Tool) => invoke<string | null>("choose_binary", { name }),
+  setBinary: (name: "git" | Tool, path: string) => invoke<string | null>("set_binary", { name, path }),
   search: (args: SearchArgs) => invoke<Found>("search_files", { args }),
   /** Replacing across files (docs/adr/0032); the open sheets in `leave` are replaced in their editors. */
   replaceFiles: (args: Omit<SearchArgs, "limit"> & { with: string; only: Record<string, Spot[]> | null; leave: string[] }) =>
@@ -46,5 +56,5 @@ export const api = {
   replaceText: (a: { text: string; pattern: string; regex: boolean; caseSensitive: boolean; with: string; only: Spot[] | null }) =>
     invoke<{ text: string; replaced: number; skipped: number }>("replace_text", a),
   replacePreview: (a: { matched: string[]; pattern: string; regex: boolean; caseSensitive: boolean; with: string }) => invoke<string[]>("replace_preview", a),
-  git: (bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("git", { bin, cwd, args }),
+  git: (cwd: string, args: string[]) => invoke<Out>("git", { cwd, args }),
 };

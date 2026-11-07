@@ -56,6 +56,8 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0039](adr/0039-embed-frame-titles.md) | 埋め込みの枠の見出しにシートの名前を出す（実装済み） |
 | [ADR 0040](adr/0040-key-overlap-marks.md) | キーの割り当ての一覧で、先頭の重なりを印として示し続ける（実装済み） |
 | [ADR 0041](adr/0041-checks-after-replacing.md) | ワークスペース全体の置換のあとに lint と preflight を走らせる（実装済み） |
+| [ADR 0042](adr/0042-ipc-trust-boundary.md) | IPC の信頼の境界、CSP、プラグインの追加と削除（実装済み） |
+| [ADR 0050](adr/0050-paths-the-writer-chooses.md) | 書き手が選んだパスだけを、範囲と実行ファイルに足す（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
@@ -68,6 +70,17 @@ Aleph は Tauri 2 のアプリで、画面を TypeScript（`app/`）、ファイ
 - git は、設定の値、`/usr/bin`、Homebrew（`/opt/homebrew/bin`）、PATH の順に探す。設定の値があれば、ほかの場所は探さない。macOS の GUI アプリはログインシェルの PATH を受け継がないためである。
 - アイコンは、使うものだけを `app/icons/` に SVG で置く（lucide、ISC ライセンス）。
 - テストは、TypeScript は `node --test`（Node が型を取り除いて実行する）、Rust は `cargo test` で書く。CI の `app` のジョブが macOS で、型検査、`node --test`、Vite のビルド、rustfmt、clippy、`cargo test` を実行する。
+
+## 画面と Rust の信頼の境界
+
+Rust の側は、画面（webview）からの呼び出しを信じきらない（[ADR 0042](adr/0042-ipc-trust-boundary.md)、[ADR 0050](adr/0050-paths-the-writer-chooses.md)）。プレビューなどに HTML が一か所注入されても、任意のコマンドの実行や居座りに届かないようにするためである。
+
+- CSP で、読み込めるスクリプトを自分のものと blob（プラグイン）に、接続を IPC に限る。`object`、`base`、フォームの送り先は使わない。
+- 画面からファイルを読み書きできるのは、ワークスペース、共有ライブラリ、アプリの一時のディレクトリの下に限る。アプリの設定のディレクトリ（`config.json`、`plugins/`、`trash/`）は読めるが、書けるのはゴミ箱だけである。パスは `canonicalize` してから確かめるので、`..` やシンボリックリンクで外へ出るものも拒む。範囲の外は誤りを返し、`exists` は偽を、ツリーと一覧は空を返す。
+- Finder から落としたファイルとフォルダは、アプリが動いているあいだだけ、コピーの元として読める。
+- git、golem、shem の実行ファイルは、Rust の側が設定から決める。画面からは渡せない。サブコマンドは Aleph が使うものに限る（git は `add`、`branch`、`commit`、`diff`、`log`、`pull`、`push`、`rev-parse`、`show`、`status`、golem は `build`、`check`、`fmt`、`lint`、`new`、`preflight`、`lsp`、`--version`、shem は `render`、`--version`）。作業のディレクトリも上の範囲に限る。
+- 設定のうち、`workspaces`、`libraryDir`、`gitPath`、`golemPath`、`shemPath` は Rust の側だけが足し、変える。画面からの保存では、ワークスペースを外すことと、パスを空にすることだけを受け付ける。ワークスペースを足す、共有ライブラリを選ぶか作る、バイナリを選ぶときは、Rust の側がネイティブのダイアログを開く。バイナリのパスを欄に打ったときは、Rust の側がネイティブの確認のダイアログを出し、はいのときだけ使う。
+- 権限は、Aleph が開くウィンドウ（`main`、`plain-*`、`pages-*`、`plot-*`、`imelog-*`）に限って与える。
 
 ## 画面の構成
 
@@ -424,10 +437,12 @@ check、lint、preflight の診断と検索は [ADR 0015](adr/0015-diagnostics-a
 
 Aleph の画面に機能を足すプラグインは [ADR 0017](adr/0017-aleph-plugins.md) に従う（Golem の `.wasm` のプラグインは共有ライブラリで扱う）。
 
-- アプリの設定のディレクトリの `plugins/` に置いた `.js`（ES モジュール）を、起動して画面を描いたあとに名前の順で読み込み、書き出した `activate(aleph)` を呼ぶ。
+- アプリの設定のディレクトリの `plugins/` にある `.js`（ES モジュール）を、起動して画面を描いたあとに名前の順で読み込み、書き出した `activate(aleph)` を呼ぶ。
 - `aleph` は、`version`（API の版、今は 1）、`registerCommand(名前, 処理)`（ツールバーのメニューに項目を足す）、`registerStatus(処理)`（ステータスバーに文字を足す）、`onSave(処理)`（保存したあとに呼ぶ）、`toast(文言)` を持つ。処理には、開いているシートのパス、形式、本文、プロジェクトを渡す。本文を書き換える API はない。互換を壊す変更をするときは版を上げる。
 - 読み込みか `activate` が失敗したプラグイン（例外、`activate` のないモジュール、構文の誤り）は、それが登録したものを外して無効にし、通知と設定の画面に理由を出す。ほかのプラグインは読み続ける。プラグインの処理が例外を投げたときは、通知を出すかその項目を出さずに続ける。
 - 設定の「Aleph のプラグイン」に、フォルダの場所、プラグインが Aleph と同じ権限で動く旨の注意、読み込んだプラグインの一覧と状態を出す。プラグインごとに有効と無効を切り替えられ（設定の `disabledPlugins` に残す）、「読みなおす」でフォルダを読み直す。
+- 「追加…」を押すと、Rust の側がネイティブのダイアログで `.js` を一つ選ばせ、ファイル名と注意を出して確かめてから、プラグインのフォルダに写して読み直す（[ADR 0042](adr/0042-ipc-trust-boundary.md)）。同じ名前があれば、置き換えるかを確かめる。画面からプラグインのフォルダには書けないので、確かめずに入ることはない。
+- 各プラグインの「外す」は、Rust の側の確認のあとでフォルダから消す。「フォルダを開く」は、フォルダを Finder で開く。フォルダに直に置いたファイルも、読み直すと読む。Aleph の中でプラグインを編集する機能はない。
 
 ## 破棄した ADR
 
