@@ -1,7 +1,9 @@
 // The app's context: the store, the settings and the registries through which
 // each part (panels, views, status items, settings sections, commands) plugs in.
+import type { Extension } from "@codemirror/state";
 import type { Config } from "./config.ts";
-import type { LeftPanel, RightPanel, State, Store } from "./store.ts";
+import type { Editor } from "./editor/cm.ts";
+import type { Doc, LeftPanel, RightPanel, State, Store } from "./store.ts";
 
 export type Panel = { icon: string; title: string; render: (el: HTMLElement, ctx: Ctx) => void | Promise<void> };
 
@@ -58,6 +60,18 @@ export type Ctx = {
   onNewProject: ((project: string, ctx: Ctx) => void | Promise<void>)[];
   /** Run after a file is renamed in Aleph. */
   onRename: ((from: string, to: string, ctx: Ctx) => void | Promise<void>)[];
+  /** The editors of the open sheets, by path. */
+  editors: Map<string, Editor>;
+  /** Extensions each CodeMirror editor gets for a sheet (the LSP adds its own). */
+  editorExtensions: ((doc: Doc, ctx: Ctx) => Extension[])[];
+  /** Views that replace the editor for a kind (pdf, images, tables), drawing one sheet. */
+  kindViews: Record<string, (el: HTMLElement, doc: Doc, ctx: Ctx) => Editor>;
+  /** The vertical editor (docs/adr/0007), for prose when the vertical switch is on. */
+  verticalEditor: ((el: HTMLElement, doc: Doc, ctx: Ctx) => Editor) | null;
+  /** Saves the open sheets (those given, or all with changes). */
+  save: (paths?: string[], opts?: { explicit?: boolean }) => Promise<void>;
+  /** HEAD's text of a file, for the change marks; null when not in HEAD. */
+  baseText: (doc: Doc) => Promise<string | null>;
   /** Draws the panels and the status bar again (after a change outside the store). */
   refresh: (what?: ("left" | "right" | "status" | "side" | "main")[]) => void;
 };
