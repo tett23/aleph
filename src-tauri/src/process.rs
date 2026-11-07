@@ -262,4 +262,33 @@ mod tests {
         let d = testdir::fresh("nostart");
         assert!(run(&d.join("none"), &d, &[]).is_err());
     }
+
+    #[test]
+    fn git_commits_and_head_follows() {
+        // the change marks compare with HEAD; after a commit, HEAD gives the new text (docs/adr/0011)
+        let d = testdir::fresh("git");
+        let git = Path::new("/usr/bin/git");
+        let g = |args: &[&str]| {
+            let mut a = vec!["-c", "user.name=t", "-c", "user.email=t@example.com"];
+            a.extend_from_slice(args);
+            run(
+                git,
+                &d,
+                &a.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            )
+            .unwrap()
+        };
+        assert_eq!(g(&["init", "-q"]).code, 0);
+        std::fs::write(d.join("章.gm"), "一\n").unwrap();
+        assert_ne!(g(&["show", "HEAD:章.gm"]).code, 0, "not in HEAD yet");
+        g(&["add", "-A"]);
+        assert_eq!(g(&["commit", "-q", "-m", "Autosave 2026-11-07"]).code, 0);
+        assert_eq!(g(&["show", "HEAD:章.gm"]).stdout, "一\n");
+        std::fs::write(d.join("章.gm"), "一\n二\n").unwrap();
+        assert!(!g(&["status", "--porcelain=v1", "-z"]).stdout.is_empty());
+        g(&["add", "-A"]);
+        g(&["commit", "-q", "-m", "second"]);
+        assert_eq!(g(&["show", "HEAD:章.gm"]).stdout, "一\n二\n");
+        assert!(g(&["status", "--porcelain=v1", "-z"]).stdout.is_empty());
+    }
 }

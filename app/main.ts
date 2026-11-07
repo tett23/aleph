@@ -16,6 +16,7 @@ import { git, mountTools } from "./tools.ts";
 import { mountEditors } from "./editor/host.ts";
 import { createVertical } from "./editor/vertical.ts";
 import { mountLsp } from "./lsp/mount.ts";
+import { currentBranch, mountGit } from "./gitpanel.ts";
 import { rel } from "./path.ts";
 
 /** The parts of the state worth keeping between launches, per viewer (localStorage may be unavailable). */
@@ -44,7 +45,6 @@ const start = async () => {
   const titles = new Map<string, string>();
   // the tree reads titles into ctx.titles; the toolbar shares the same map
   let shell: Shell;
-  let branch = "";
   const ctx: Ctx = {
     store,
     config,
@@ -120,7 +120,7 @@ const start = async () => {
     const changed = (k: keyof State) => !prev || prev[k] !== s[k];
     renderRibbon(document.body, s);
     shell.sideEl.classList.toggle("hidden", !s.showLeft);
-    if (changed("workspace")) renderWsbar(document.body, s, branch);
+    if (changed("workspace")) renderWsbar(document.body, s, currentBranch());
     renderToolbar(document.body, s, ctx, titles);
     renderRightHead(shell, s);
     if (what.includes("left") || changed("left") || changed("workspace") || changed("showLeft") || changed("expanded") || changed("selected") || changed("open") && !prev)
@@ -147,6 +147,7 @@ const start = async () => {
   mountEditors(ctx);
   mountLsp(ctx);
   mountPreview(ctx);
+  mountGit(ctx);
   ctx.verticalEditor = createVertical;
   await reloadTree(ctx);
   store.subscribe((s, prev) => {

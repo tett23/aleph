@@ -243,6 +243,72 @@ fn lsp_start(
     )
 }
 
+/// ⌘Q (docs/adr/0011): the frontend saves first and then calls `quit`;
+/// if it does not answer, the app quits anyway after a few seconds.
+fn request_quit(app: &AppHandle) {
+    if app.get_webview_window("main").is_none() {
+        return app.exit(0);
+    }
+    let _ = app.emit("aleph:quit", ());
+    let h = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        h.exit(0);
+    });
+}
+
+/// The frontend saved its sheets: quit now.
+#[tauri::command]
+fn quit(app: AppHandle) {
+    app.exit(0);
+}
+
+/// The menu bar: the default items, with Quit going through `request_quit`.
+fn menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem as P, Submenu};
+    let quit = MenuItem::with_id(app, "quit", "Aleph を終了", true, Some("CmdOrCtrl+Q"))?;
+    let about = Submenu::with_items(
+        app,
+        "Aleph",
+        true,
+        &[
+            &P::about(app, None, None)?,
+            &P::separator(app)?,
+            &P::hide(app, None)?,
+            &P::hide_others(app, None)?,
+            &P::show_all(app, None)?,
+            &P::separator(app)?,
+            &quit,
+        ],
+    )?;
+    let edit = Submenu::with_items(
+        app,
+        "編集",
+        true,
+        &[
+            &P::undo(app, None)?,
+            &P::redo(app, None)?,
+            &P::separator(app)?,
+            &P::cut(app, None)?,
+            &P::copy(app, None)?,
+            &P::paste(app, None)?,
+            &P::select_all(app, None)?,
+        ],
+    )?;
+    let window = Submenu::with_items(
+        app,
+        "ウインドウ",
+        true,
+        &[
+            &P::minimize(app, None)?,
+            &P::fullscreen(app, None)?,
+            &P::separator(app)?,
+            &P::close_window(app, None)?,
+        ],
+    )?;
+    Menu::with_items(app, &[&about, &edit, &window])
+}
+
 #[tauri::command]
 fn lsp_send(servers: tauri::State<lsp::Servers>, id: String, message: String) -> R<()> {
     servers.send(&id, &message)
@@ -290,6 +356,12 @@ pub fn run_app() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(lsp::Servers::default())
+        .menu(menu)
+        .on_menu_event(|app, e| {
+            if e.id() == "quit" {
+                request_quit(app)
+            }
+        })
         .setup(|app| {
             restore_window(app.handle());
             Ok(())
@@ -322,13 +394,14 @@ pub fn run_app() {
             tool_info,
             lsp_start,
             lsp_send,
-            lsp_stop
+            lsp_stop,
+            quit
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")
         .run(|app, ev| {
             // ⌘Q does not send CloseRequested to the windows
-            if let tauri::RunEvent::ExitRequested { .. } = ev {
+            if let tauri::RunEvent::ExitRequested { .. } = &ev {
                 if let Some(w) = app.get_webview_window("main") {
                     save_window(&w.as_ref().window());
                 }
