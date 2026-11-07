@@ -21,6 +21,7 @@ const RIBBON: [LeftPanel | "plot", string, string][] = [
   ["plot", "table-2", "プロット"],
   ["diagnostics", "list-checks", "診断（check、lint、preflight）"],
   ["library", "library-big", "共有ライブラリ（すべてのプロジェクト）"],
+  ["trash", "trash-2", "ゴミ箱"],
 ];
 
 const RIGHT: [RightPanel, string, string][] = [

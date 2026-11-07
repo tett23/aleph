@@ -74,6 +74,24 @@ fn rename_path(from: String, to: String) -> R<()> {
     std::fs::rename(from, to).map_err(err)
 }
 
+/// The trash's folder in the app's config directory (docs/adr/0033).
+#[tauri::command]
+fn trash_dir(app: AppHandle) -> R<String> {
+    let d = config_dir(&app)?.join("trash");
+    std::fs::create_dir_all(&d).map_err(err)?;
+    Ok(d.to_string_lossy().into())
+}
+
+#[tauri::command]
+fn move_path(from: String, to: String) -> R<()> {
+    fsops::move_path(Path::new(&from), Path::new(&to)).map_err(err)
+}
+
+#[tauri::command]
+fn remove_path(path: String) -> R<()> {
+    fsops::remove_path(Path::new(&path)).map_err(err)
+}
+
 #[tauri::command]
 fn copy_file(from: String, to: String) -> R<()> {
     fsops::copy_file(Path::new(&from), Path::new(&to)).map_err(err)
@@ -555,6 +573,9 @@ pub fn run_app() {
             replace_files,
             replace_text,
             replace_preview,
+            trash_dir,
+            move_path,
+            remove_path,
             plugins_dir
         ])
         .build(tauri::generate_context!())

@@ -25,6 +25,10 @@ export const api = {
   makeDir: (path: string) => invoke<void>("make_dir", { path }),
   rename: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
   copyFile: (from: string, to: string) => invoke<void>("copy_file", { from, to }),
+  /** The trash (docs/adr/0033): its folder, and moving or removing a file or folder. */
+  trashDir: () => invoke<string>("trash_dir"),
+  movePath: (from: string, to: string) => invoke<void>("move_path", { from, to }),
+  removePath: (path: string) => invoke<void>("remove_path", { path }),
   /** Writes bytes as they are (a pasted image, docs/adr/0031); the path goes in a header. */
   writeBytes: (path: string, bytes: Uint8Array) => invoke<void>("write_bytes", bytes, { headers: { path: encodeURIComponent(path) } }),
   listDir: (path: string) => invoke<string[]>("list_dir", { path }),

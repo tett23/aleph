@@ -614,6 +614,14 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .search .hit strong { color: var(--accent); }
 .search .hit input, .search .hf input { margin: 0 4px 0 0; }
 
+/* the trash (docs/adr/0033) */
+.trash .sec { padding: 8px 10px; }
+.trash h5 { margin: 4px 0 6px; font-size: 11px; font-weight: 600; color: var(--faint); display: flex; justify-content: space-between; align-items: center; }
+.trash .te { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 5px; }
+.trash .te:hover { background: var(--bg-3); }
+.trash .te .ttl { flex: 1; min-width: 0; }
+.trash .te small { display: block; color: var(--faint); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* GFM in the Markdown preview (docs/adr/0035) */
 .pview.md li > input[type="checkbox"] { margin: 0 0.3em 0 0; vertical-align: middle; }
 .pview.md del { color: var(--text-2); }
+||||||| 44c2c21
