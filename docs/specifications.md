@@ -60,6 +60,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0043](adr/0043-golem-html-sanitizer.md) | Golem の HTML を許可リストで組み立て直す（実装済み） |
 | [ADR 0044](adr/0044-navigation-from-the-preview.md) | プレビューからの移動を止め、外部のリンクはブラウザで開く（実装済み） |
 | [ADR 0045](adr/0045-symlinks.md) | シンボリックリンクを辿らず、リンクに書かない（実装済み） |
+| [ADR 0046](adr/0046-safe-automatic-git.md) | Aleph の git にリポジトリの fsmonitor と hook を使わせない（実装済み） |
 | [ADR 0047](adr/0047-no-remote-images-in-previews.md) | プレビューで外部の画像を読み込まない（実装済み） |
 | [ADR 0050](adr/0050-paths-the-writer-chooses.md) | 書き手が選んだパスだけを、範囲と実行ファイルに足す（実装済み） |
 
@@ -374,6 +375,7 @@ Markdown のプレビューの改行の扱いを設定で選び、GFM の拡張�
 - 手動のコミット：左のサイドバーの Git のパネル、ツールバーのメニューの「コミット（⌘⇧K）」、⌘⇧K で、Git のパネルのメッセージ欄に移る。メッセージを書いてコミットのボタンか ⌘↩ を押すと、開いているシートを保存してから `git add -A` してコミットする。
 - Git のパネル：現在のワークスペースの、変更のあるファイル（`git status --porcelain=v1 -z -uall`）、選んだファイルの `git diff HEAD`、コミットメッセージ、コミット、push、pull（`--no-rebase`）、直近 20 件の履歴を出す。ファイルを二度押すと開く。Git のリポジトリでなければ、`git init` のボタンを出す。
 - ツリーでは、コミットしていない変更のあるファイルに点を出す。ツリーの上のワークスペースの名前の横に、現在のブランチを出す。
+- Aleph が走らせる git には、いつも `-c core.fsmonitor=false -c core.hooksPath=/dev/null` を付け、リポジトリの fsmonitor と hook を使わない（[ADR 0046](adr/0046-safe-automatic-git.md)）。状態を読むだけのもの（`status`、`diff`、`log`、`show`、`rev-parse`）には `--no-optional-locks` を、`diff` には `--no-ext-diff` も付ける。hook を使いたいときは、ターミナルからコミットする。
 
 ## プロットとガントチャート
 
