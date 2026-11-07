@@ -101,21 +101,30 @@ export const PLOT_COLUMNS = [
 ] as const;
 
 export type PlotKey = (typeof PLOT_COLUMNS)[number][0];
-export type PlotRow = Record<PlotKey, string>;
+export type PlotRow = Record<PlotKey, string> & Record<string, string>;
+const STANDARD = new Set<string>(PLOT_COLUMNS.map(([k]) => k));
 
 export const plotPath = (project: string) => `${project}/plot.csv`;
 
-export const loadPlot = async (project: string): Promise<PlotRow[]> => {
-  if (!(await api.exists(plotPath(project)))) return [];
+/** The rows and the columns the user added (any header beyond the standard ones). */
+export const loadPlotTable = async (project: string): Promise<{ rows: PlotRow[]; extras: string[] }> => {
+  if (!(await api.exists(plotPath(project)))) return { rows: [], extras: [] };
   const [head, ...rows] = parseDelimited(await api.readText(plotPath(project)), ",");
-  if (!head) return [];
-  return rows
-    .filter((r) => r.some((c) => c.trim()))
-    .map((r) => Object.fromEntries(PLOT_COLUMNS.map(([k]) => [k, r[head.indexOf(k)] ?? ""])) as PlotRow);
+  if (!head) return { rows: [], extras: [] };
+  const extras = head.map((h) => h.trim()).filter((h) => h && !STANDARD.has(h));
+  const keys = [...PLOT_COLUMNS.map(([k]) => k as string), ...extras];
+  return {
+    rows: rows.filter((r) => r.some((c) => c.trim())).map((r) => Object.fromEntries(keys.map((k) => [k, r[head.indexOf(k)] ?? ""])) as PlotRow),
+    extras,
+  };
 };
 
-export const savePlot = (project: string, rows: PlotRow[]) =>
-  api.writeText(plotPath(project), writeDelimited([PLOT_COLUMNS.map(([k]) => k), ...rows.map((r) => PLOT_COLUMNS.map(([k]) => r[k]))], ","));
+export const loadPlot = async (project: string): Promise<PlotRow[]> => (await loadPlotTable(project)).rows;
+
+export const savePlot = (project: string, rows: PlotRow[], extras: string[] = []) => {
+  const keys = [...PLOT_COLUMNS.map(([k]) => k as string), ...extras];
+  return api.writeText(plotPath(project), writeDelimited([keys, ...rows.map((r) => keys.map((k) => r[k] ?? ""))], ","));
+};
 
 const split = (re: RegExp) => (s: string) =>
   s

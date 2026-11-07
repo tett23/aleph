@@ -3,7 +3,8 @@ import { emit } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { api, basename } from "./api";
 import { esc, h, icon } from "./icons";
-import { PLOT_COLUMNS, loadPlot, namesCell, savePlot, type PlotKey, type PlotRow } from "./project";
+import { PLOT_COLUMNS, loadPlotTable, namesCell, savePlot, type PlotKey, type PlotRow } from "./project";
+import { ask, toast } from "./ui";
 
 const ICONS: Record<PlotKey, string> = {
   scene: "clapperboard",
@@ -43,7 +44,7 @@ export const calendarOf = (rows: PlotRow[], file: string[]): string[] => {
   return seen.every((l) => valueOf(l) !== null) ? [...seen].sort((x, y) => valueOf(x)! - valueOf(y)!) : seen;
 };
 
-const gantt = (rows: PlotRow[], subplots: string[], calendar: string[]) => {
+const gantt = (rows: PlotRow[], subplots: string[], calendar: string[], zoom = 1) => {
   const items = rows
     .map((r, i) => {
       const s = calendar.indexOf(r.start.trim());
@@ -57,7 +58,7 @@ const gantt = (rows: PlotRow[], subplots: string[], calendar: string[]) => {
   const W = col * calendar.length;
   const lanes = subplots.length ? subplots : ["(なし)"];
   const laneH = 34;
-  let svg = `<svg class="gantt-svg" width="${W + 150}" height="${lanes.length * laneH + 34}" viewBox="-130 -26 ${W + 150} ${lanes.length * laneH + 34}">`;
+  let svg = `<svg class="gantt-svg" width="${(W + 150) * zoom}" height="${(lanes.length * laneH + 34) * zoom}" viewBox="-130 -26 ${W + 150} ${lanes.length * laneH + 34}">`;
   calendar.forEach((label, k) => {
     svg += `<line x1="${k * col}" x2="${k * col}" y1="-6" y2="${lanes.length * laneH}" class="tick"/><text x="${k * col + 4}" y="-10" class="tl">${esc(label.length > 12 ? label.slice(0, 11) + "…" : label)}</text>`;
   });
@@ -99,6 +100,22 @@ export type PlotView = { reload: () => Promise<void>; el: HTMLElement };
 
 export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFile?: (rel: string) => void; standalone?: boolean } = {}): PlotView => {
   let rows: PlotRow[] = [];
+  let extras: string[] = []; // columns the user added
+  let gz = (() => {
+    try {
+      return Number(localStorage.getItem("ganttZoom")) || 1;
+    } catch {
+      return 1;
+    }
+  })();
+  const setGz = (z: number) => {
+    gz = Math.min(4, Math.max(0.4, z));
+    try {
+      localStorage.setItem("ganttZoom", String(gz));
+    } catch {
+      /* not kept */
+    }
+  };
   let calendarFile: string[] = [];
   const calPath = `${project}/plot-calendar.txt`;
   let mode: "table" | "gantt" | "both" = "both";
@@ -111,7 +128,7 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
   const save = () => {
     clearTimeout(timer);
     timer = window.setTimeout(async () => {
-      await savePlot(project, rows);
+      await savePlot(project, rows, extras);
       await emit("aleph:plot-saved", { project });
     }, 400);
   };
@@ -130,12 +147,14 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
         <span class="sp"></span>
         <span class="muted">${rows.length} シーン · 予定 ${total.toLocaleString()} 字</span>
         <span class="f" data-act="add">${icon("plus", 14)}シーン</span>
+        ${mode !== "gantt" ? `<span class="f" data-act="addcol" title="任意の列を足す">${icon("plus", 14)}列</span>` : ""}
+        ${mode !== "table" ? `<span class="f" data-gz="out" title="ガントを縮小">${icon("zoom-out", 14)}</span><span class="f" data-gz="fit" title="100% に戻す">${Math.round(gz * 100)}%</span><span class="f" data-gz="in" title="ガントを拡大">${icon("zoom-in", 14)}</span>` : ""}
         ${mode !== "table" ? `<span class="f" data-act="calendar" title="ガントの時の並び">${icon("calendar-cog", 14)}暦</span>` : ""}
         ${opts.standalone ? "" : `<span class="f" data-act="window" title="別ウィンドウ">${icon("external-link", 14)}</span>`}
       </div>
       ${
         mode !== "gantt"
-          ? `<div class="table-wrap"><table class="grid"><thead><tr><th></th>${PLOT_COLUMNS.map(([k, l]) => `<th>${icon(ICONS[k], 13)}${l}</th>`).join("")}</tr></thead><tbody>
+          ? `<div class="table-wrap"><table class="grid"><thead><tr><th></th>${PLOT_COLUMNS.map(([k, l]) => `<th>${icon(ICONS[k], 13)}${l}</th>`).join("")}${extras.map((x) => `<th class="extra">${icon("columns-3", 13)}${esc(x)}<span class="rmcol" data-rmcol="${esc(x)}" title="この列を消す">${icon("x", 11)}</span></th>`).join("")}</tr></thead><tbody>
         ${visible
           .map(
             ({ r, i }) =>
@@ -146,26 +165,26 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
                     : k === "file" && r[k]
                       ? `<td><div class="cell link" contenteditable="plaintext-only" data-k="${k}">${esc(r[k])}</div><span class="open" data-open="${esc(r[k])}">${icon("arrow-up-right", 12)}</span></td>`
                       : `<td><div class="cell ${k === "fragments" ? "body" : ""}" contenteditable="plaintext-only" data-k="${k}">${esc(r[k])}</div></td>`,
-              ).join("")}</tr>`,
+              ).join("")}${extras.map((x) => `<td><div class="cell" contenteditable="plaintext-only" data-k="${esc(x)}">${esc(r[x] ?? "")}</div></td>`).join("")}</tr>`,
           )
           .join("")}</tbody></table></div>`
           : ""
       }
-      ${mode !== "table" ? `<div class="gantt">${gantt(filter ? rows.filter((r) => namesCell(r.subplots).includes(filter!)) : rows, filter ? [filter] : subs, calendarOf(rows, calendarFile))}</div>` : ""}`;
+      ${mode !== "table" ? `<div class="gantt">${gantt(filter ? rows.filter((r) => namesCell(r.subplots).includes(filter!)) : rows, filter ? [filter] : subs, calendarOf(rows, calendarFile), gz)}</div>` : ""}`;
   };
 
   el.addEventListener("input", (e) => {
     const c = e.target as HTMLElement;
     const tr = c.closest("tr");
     if (!c.dataset.k || !tr) return;
-    rows[Number(tr.dataset.row)][c.dataset.k as PlotKey] = c.innerText.replace(/\n$/, "");
+    rows[Number(tr.dataset.row)][c.dataset.k] = c.innerText.replace(/\n$/, "");
     save();
   });
   el.addEventListener("focusout", (e) => {
     if ((e.target as HTMLElement).dataset.k) render();
   });
   el.addEventListener("click", async (e) => {
-    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-mode],[data-filter],[data-act],[data-open],.bar");
+    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-mode],[data-filter],[data-act],[data-open],[data-gz],[data-rmcol],.bar");
     if (!t) return;
     if (t.dataset.mode) {
       // toggles one of the two; at least one stays shown
@@ -173,9 +192,23 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
       const showGantt = mode !== "table";
       const [tb, gt] = t.dataset.mode === "table" ? [!showTable, showGantt] : [showTable, !showGantt];
       mode = tb && gt ? "both" : tb ? "table" : gt ? "gantt" : mode;
+    } else if (t.dataset.gz) setGz(t.dataset.gz === "in" ? gz * 1.25 : t.dataset.gz === "out" ? gz / 1.25 : 1);
+    else if (t.dataset.rmcol) {
+      const x = t.dataset.rmcol;
+      if ((await ask(`列「${x}」を消します。中身も消えます。よければ OK`, x)) !== x) return;
+      extras = extras.filter((c) => c !== x);
+      rows.forEach((r) => delete r[x]);
+      save();
+    } else if (t.dataset.act === "addcol") {
+      const name = (await ask("足す列の名前"))?.replace(/[,\n"]/g, " ").trim();
+      if (!name) return;
+      if (extras.includes(name) || PLOT_COLUMNS.some(([k, l]) => k === name || l === name)) return toast(`「${name}」という列はもうあります`);
+      extras.push(name);
+      rows.forEach((r) => (r[name] = ""));
+      save();
     } else if (t.dataset.filter !== undefined) filter = t.dataset.filter || null;
     else if (t.dataset.act === "add") {
-      rows.push(Object.fromEntries(PLOT_COLUMNS.map(([k]) => [k, k === "subplots" && filter ? filter : ""])) as PlotRow);
+      rows.push(Object.fromEntries([...PLOT_COLUMNS.map(([k]) => [k, k === "subplots" && filter ? filter : ""]), ...extras.map((x) => [x, ""])]) as PlotRow);
       save();
     } else if (t.dataset.act === "del") {
       rows.splice(Number(t.closest("tr")!.dataset.row), 1);
@@ -202,8 +235,20 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
     render();
   });
 
+  // pinch or ⌘ + scroll over the chart zooms it
+  el.addEventListener(
+    "wheel",
+    (e) => {
+      if (!e.ctrlKey || !(e.target as HTMLElement).closest(".gantt")) return;
+      e.preventDefault();
+      setGz(gz * (e.deltaY < 0 ? 1.06 : 1 / 1.06));
+      render();
+    },
+    { passive: false },
+  );
+
   const reload = async () => {
-    rows = await loadPlot(project);
+    ({ rows, extras } = await loadPlotTable(project));
     calendarFile = (await api.exists(calPath))
       ? (await api.readText(calPath)).split("\n").map((l) => l.trim()).filter(Boolean)
       : [];

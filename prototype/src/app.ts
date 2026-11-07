@@ -11,7 +11,7 @@ import { lineMarks } from "./diff";
 import { gmBlocks, mdToGm, plainParagraphs, stats, type Grid } from "./gm";
 import { esc, h, icon } from "./icons";
 import { lspFor } from "./lsp";
-import { dropIntoLibrary, mountLibraryAll, mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
+import { dropIntoLibrary, mountDiagnostics, mountLibraryAll, mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
 import { mountPlot } from "./plot";
 import { applyZoom, autoDpi, pageInches, rasterize, setZoom, zoom, zoomControls, renderImage } from "./preview";
 import { buildChapterHtml, buildPages, renderEvaluated, renderMarkdown, renderMermaid, renderPages, renderPdf, renderSvg, type BuildResult } from "./preview";
@@ -35,7 +35,7 @@ const store = {
 
 const state = {
   workspace: store.get<string | null>("ws", null),
-  left: "files" as "files" | "search" | "git" | "library",
+  left: "files" as "files" | "search" | "git" | "library" | "diagnostics",
   right: store.get<"attach" | "outline" | "library">("right", "attach"),
   showLeft: true,
   showRight: store.get("showRight", true),
@@ -67,6 +67,7 @@ app.innerHTML = `
     <span class="iconbtn" data-left="search" title="検索">${icon("search")}</span>
     <span class="iconbtn" data-left="git" title="Git">${icon("git-branch")}</span>
     <span class="iconbtn" data-plot title="プロット">${icon("table-2")}</span>
+    <span class="iconbtn" data-left="diagnostics" title="診断（check、lint、preflight）">${icon("list-checks")}</span>
     <span class="iconbtn" data-left="library" title="フォント、プラグイン、関数（すべてのプロジェクト）">${icon("library-big")}</span>
     <span class="grow drag" data-tauri-drag-region></span>
     <span class="iconbtn" data-settings title="設定">${icon("settings")}</span>
@@ -220,6 +221,9 @@ const renderSide = async () => {
   if (state.left === "search") {
     sideEl.innerHTML = head + `<div class="searchhost" style="display:flex;flex-direction:column;flex:1;min-height:0"></div>`;
     mountSearch(sideEl.querySelector(".searchhost")!, ctx);
+  } else if (state.left === "diagnostics") {
+    sideEl.innerHTML = head + `<div class="diaghost rbody"></div>`;
+    await mountDiagnostics(sideEl.querySelector(".diaghost")!, ctx);
   } else if (state.left === "library") {
     sideEl.innerHTML = head + `<div class="libhost rbody"></div>`;
     await mountLibraryAll(sideEl.querySelector(".libhost")!, ctx);
@@ -849,7 +853,7 @@ const moreMenu = (anchor: HTMLElement) => {
           { label: "プロットを別ウィンドウで開く", icon: icon("table-2", 14), run: () => new WebviewWindow(`plot-${Date.now()}`, { url: `index.html?view=plot&project=${encodeURIComponent(d.project!)}`, title: `プロット — ${basename(d.project!)}`, width: 1300, height: 800 }) },
           { label: "今すぐコミット…", icon: icon("git-commit-horizontal", 14), run: () => commitNow() },
           { label: "整形（⌥⇧F）", icon: icon("wand-sparkles", 14), run: () => formatDoc(d) },
-          { label: "golem check", icon: icon("circle-check", 14), run: () => runGolem(d, ["check"]) },
+          { label: "診断の一覧（check、lint、preflight）", icon: icon("list-checks", 14), run: () => ((state.left = "diagnostics"), (state.showLeft = true), renderSide()) },
           { label: "共有ライブラリのフォントをコピー", icon: icon("type", 14), run: async () => toast((await copyFonts(d.project!)).join(", ") || "足りないフォントはありません") },
         ]
       : []),

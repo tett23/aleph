@@ -1,7 +1,7 @@
 // Side panels: search, git, settings, and the right panel (attachments, outline, library).
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { api, basename, rel, type Hit } from "./api";
-import { config, saveConfig } from "./config";
+import { bin, config, saveConfig } from "./config";
 import { gmBlocks } from "./gm";
 import { esc, h, icon } from "./icons";
 import {
@@ -281,6 +281,106 @@ export const mountLibrary = async (el: HTMLElement, ctx: Ctx) => {
     await ctx.refreshTree();
     await mountLibrary(el, ctx);
   };
+};
+
+// ---------------- diagnostics of golem check, lint and preflight (left panel) ----------------
+type GolemDiag = {
+  code: string;
+  severity: "error" | "warning" | "notice" | "info";
+  span?: { file: string; line: number; column: number };
+  message: string;
+  facts?: Record<string, string>;
+};
+const diagState = { project: "", kind: "check" as "check" | "lint" | "preflight", running: false, results: new Map<string, { at: string; items: GolemDiag[]; log: string }>() };
+
+export const mountDiagnostics = async (el: HTMLElement, ctx: Ctx) => {
+  const projects = await allProjects();
+  if (!projects.length) {
+    el.innerHTML = `<div class="hint">Golem のプロジェクトがありません。</div>`;
+    return;
+  }
+  const cur = ctx.current()?.project;
+  if (!projects.includes(diagState.project)) diagState.project = cur && projects.includes(cur) ? cur : projects[0];
+  const key = () => `${diagState.project}\n${diagState.kind}`;
+  const sev = { error: ["circle-x", "エラー"], warning: ["triangle-alert", "警告"], notice: ["info", "お知らせ"], info: ["info", "情報"] } as const;
+  const render = () => {
+    const r = diagState.results.get(key());
+    const groups = new Map<string, GolemDiag[]>();
+    r?.items.forEach((d) => groups.set(d.span?.file ?? "", [...(groups.get(d.span?.file ?? "") ?? []), d]));
+    const count = (k: string) => r?.items.filter((d) => d.severity === k).length ?? 0;
+    el.innerHTML = `<div class="diag">
+      <select class="field diagproj">${projects.map((p) => `<option value="${esc(p)}" ${p === diagState.project ? "selected" : ""}>${esc(basename(p))}</option>`).join("")}</select>
+      <div class="seg diagkind">${(["check", "lint", "preflight"] as const).map((k) => `<span data-k="${k}" class="${diagState.kind === k ? "on" : ""}">${k}</span>`).join("")}</div>
+      <div class="diagbar"><span class="btn" data-run>${diagState.running ? "実行中…" : "実行"}</span><span class="muted">${
+        r ? `${r.at} · エラー ${count("error")} · 警告 ${count("warning")}${count("notice") ? ` · お知らせ ${count("notice")}` : ""}` : { check: "出力を書かずに検査する", lint: "lint の規則を当てる", preflight: "入稿の前に PDF を検査する（preflight.toml）" }[diagState.kind]
+      }</span></div>
+      <div class="diaglist">${
+        !r
+          ? ""
+          : !r.items.length
+            ? r.log
+              ? `<pre class="error">${esc(r.log)}</pre>`
+              : `<div class="hint">問題はありません。</div>`
+            : [...groups]
+                .map(
+                  ([f, ds]) =>
+                    `<div class="f">${icon("file-text", 13)}${esc(f || "（プロジェクト）")}<small>${ds.length}</small></div>` +
+                    ds
+                      .map(
+                        (d) =>
+                          `<div class="d sev-${d.severity}" ${d.span ? `data-f="${esc(d.span.file)}" data-l="${d.span.line}" data-c="${d.span.column}"` : ""}>${icon(sev[d.severity]?.[0] ?? "info", 13)}<div><div class="m">${esc(d.message)}</div><div class="meta">${esc(d.code)}${d.span ? ` · ${d.span.line} 行 ${d.span.column} 列` : ""}${d.facts ? ` · ${esc(Object.entries(d.facts).map(([k, v]) => `${k}: ${v}`).join("、"))}` : ""}</div></div></div>`,
+                      )
+                      .join(""),
+                )
+                .join("")
+      }</div></div>`;
+  };
+  const run = async () => {
+    diagState.running = true;
+    render();
+    const args = diagState.kind === "preflight" ? ["preflight", "--format", "json"] : [diagState.kind, "--format", "json", "-v"];
+    const out = await api.tool("golem", bin("golem"), diagState.project, args).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
+    // check and lint write the JSON to stdout, preflight to stderr: take whichever parses
+    const parse = (t: string): GolemDiag[] | null => {
+      try {
+        const v = JSON.parse(t.trim());
+        return Array.isArray(v) ? v : null;
+      } catch {
+        return null;
+      }
+    };
+    const parsed = parse(out.stdout) ?? parse(out.stderr);
+    let items: GolemDiag[] = parsed ?? [];
+    let log = parsed ? "" : (out.stdout + out.stderr).trim();
+    if (!items.length && out.code !== 0 && !log) log = out.stderr.trim();
+    const order = { error: 0, warning: 1, notice: 2, info: 3 };
+    items.sort((a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9) || (a.span?.file ?? "").localeCompare(b.span?.file ?? "") || (a.span?.line ?? 0) - (b.span?.line ?? 0));
+    diagState.results.set(key(), { at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }), items, log });
+    diagState.running = false;
+    render();
+  };
+  el.onchange = (e) => {
+    const t = e.target as HTMLSelectElement;
+    if (t.classList.contains("diagproj")) {
+      diagState.project = t.value;
+      render();
+    }
+  };
+  el.onclick = (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-k],[data-run],[data-f]");
+    if (!t) return;
+    if (t.dataset.k) {
+      diagState.kind = t.dataset.k as typeof diagState.kind;
+      render();
+      if (!diagState.results.has(key())) run();
+    } else if (t.dataset.run !== undefined && !diagState.running) run();
+    else if (t.dataset.f) {
+      const path = `${diagState.project}/${t.dataset.f}`;
+      if (/\.(gm|emet|toml|md|csv|tsv|svg)$/.test(path)) ctx.openFile(path, Number(t.dataset.l), Math.max(0, Number(t.dataset.c) - 1));
+    }
+  };
+  render();
+  if (!diagState.results.has(key())) run();
 };
 
 // ---------------- the shared library across every project (left panel) ----------------
