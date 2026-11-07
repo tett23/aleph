@@ -13,6 +13,7 @@ import { focused } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { item } from "./ui/settings.ts";
 import { reloadTree } from "./ui/tree.ts";
+import { workspaceOf } from "./workspace.ts";
 
 const fs: Fs = {
   exists: api.exists,
@@ -33,7 +34,7 @@ const MARK: Record<LibState, [string, string]> = {
 const dropzone = `<div class="dropzone">.wasm、.emet、フォントとライセンスをここに落とすと、<br>共有ライブラリの plugins/、functions/、fonts/ にコピーします。</div>`;
 
 const projectName = (ctx: Ctx, p: string) => {
-  const ws = ctx.config.workspaces.find((w) => p.startsWith(w + "/"));
+  const ws = workspaceOf(p, ctx.config.workspaces);
   return ctx.config.workspaces.length > 1 && ws ? `${basename(ws)} / ${rel(ws, p)}` : ws ? rel(ws, p) : basename(p);
 };
 

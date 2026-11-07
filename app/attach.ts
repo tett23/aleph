@@ -5,23 +5,19 @@ import { countText, type Stats } from "./count.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { gmBlocks } from "./gm.ts";
-import { paragraphSeparator, type Separator } from "./manifest.ts";
+import { forgetManifest, loadManifest, separatorOf } from "./separator.ts";
 import { goalOf, metaFor, parseMeta, renameKey, writeMeta, type Meta } from "./notes.ts";
 import { dirname, rel } from "./path.ts";
 import { linesCell, namesCell, rowsFor, targetFor } from "./plot/data.ts";
 import { plotRows, plotRowsNow } from "./plot/mount.ts";
 import { focused } from "./store.ts";
 import { item } from "./ui/settings.ts";
-import { kindOf } from "./workspace.ts";
+import { kindOf, projectOf, workspaceOf } from "./workspace.ts";
 
 // ---- where a sheet's metadata lives ----
 
 /** The root whose .aleph/notes.json holds the sheet's metadata: its project, else its workspace. */
-const rootOf = (ctx: Ctx, path: string): string | null => {
-  const project = ctx.projects.filter((p) => path.startsWith(p + "/")).sort((a, b) => b.length - a.length)[0];
-  if (project) return project;
-  return ctx.store.get().workspaces.find((w) => path.startsWith(w + "/")) ?? null;
-};
+const rootOf = (ctx: Ctx, path: string): string | null => projectOf(path, ctx.projects) ?? workspaceOf(path, ctx.store.get().workspaces);
 
 const metas = new Map<string, Meta>();
 const loadMeta = async (root: string) => {
@@ -35,9 +31,6 @@ const saveMeta = async (root: string) => {
 
 // ---- counting, with each project's paragraph separator ----
 
-const manifests = new Map<string, string>();
-const separatorOf = (project: string | null, path: string, text: string): Separator =>
-  project ? paragraphSeparator(manifests.get(project) ?? "", rel(project, path), text) : "blank-line";
 
 const counts = new Map<string, number>();
 const pending = new Set<string>();
@@ -54,8 +47,8 @@ const charsOf = (ctx: Ctx, path: string): number | null => {
   if (!pending.has(path)) {
     pending.add(path);
     void (async () => {
-      const project = ctx.projects.find((p) => path.startsWith(p + "/")) ?? null;
-      if (project && !manifests.has(project)) manifests.set(project, await api.readText(`${project}/manifest.toml`).catch(() => ""));
+      const project = projectOf(path, ctx.projects);
+      if (project) await loadManifest(project);
       counts.set(path, count(ctx, "gm", project, path, await api.readText(path).catch(() => "")).chars);
       pending.delete(path);
       clearTimeout(redraw);
@@ -78,7 +71,7 @@ const goalFor = (ctx: Ctx, path: string) => {
   const root = rootOf(ctx, path);
   const m = root ? metas.get(root) : undefined;
   if (root && !metas.has(root)) void loadMeta(root).then(() => ctx.refresh(["left"]));
-  const project = ctx.projects.find((p) => path.startsWith(p + "/"));
+  const project = projectOf(path, ctx.projects);
   const rows = project ? plotRowsNow(project) : null;
   if (project && !rows) void plotRows(project).then(() => ctx.refresh(["left"]));
   return goalOf(m && root ? metaFor(m, rel(root, path)).goal : undefined, project && rows ? targetFor(rows, project, path) : null);
@@ -95,7 +88,7 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
   if (!d) return void (el.innerHTML = `<div class="sec"><div class="muted">シートを開くと、目標、キーワード、書くこと、ノートがここに出ます。</div></div>`);
   const root = rootOf(ctx, d.path);
   if (!root) return void (el.innerHTML = `<div class="sec"><div class="muted">ワークスペースの外のシートです。</div></div>`);
-  if (d.project && !manifests.has(d.project)) manifests.set(d.project, await api.readText(`${d.project}/manifest.toml`).catch(() => ""));
+  if (d.project) await loadManifest(d.project);
   const meta = await loadMeta(root);
   const key = rel(root, d.path);
   const m = metaFor(meta, key);
@@ -203,7 +196,7 @@ export const mountAttach = (ctx: Ctx) => {
       if (!before || before.saved === d.saved) continue;
       counts.delete(d.path);
       if (d.path.endsWith("/manifest.toml")) {
-        manifests.delete(dirname(d.path));
+        forgetManifest(dirname(d.path));
         counts.clear();
       }
     }

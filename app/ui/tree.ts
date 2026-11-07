@@ -64,7 +64,8 @@ const row = (r: Row, ctx: Ctx) => {
   const p = r.entry.path;
   const k = kindOf(p);
   const title = r.plot ? "プロット" : (ctx.titles.get(p) ?? stem(r.entry.name));
-  const fn = r.plot ? "" : ctx.titles.has(p) && k === "gm" ? stem(r.entry.name) : k;
+  // a heading as the name, the file's name small beside it (docs/adr/0004); otherwise the kind
+  const fn = r.plot ? "" : ctx.titles.has(p) ? r.entry.name.replace(/\.gm$/, "") : k;
   const on = s.open.some((d) => d.path === p) || s.selected.includes(p) || (r.plot && s.plot === r.project);
   return `<div class="r ${on ? "on" : ""}" style="${pad}" data-file="${esc(p)}" ${r.plot ? `data-plot="${esc(r.project!)}"` : ""}>${icon(
     r.plot ? "table-2" : (ICONS[k] ?? "image"),

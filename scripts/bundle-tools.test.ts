@@ -58,3 +58,11 @@ test("a missing release stops the script", () => {
   assert.equal(r.status, 1);
   assert.match(r.stderr, /cannot fetch/);
 });
+
+test("a later archive that does not match leaves nothing installed, not even the earlier one", () => {
+  const base = mkdtempSync(join(tmpdir(), "aleph-base-"));
+  const r = run(release(base, "golem", "v1", "golem-1") + release(base, "shem", "v2", "bad", true), base);
+  assert.equal(r.status, 1);
+  assert.ok(!existsSync(join(r.res, "golem")));
+  assert.ok(!existsSync(join(r.res, "shem")));
+});

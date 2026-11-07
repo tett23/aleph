@@ -5,6 +5,8 @@
 #   bundle-tools.sh [versions file] [resources dir]
 #
 # ALEPH_RELEASES_URL replaces https://github.com/tett23 (tests use file://).
+# Every archive is fetched and checked before anything is installed, so a
+# failure leaves the resources as they were.
 # Exit status: 0 bundled, 1 a download or a check failed, 64 usage.
 set -eu
 
@@ -21,7 +23,8 @@ sha256() {
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-mkdir -p "$resources"
+stage="$work/stage"
+mkdir -p "$stage"
 
 grep -v '^[[:space:]]*#' "$versions" | grep -v '^[[:space:]]*$' | while read -r name tag pattern; do
   archive=$(printf '%s' "$pattern" | sed "s/{tag}/$tag/g")
@@ -39,9 +42,14 @@ grep -v '^[[:space:]]*#' "$versions" | grep -v '^[[:space:]]*$' | while read -r 
   tar -xzf "$dir/$archive" -C "$dir"
   top="$dir/$(basename "$archive" .tar.gz)"
   [ -x "$top/$name" ] || { echo "bundle-tools: no $name in $archive" >&2; exit 1; }
-  cp "$top/$name" "$resources/$name"
-  mkdir -p "$resources/licenses/$name"
-  cp "$top/LICENSE" "$resources/licenses/$name/LICENSE"
-  [ -d "$top/THIRD_PARTY_LICENSES" ] && cp -R "$top/THIRD_PARTY_LICENSES" "$resources/licenses/$name/"
-  echo "bundled $name $tag"
+  cp "$top/$name" "$stage/$name"
+  mkdir -p "$stage/licenses/$name"
+  cp "$top/LICENSE" "$stage/licenses/$name/LICENSE"
+  if [ -d "$top/THIRD_PARTY_LICENSES" ]; then cp -R "$top/THIRD_PARTY_LICENSES" "$stage/licenses/$name/"; fi
+  echo "checked $name $tag"
 done
+
+# all checked: install them together
+mkdir -p "$resources"
+cp -R "$stage/." "$resources/"
+echo "bundled into $resources"

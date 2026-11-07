@@ -253,10 +253,11 @@ export type PageBreak = { line: number; page: number };
 
 /**
  * Where page breaks fall, estimated: each paragraph takes ceil(chars / grid.chars) lines,
- * headings take 3 (level 1) or 2 lines, @page-break starts a page. Kinsoku, ruby and
+ * headings take 3 (level 1) or 2 lines, @page-break starts a page; paragraphs
+ * follow the file's paragraph separator. Kinsoku, ruby and
  * line gaps are not counted, so this is only an estimate (docs/adr/0006).
  */
-export const estimatePageBreaks = (src: string, grid: Grid): PageBreak[] => {
+export const estimatePageBreaks = (src: string, grid: Grid, separator: "blank-line" | "line" = "blank-line"): PageBreak[] => {
   const result: PageBreak[] = [];
   const lines = src.split("\n");
   let used = 0;
@@ -266,7 +267,7 @@ export const estimatePageBreaks = (src: string, grid: Grid): PageBreak[] => {
     used = 0;
     result.push({ line, page });
   };
-  for (const b of gmBlocks(src)) {
+  for (const b of gmBlocks(src, separator)) {
     if (b.kind === "break") {
       if (b.line + 1 < lines.length) next(b.line + 1);
       continue;

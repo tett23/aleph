@@ -118,8 +118,25 @@ const mdLanguage = StreamLanguage.define<{ fence: boolean }>({
   },
 });
 
+/** Mermaid: comments, the diagram's keyword, arrows, labels and strings. */
+const mermaidLanguage = StreamLanguage.define<Record<string, never>>({
+  name: "mermaid",
+  startState: () => ({}),
+  token(stream) {
+    if (stream.match(/^%%.*/)) return "comment";
+    if (stream.sol() && stream.match(/^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context)\b/)) return "keyword";
+    if (stream.match(/^(subgraph|end|participant|actor|section|title|dateFormat|class|state|note|loop|alt|else|opt|par|and|rect|direction)\b/)) return "keyword";
+    if (stream.match(/^"(?:[^"\\]|\\.)*"/)) return "string";
+    if (stream.match(/^\|[^|]*\|/)) return "string";
+    if (stream.match(/^(-{2,}>?|={2,}>|-\.+->?|<-+>?|->>|-->>|-x|--o|:::?)/)) return "operator";
+    if (stream.match(/^[[({][^\])}]*[\])}]/)) return "string";
+    stream.next();
+    return null;
+  },
+});
+
 const languageOf = (kind: string): Extension =>
-  ({ gm: gmLanguage, emet: emetLanguage, md: mdLanguage, toml: StreamLanguage.define(toml), svg: StreamLanguage.define(xml) })[kind] ?? [];
+  ({ gm: gmLanguage, emet: emetLanguage, md: mdLanguage, toml: StreamLanguage.define(toml), svg: StreamLanguage.define(xml), mmd: mermaidLanguage })[kind] ?? [];
 
 /** Commands and expressions use the code font inside prose (docs/adr/0006); this stays with semantic tokens. */
 const fontStyle = HighlightStyle.define([
@@ -140,7 +157,7 @@ const colorStyle = HighlightStyle.define([
   { tag: t.escape, color: "var(--faint)" },
   { tag: t.meta, color: "var(--faint)" },
   { tag: t.quote, color: "var(--text-2)" },
-  { tag: t.link, color: "var(--accent)" },
+  { tag: t.link, color: "var(--text-2)", textDecoration: "underline" },
   { tag: t.typeName, color: "var(--expr)" },
   { tag: t.number, color: "var(--expr)" },
   { tag: t.operator, color: "var(--cmd)" },
@@ -283,6 +300,8 @@ export type EditorOptions = {
   onSave: () => void;
   onFocus?: () => void;
   extensions?: Extension[];
+  /** How the file's paragraphs are separated, for the page break estimates. */
+  separator?: () => "blank-line" | "line";
 };
 
 export type Editor = {
@@ -354,7 +373,7 @@ export const createEditor = (o: EditorOptions): Editor => {
       if (reset || baseText === undefined) baseText = await o.base();
       const text = view.state.doc.toString();
       const effects: StateEffect<unknown>[] = [setMarks.of(lineMarks(baseText, text))];
-      if (o.kind === "gm") effects.push(setBreaks.of(estimatePageBreaks(text, grid)));
+      if (o.kind === "gm") effects.push(setBreaks.of(estimatePageBreaks(text, grid, o.separator?.() ?? "blank-line")));
       view.dispatch({ effects });
     },
     goto: (line, col = 0) => {
