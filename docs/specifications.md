@@ -11,7 +11,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 
 本実装はまだない。
 捨てる前提のプロトタイプが `prototype/` にあり、使ってわかったことをもとに次の ADR を採択した。
-[ADR 0002](adr/0002-purpose-scope-and-name.md) から [ADR 0017](adr/0017-aleph-plugins.md) は未実装である。
+実装済みかどうかは、表の各 ADR のステータスで示す。
 
 | ADR | 決めたこと |
 |---|---|
@@ -32,6 +32,16 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0015](adr/0015-diagnostics-and-search.md) | check、lint、preflight の診断、ステータスバーの表示、検索 |
 | [ADR 0016](adr/0016-markdown-to-gm.md) | md から gm への変換 |
 | [ADR 0017](adr/0017-aleph-plugins.md) | Aleph のプラグイン |
+
+## アプリの構成
+
+Aleph は Tauri 2 のアプリで、画面を TypeScript（`app/`）、ファイルと外部のプロセスを Rust（`src-tauri/`）で扱う（[ADR 0003](adr/0003-application-architecture.md)）。
+
+- 画面の状態（ワークスペース、開いているシートの並び、選択、パネルの表示）は一つの値で持ち、操作を受けて新しい状態を返す関数（リデューサー）だけで変える。開いているシートは、一つでも配列で持つ。
+- Rust の側は、ファイルの読み書き、ディレクトリの一覧、外部のプロセスの実行を受け持つ。外部のプロセスは引数を配列で渡し、シェルを通さない。
+- git は、設定の値、`/usr/bin`、Homebrew（`/opt/homebrew/bin`）、PATH の順に探す。設定の値があれば、ほかの場所は探さない。macOS の GUI アプリはログインシェルの PATH を受け継がないためである。
+- アイコンは、使うものだけを `app/icons/` に SVG で置く（lucide、ISC ライセンス）。
+- テストは、TypeScript は `node --test`（Node が型を取り除いて実行する）、Rust は `cargo test` で書く。CI の `app` のジョブが macOS で、型検査、`node --test`、Vite のビルド、rustfmt、clippy、`cargo test` を実行する。
 
 ## 破棄した ADR
 
