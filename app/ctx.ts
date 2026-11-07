@@ -28,6 +28,9 @@ export type View = {
   side?: (head: HTMLElement, body: HTMLElement, ctx: Ctx) => void;
 };
 
+/** Where to put the caret after opening (1-based line, 0-based column). */
+export type At = { line: number; col?: number };
+
 export type Ctx = {
   store: Store;
   config: Config;
@@ -39,6 +42,20 @@ export type Ctx = {
   settings: SettingsSection[];
   commands: Command[];
   view: View;
+  /** Opens sheets: one, or several chapters together; a path may be taken by an opener (the plot). */
+  open: (paths: string[], at?: At) => Promise<void>;
+  /** Openers that take a path instead of the editor; return true when taken. */
+  openers: ((path: string, ctx: Ctx) => boolean | Promise<boolean>)[];
+  /** Where to put the caret once the editor is ready. */
+  pendingAt: At | null;
+  /** Marks added to a file row of the tree (unsaved changes, goals). */
+  decor: ((path: string, ctx: Ctx) => string)[];
+  /** The first heading of each gm and md sheet, by path. */
+  titles: Map<string, string>;
+  /** The Golem projects of every workspace, refreshed with the tree. */
+  projects: string[];
+  /** Run after a file is renamed in Aleph. */
+  onRename: ((from: string, to: string, ctx: Ctx) => void | Promise<void>)[];
   /** Draws the panels and the status bar again (after a change outside the store). */
   refresh: (what?: ("left" | "right" | "status" | "side" | "main")[]) => void;
 };

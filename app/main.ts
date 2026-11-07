@@ -7,6 +7,8 @@ import { createStore, initialState, type State } from "./store.ts";
 import { toast } from "./ui/dom.ts";
 import { item } from "./ui/settings.ts";
 import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
+import { openPaths } from "./docs.ts";
+import { mountTree, reloadTree } from "./ui/tree.ts";
 
 /** The parts of the state worth keeping between launches, per viewer (localStorage may be unavailable). */
 const KEPT = ["left", "showLeft", "right", "showRight", "side", "vertical", "expanded", "workspace"] as const;
@@ -41,6 +43,7 @@ const start = async () => {
   store.dispatch({ type: "workspaces", workspaces: config.workspaces });
 
   const titles = new Map<string, string>();
+  // the tree reads titles into ctx.titles; the toolbar shares the same map
   let shell: Shell;
   let branch = "";
   const ctx: Ctx = {
@@ -59,7 +62,14 @@ const start = async () => {
     settings: [],
     commands: [],
     view: {},
-    refresh: (what = ["left", "right", "status", "side"]) => draw(store.get(), null, what),
+    open: (paths, at) => openPaths(ctx, paths, at),
+    openers: [],
+    pendingAt: null,
+    decor: [],
+    titles,
+    projects: [],
+    onRename: [],
+    refresh: (what = ["left", "right", "status", "side"]) => draw(store.get(), store.get(), what),
   };
 
   ctx.settings.push({
@@ -111,6 +121,12 @@ const start = async () => {
     renderStatus(shell, s, ctx);
     keep(s);
   };
+
+  mountTree(ctx);
+  await reloadTree(ctx);
+  store.subscribe((s, prev) => {
+    if (s.workspace !== prev.workspace) void reloadTree(ctx).then(() => ctx.refresh(["left"]));
+  });
 
   shell = mountShell(document.getElementById("app")!, ctx, () => {
     const s = store.get();
