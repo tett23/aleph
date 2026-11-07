@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { domToOffset, offsetToDom, type Walk } from "./dompos.ts";
+import { domToOffset, lineText, offsetToDom, type Walk } from "./dompos.ts";
 
 // a fake DOM: elements with children, text nodes, and skipped elements (gutters, widgets)
 type N = { text?: string; skip?: boolean; kids?: N[] };
@@ -37,4 +37,11 @@ test("an empty line: offset 0 is the line itself", () => {
   const empty: N = { kids: [gutter, { kids: [{ text: "" }] }] };
   assert.equal(offsetToDom(walk, empty, 0).offset, 0);
   assert.equal(domToOffset(walk, empty, empty, 0), 0);
+});
+
+test("the text of a line leaves out gutters and widgets; a block the browser put inside is a line break", () => {
+  assert.equal(lineText(walk, line, () => false), "霧笛は");
+  const split: N = { kids: [gutter, { text: "霧" }, { block: true, kids: [{ text: "笛" }] } as N] };
+  assert.equal(lineText(walk, split, (n) => !!(n as N & { block?: boolean }).block), "霧\n笛");
+  assert.equal(lineText(walk, { kids: [gutter] }, () => false), "");
 });

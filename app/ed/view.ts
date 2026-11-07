@@ -3,15 +3,16 @@
 // Input comes in through beforeinput and composition events and goes to the
 // core; the browser moves the caret, and the selection is read back from it.
 import type { Core, Tx } from "./core.ts";
-import { domToOffset, offsetToDom, type Walk } from "./dompos.ts";
-import { createHeights, estimateSize, renderRange, type Heights } from "./heights.ts";
+import type { Severity } from "./diag.ts";
+import { domToOffset, domWalk, lineText, offsetToDom } from "./dompos.ts";
+import { blockViewport, createHeights, estimateSize, renderRange, scrollTarget as targetStart, type Heights } from "./heights.ts";
 import { createInput } from "./control.ts";
 import type { Highlighter } from "./lang.ts";
 import { invisibleRanges, lineSpans, specialRanges, type Range } from "./spans.ts";
-import { linesOfRanges } from "./update.ts";
+import { linesOfRanges, movedLine, mustLines as mustLinesOf } from "./update.ts";
 
 export type LineMark = "add" | "mod" | "del";
-export type Severity = "error" | "warning" | "info" | "hint";
+export type { Severity };
 
 export type ViewOptions = {
   parent: HTMLElement;
@@ -38,13 +39,9 @@ const BREAK_SIZE = 24;
 /** The layers drawn into the lines, in order: later ones nest inside earlier ones' spans. */
 const LAYERS = ["st", "search", "selmatch", "diag"];
 
-const SKIP = (n: Node) => n instanceof HTMLElement && (n.contentEditable === "false" || n.classList.contains("ed-gut"));
-const walk: Walk<Node> = {
-  isText: (n) => n.nodeType === 3,
-  text: (n) => n.nodeValue ?? "",
-  children: (n) => [...n.childNodes],
-  skip: SKIP,
-};
+const walk = domWalk;
+/** A block the browser put inside a line while composing (a line break typed into the composition). */
+const isBlock = (n: Node) => n instanceof HTMLElement && n.tagName === "DIV";
 
 type Unit = { line: number; el: HTMLElement; brk: HTMLElement | null; key: string };
 
@@ -191,20 +188,9 @@ export const createView = (o: ViewOptions) => {
   };
 
   /** The viewport along the block axis, from the start of the lines. */
-  const viewport = () => {
-    const sr = scroller().getBoundingClientRect();
-    const origin = (gaps[0] ?? content).getBoundingClientRect();
-    return vertical ? { start: origin.right - sr.right, size: sr.width } : { start: sr.top - origin.top, size: sr.height };
-  };
+  const viewport = () => blockViewport(vertical, scroller().getBoundingClientRect(), (gaps[0] ?? content).getBoundingClientRect());
 
-  const mustLines = () => {
-    const doc = core.doc();
-    const s = core.sel();
-    const out = [doc.lineAt(s.anchor).number - 1, doc.lineAt(s.head).number - 1];
-    const c = ime.lines(doc);
-    if (c) for (let n = c[0]; n <= c[1]; n++) out.push(n - 1);
-    return out.concat(extraMust);
-  };
+  const mustLines = () => mustLinesOf(core.doc(), core.sel(), ime.lines(core.doc())).concat(extraMust);
   let extraMust: number[] = [];
 
   let drawPending = false;
@@ -368,11 +354,21 @@ export const createView = (o: ViewOptions) => {
         removed,
         Array.from({ length: added }, (_, i) => estimate(from + i)),
       );
-      // lines after the change move; their elements are drawn again under their new numbers
-      const shift = added - removed;
-      const moved = [...units.values()].filter((u) => u.line >= from);
-      moved.forEach((u) => units.delete(u.line));
-      if (shift === 0) for (const u of moved) if (u.line >= from + removed) units.set(u.line, u);
+      // only the changed lines are drawn anew; the lines after them keep their elements under their new numbers
+      const kept = [...units.values()].flatMap((u) => {
+        const n = movedLine(u.line, tx.lines!);
+        return n === null ? [] : [{ u, n }];
+      });
+      units.clear();
+      for (const { u, n } of kept) {
+        if (n !== u.line) {
+          u.line = n;
+          u.el.dataset.line = String(n);
+          const ln = u.el.querySelector(":scope > .ed-gut .ln");
+          if (ln) ln.textContent = String(n);
+        }
+        units.set(n, u);
+      }
     }
     draw();
     o.onUpdate?.(tx);
@@ -424,19 +420,9 @@ export const createView = (o: ViewOptions) => {
       const n = (x as HTMLElement).dataset?.line;
       if (x !== first && (x.classList.contains("ed-gap") || (n && Number(n) > b))) break;
       if (x.classList.contains("page-break")) continue;
-      parts.push(textOfLine(x));
+      parts.push(lineText(walk, x as Node, isBlock));
     }
     return parts.join("\n");
-  };
-  const textOfLine = (x: Node): string => {
-    if (SKIP(x)) return "";
-    if (x.nodeType === 3) return x.nodeValue ?? "";
-    let s = "";
-    x.childNodes.forEach((c) => {
-      if (c instanceof HTMLElement && c.tagName === "DIV" && x !== content) s += "\n" + textOfLine(c);
-      else s += textOfLine(c);
-    });
-    return s;
   };
 
   const endComposition = (type: "compositionend" | "blur", data: string) => {
@@ -560,9 +546,7 @@ export const createView = (o: ViewOptions) => {
     extraMust = [n];
     draw();
     const vp = viewport();
-    const at = heights.offsetOf(n);
-    const target = center ? at - vp.size * 0.4 : at < vp.start ? at - 24 : at + heights.size(n) > vp.start + vp.size ? at + heights.size(n) - vp.size + 24 : vp.start;
-    scrollBy(target - vp.start);
+    scrollBy(targetStart(heights.offsetOf(n), heights.size(n), vp, center) - vp.start);
     draw();
     extraMust = [];
   };

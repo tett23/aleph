@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createCore } from "./core.ts";
+import { createCore, initialState, transact } from "./core.ts";
 
 const clock = () => {
   let t = 1000;
@@ -96,4 +96,18 @@ test("an edit that changes nothing is not recorded", () => {
   const c = createCore("abc");
   c.apply([], "input.type");
   assert.equal(c.undo(), false);
+});
+
+test("a transaction makes a new state and leaves the old one as it was", () => {
+  const s0 = initialState("abc");
+  const { state: s1, tx } = transact(s0, [{ from: 3, insert: "d" }], "input.type");
+  assert.equal(s0.doc.toString(), "abc");
+  assert.deepEqual(s0.sel, { anchor: 0, head: 0 });
+  assert.equal(s1.doc.toString(), "abcd");
+  assert.deepEqual(tx.lines, { from: 1, removed: 1, added: 1 });
+  const s2 = { ...s1, layers: new Map([["diag", [{ from: 1, to: 2, cls: "x" }]]]) };
+  const { state: s3 } = transact(s2, [{ from: 0, insert: "__" }], "format", { anchor: 0, head: 0 });
+  assert.deepEqual(s2.layers.get("diag"), [{ from: 1, to: 2, cls: "x" }]);
+  assert.deepEqual(s3.layers.get("diag"), [{ from: 3, to: 4, cls: "x" }]);
+  assert.deepEqual(s3.sel, { anchor: 0, head: 0 });
 });

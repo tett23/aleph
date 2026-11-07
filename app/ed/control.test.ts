@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { createCore } from "./core.ts";
-import { createInput, replay, type Recorded } from "./control.ts";
+import { composedRegion, createInput, replay, type Recorded } from "./control.ts";
+import { textOf } from "./text.ts";
 
 test("typed characters and deletions are applied, and the browser is kept from changing the DOM", () => {
   const core = createCore("ab");
@@ -116,3 +117,44 @@ for (const f of fixtures) {
     if (rec.caret !== undefined) assert.equal(r.caret, rec.caret);
   });
 }
+
+test("while composing, the document (what autosave writes) stays as it was until the commit", () => {
+  const core = createCore("灯台");
+  const input = createInput(core);
+  core.select({ anchor: 2, head: 2 });
+  input.compositionStart();
+  input.beforeInput({ inputType: "insertCompositionText", data: "きり", isComposing: true });
+  assert.equal(core.text(), "灯台");
+  assert.equal(input.composing(), true);
+  input.compositionEnd("霧", () => "灯台霧");
+  assert.equal(core.text(), "灯台霧");
+});
+
+test("arrow keys while composing are left to the input method", () => {
+  const core = createCore("海");
+  const input = createInput(core);
+  input.compositionStart();
+  assert.equal(input.keyDown({ key: "ArrowLeft", keyCode: 229, isComposing: true }), true);
+  assert.equal(input.keyDown({ key: "ArrowDown", keyCode: 229, isComposing: true }), true);
+});
+
+test("the composed region when the browser merged the selected lines into one", () => {
+  const doc = textOf("前の行\n灯台の\n冬の海\n後");
+  // lines 2..3 were selected and replaced: the DOM has one line less
+  assert.equal(composedRegion(doc, "前の行\n灯台がの海\n後", 2, 3), "灯台がの海");
+  // a single line composed in place
+  assert.equal(composedRegion(doc, "前の行\n灯台火の\n冬の海\n後", 2, 2), "灯台火の");
+  // a line break typed into the composition (an extra line)
+  assert.equal(composedRegion(doc, "前の行\n灯\n台の\n冬の海\n後", 2, 2), "灯\n台の");
+});
+
+test("composing works the same in either writing mode: the controller sees only text and positions", () => {
+  const seq = (core: ReturnType<typeof createCore>) => {
+    const input = createInput(core);
+    core.select({ anchor: 1, head: 1 });
+    input.compositionStart();
+    input.compositionEnd("笛", () => "霧笛");
+    return core.text();
+  };
+  assert.equal(seq(createCore("霧")), "霧笛");
+});

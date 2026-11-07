@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyChanges, classOf, decodeSemanticTokens, editsToChanges, offsetOf, tokenRanges, uriOf, type TextEdit } from "./protocol.ts";
+import { applyChanges, classOf, completionStart, decodeSemanticTokens, editsToChanges, offsetOf, tokenRanges, uriOf, type TextEdit } from "./protocol.ts";
 
 test("a URI encodes each part of the path", () => {
   assert.equal(uriOf("/Users/a/灯台守 の冬/chapters/01.gm"), "file:///Users/a/%E7%81%AF%E5%8F%B0%E5%AE%88%20%E3%81%AE%E5%86%AC/chapters/01.gm");
@@ -81,4 +81,14 @@ test("token types map to the classes of Golem's table", () => {
   assert.equal(classOf("keyword", "##"), "mark");
   assert.equal(classOf("keyword", "[="), "cmd");
   assert.equal(classOf("regexp", "x"), null);
+});
+
+test("completion starts at the word before the caret, after [ or a space unless asked for", () => {
+  assert.equal(completionStart("[fig", false), 1);
+  assert.equal(completionStart("text [ruby", false), 6);
+  assert.equal(completionStart("a fig", false), 2);
+  assert.equal(completionStart("text", false), null);
+  assert.equal(completionStart("text", true), 0);
+  assert.equal(completionStart("[book.st", false), 1);
+  assert.equal(completionStart("", true), 0);
 });

@@ -67,3 +67,15 @@ export const renderRange = (h: Heights, scrollStart: number, viewSize: number, m
     return acc;
   }, []);
 };
+
+type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
+
+/** The viewport along the block axis, from the start of the lines: down from the top in horizontal writing, left from the right edge in vertical. */
+export const blockViewport = (vertical: boolean, scroller: Box, origin: Box) =>
+  vertical ? { start: origin.right - scroller.right, size: scroller.width } : { start: scroller.top - origin.top, size: scroller.height };
+
+const EDGE = 24;
+
+/** Where the viewport should start to show a line at `at` of `size`: centred, or moved just enough to bring it in. */
+export const scrollTarget = (at: number, size: number, vp: { start: number; size: number }, center: boolean) =>
+  center ? at - vp.size * 0.4 : at < vp.start ? at - EDGE : at + size > vp.start + vp.size ? at + size - vp.size + EDGE : vp.start;

@@ -75,3 +75,10 @@ export const tokenRanges = (text: string, tokens: SemanticToken[], kind = "gm"):
     const cls = classOf(t.type, text.slice(from, to), kind);
     return cls && to > from ? [{ from, to, cls }] : [];
   });
+
+/** Where completion starts in the text before the caret: the start of the word, after `[` or a space unless asked for; null when it does not start. */
+export const completionStart = (before: string, explicit: boolean): number | null => {
+  const from = before.length - /[\w.-]*$/.exec(before)![0].length;
+  const prev = before.slice(Math.max(0, from - 1), from);
+  return explicit || prev === "[" || prev === " " ? from : null;
+};

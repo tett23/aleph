@@ -77,3 +77,19 @@ test("a change re-reads from the changed line until the line state is the same a
   assert.equal(h.stats().read, 9);
   assert.deepEqual(h.tokens(c, 3).map((t) => t.cls), ["t-comment"]);
 });
+
+test("lines added or removed by a change: states after them shift with them", () => {
+  const h = createHighlighter(languageOf("gm"));
+  const a = textOf("一\n%%\n三\n四");
+  h.tokens(a, 4);
+  // two lines inserted after line 1: line 2 onward moves down, the comment stays on its line
+  const b = textOf("一\n甲\n乙\n%%\n三\n四");
+  h.changed(2, 0, 2);
+  assert.deepEqual(h.tokens(b, 4).map((t) => t.cls), ["t-comment"]);
+  assert.deepEqual(h.tokens(b, 2), []);
+  // the comment line removed: nothing is a comment any more
+  const c = textOf("一\n甲\n乙\n三\n四");
+  h.changed(4, 1, 0);
+  assert.deepEqual(h.tokens(c, 4), []);
+  assert.deepEqual(h.tokens(c, 5), []);
+});
