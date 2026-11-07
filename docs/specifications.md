@@ -35,6 +35,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0018](adr/0018-drag-image-from-tree.md) | ツリーの画像をエディタにドラッグして図版を差し込む（実装済み） |
 | [ADR 0019](adr/0019-one-editor-for-both-writing-modes.md) | 縦書きと横書きを一つのエディタで書く（一から作る、仮想化、IME、縦書きでも LSP と整形、複数ファイルでも縦書き）（実装済み） |
 | [ADR 0020](adr/0020-project-rows-in-the-tree.md) | ツリーのプロジェクトの行を高くし、太字と区切りの線で目立たせる（実装済み） |
+| [ADR 0021](adr/0021-json-files.md) | JSON、JSONC、JSON5、JSON Lines を開き、色付け、文法の検査、整形（⌥⇧F と ⌘S）を行う |
 
 ## アプリの構成
 
