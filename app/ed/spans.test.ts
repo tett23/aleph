@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { invisibleRanges, lineSpans } from "./spans.ts";
+import { invisibleRanges, lineSpans, specialRanges } from "./spans.ts";
 
 const show = (text: string, layers: Parameters<typeof lineSpans>[1]) => lineSpans(text, layers).map((s) => [text.slice(s.from, s.to), s.cls.join(" ")]);
 
@@ -30,4 +30,13 @@ test("invisible characters: half-width and full-width spaces and tabs", () => {
     { from: 3, to: 4, cls: "inv-zsp" },
     { from: 5, to: 6, cls: "inv-tab" },
   ]);
+});
+
+test("zero-width and control characters are marked whether or not invisibles are shown", () => {
+  assert.deepEqual(specialRanges("a\u200bb\ufeffc\u0007"), [
+    { from: 1, to: 2, cls: "ed-special" },
+    { from: 3, to: 4, cls: "ed-special" },
+    { from: 5, to: 6, cls: "ed-special" },
+  ]);
+  assert.deepEqual(specialRanges("普通の文　 \t"), []);
 });

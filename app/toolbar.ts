@@ -5,7 +5,7 @@ import type { SidePane } from "./store.ts";
 export const previewsFor = (kind: string): SidePane[] =>
   kind === "gm" ? ["none", "plain", "pages"] : ["md", "svg", "mmd"].includes(kind) ? ["none", "plain"] : [];
 
-/** Kinds written as prose, which can be vertical (docs/adr/0007). */
+/** Kinds written as prose, which can be vertical (docs/adr/0019). */
 export const PROSE = ["gm", "md", "txt"];
 
 export const canVertical = (kind: string) => PROSE.includes(kind);
@@ -16,3 +16,6 @@ export const previewLabel = (kind: string, side: SidePane) =>
 
 /** The preview actually shown: the chosen one if the kind has it, else none. */
 export const effectiveSide = (kind: string, side: SidePane): SidePane => (previewsFor(kind).includes(side) ? side : "none");
+
+/** Whether the editors are vertical: the switch is on and every open sheet is prose (docs/adr/0019). */
+export const verticalOn = (s: { vertical: boolean; open: { kind: string }[] }) => s.vertical && s.open.length > 0 && s.open.every((d) => canVertical(d.kind));

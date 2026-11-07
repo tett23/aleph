@@ -1,13 +1,9 @@
-// golem lsp in the app (docs/adr/0009): one server per project, kept in step with
-// the store (so the vertical editor's changes reach it too), and the editor's
-// diagnostics, semantic colours, hover, completion and formatting.
-import { autocompletion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
-import { openLintPanel, setDiagnostics, type Diagnostic } from "@codemirror/lint";
-import { Prec, RangeSetBuilder, StateEffect, StateField, type Extension } from "@codemirror/state";
-import { Decoration, EditorView, ViewPlugin, hoverTooltip, keymap, type DecorationSet } from "@codemirror/view";
+// golem lsp in the app (docs/adr/0009, docs/adr/0019): one server per project,
+// kept in step with the store, and the editor's diagnostics, semantic colours,
+// hover, completion and formatting, in horizontal and vertical writing alike.
 import { api } from "../api.ts";
 import type { Ctx } from "../ctx.ts";
-import { fallbackColors } from "../editor/cm.ts";
+import type { Diag, EditorPlugin, TextEditor } from "../ed/editor.ts";
 import { rel } from "../path.ts";
 import { focused, type Doc, type State } from "../store.ts";
 import { golem } from "../tools.ts";
@@ -28,32 +24,16 @@ const idle = new Map<string, number>();
 const synced = new Map<string, Synced>();
 const diagnostics = new Map<string, LspDiagnostic[]>();
 const tokens = new Map<string, { version: number; ranges: TokenRange[] }>();
-const views = new Map<string, EditorView>();
+const views = new Map<string, TextEditor>();
 
 const lspDoc = (d: Doc) => !!d.project && LSP_KINDS.includes(d.kind);
 const languageId = (path: string) => (path.endsWith(".emet") ? "emet" : "golem");
 
-// ---- semantic colours in the editor ----
+// ---- semantic colours and diagnostics in the editor ----
 
-const setTokens = StateEffect.define<TokenRange[]>();
-const tokensField = StateField.define<DecorationSet>({
-  create: () => Decoration.none,
-  update(v, tr) {
-    let out = v.map(tr.changes);
-    for (const e of tr.effects) {
-      if (!e.is(setTokens)) continue;
-      const b = new RangeSetBuilder<Decoration>();
-      for (const r of e.value) if (r.to <= tr.state.doc.length) b.add(r.from, r.to, Decoration.mark({ class: `st st-${r.cls}` }));
-      out = b.finish();
-    }
-    return out;
-  },
-  provide: (f) => EditorView.decorations.from(f),
-});
+const severity = (n?: number): Diag["severity"] => (n === 1 ? "error" : n === 2 ? "warning" : n === 4 ? "hint" : "info");
 
-const severity = (n?: number): Diagnostic["severity"] => (n === 1 ? "error" : n === 2 ? "warning" : n === 4 ? "hint" : "info");
-
-const toDiagnostics = (text: string, list: LspDiagnostic[]): Diagnostic[] =>
+const toDiagnostics = (text: string, list: LspDiagnostic[]): Diag[] =>
   list.map((d) => {
     const from = offsetOf(text, d.range.start);
     return { from, to: Math.max(from, offsetOf(text, d.range.end)), severity: severity(d.severity), message: d.message, source: d.source };
@@ -63,13 +43,15 @@ const toDiagnostics = (text: string, list: LspDiagnostic[]): Diagnostic[] =>
 const paint = (path: string) => {
   const v = views.get(path);
   if (!v) return;
-  const text = v.state.doc.toString();
-  const effects: StateEffect<unknown>[] = [];
+  const text = v.core.text();
   const tk = tokens.get(path);
   // tokens of an older text would be misplaced; a newer request follows
-  if (tk && tk.version === synced.get(path)?.version && text === synced.get(path)?.text) effects.push(setTokens.of(tk.ranges), fallbackColors.reconfigure([]));
-  v.dispatch(setDiagnostics(v.state, toDiagnostics(text, diagnostics.get(path) ?? [])));
-  if (effects.length) v.dispatch({ effects });
+  if (tk && tk.version === synced.get(path)?.version && text === synced.get(path)?.text) {
+    v.setLayer("st", tk.ranges.filter((r) => r.to <= text.length).map((r) => ({ from: r.from, to: r.to, cls: `st st-${r.cls}` })));
+    v.setFallbackColors(false);
+  }
+  // diagnostics of an older text are moved along with the edits by the editor
+  if (text === synced.get(path)?.text) v.setDiagnostics(toDiagnostics(text, diagnostics.get(path) ?? []));
 };
 
 // ---- servers ----
@@ -186,12 +168,12 @@ export const format = async (ctx: Ctx, doc: Doc): Promise<boolean | null> => {
   const c = readyClient(doc.path);
   if (view && c) {
     flush(doc.path);
-    const before = view.state.doc.toString();
+    const before = view.core.text();
     const edits = await c.request<TextEdit[] | null>("textDocument/formatting", { textDocument: { uri: uriOf(doc.path) }, options: { tabSize: 2, insertSpaces: true } }).catch(() => null);
     if (edits === null) return null;
-    if (view.state.doc.toString() !== before) return false; // typed while waiting: the edits no longer fit
+    if (view.core.text() !== before) return false; // typed while waiting: the edits no longer fit
     const changes = editsToChanges(before, edits);
-    if (changes.length) view.dispatch({ changes, userEvent: "format", scrollIntoView: true });
+    if (changes.length) view.apply(changes, "format");
     return changes.length > 0;
   }
   // without the server: golem fmt on the saved file, read back into the editor
@@ -232,76 +214,56 @@ const hoverText = (contents: unknown): string => {
   return c.value ?? "";
 };
 
-const positionAt = (view: EditorView, pos: number) => {
-  const line = view.state.doc.lineAt(pos);
+const positionAt = (t: TextEditor, pos: number) => {
+  const line = t.core.doc().lineAt(pos);
   return { line: line.number - 1, character: pos - line.from };
 };
 
-const completionSource = (path: string) => async (cx: CompletionContext): Promise<CompletionResult | null> => {
-  const word = cx.matchBefore(/[\w.-]*/);
-  const from = word ? word.from : cx.pos;
-  const before = cx.state.sliceDoc(Math.max(0, from - 1), from);
-  if (!cx.explicit && before !== "[" && before !== " ") return null;
-  const c = readyClient(path);
-  if (!c) return null;
-  flush(path);
-  const r = await c
-    .request<{ items: { label: string; detail?: string; insertText?: string }[] } | { label: string; detail?: string; insertText?: string }[] | null>("textDocument/completion", {
-      textDocument: { uri: uriOf(path) },
-      position: { line: cx.state.doc.lineAt(cx.pos).number - 1, character: cx.pos - cx.state.doc.lineAt(cx.pos).from },
-    })
-    .catch(() => null);
-  const items = Array.isArray(r) ? r : (r?.items ?? []);
-  if (!items.length) return null;
-  return { from, options: items.map((i) => ({ label: i.label, detail: i.detail, apply: i.insertText ?? i.label })), validFor: /^[\w.-]*$/ };
-};
+type Item = { label: string; detail?: string; insertText?: string };
 
-const extensionsFor = (doc: Doc, ctx: Ctx): Extension[] => {
-  if (!lspDoc(doc)) return [];
+const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
+  if (!lspDoc(doc)) return null;
   const path = doc.path;
-  return [
-    tokensField,
-    ViewPlugin.define((view) => {
-      views.set(path, view);
+  let editor: TextEditor | null = null;
+  const current = () => ctx.store.get().open.find((d) => d.path === path) ?? doc;
+  return {
+    attach: (t) => {
+      editor = t;
+      views.set(path, t);
       queueMicrotask(() => paint(path));
-      return { destroy: () => views.get(path) === view && views.delete(path) };
-    }),
-    hoverTooltip(async (view, pos) => {
-      const c = readyClient(path);
-      if (!c) return null;
-      flush(path);
-      const r = await c.request<{ contents: unknown } | null>("textDocument/hover", { textDocument: { uri: uriOf(path) }, position: positionAt(view, pos) }).catch(() => null);
-      const text = hoverText(r?.contents).trim();
-      if (!text) return null;
-      return {
-        pos,
-        create: () => {
-          const dom = document.createElement("div");
-          dom.className = "hover";
-          dom.textContent = text;
-          return { dom };
-        },
+      return () => {
+        if (views.get(path) === t) views.delete(path);
       };
-    }),
-    autocompletion({ override: [completionSource(path)], activateOnTyping: true }),
-    Prec.highest(
-      keymap.of([
-        { key: "Mod-s", run: () => (void formatAndSave(ctx, ctx.store.get().open.find((d) => d.path === path) ?? doc), true) },
-      ]),
-    ),
-    // ⌥⇧F by the key's place: on macOS the option key turns F into another character ("Ï"),
-    // which a keymap of "Shift-Alt-f" does not match
-    Prec.highest(
-      EditorView.domEventHandlers({
-        keydown: (e) => {
-          if (e.code !== "KeyF" || !e.altKey || !e.shiftKey || e.metaKey || e.ctrlKey) return false;
-          e.preventDefault();
-          void formatNow(ctx, ctx.store.get().open.find((d) => d.path === path) ?? doc);
-          return true;
-        },
-      }),
-    ),
-  ];
+    },
+    keys: [
+      { key: "Mod-s", run: () => (void formatAndSave(ctx, current()), true) },
+      // ⌥⇧F matches by the key's place too: on macOS the option key turns F into "Ï"
+      { key: "Shift-Alt-f", run: () => (void formatNow(ctx, current()), true) },
+    ],
+    hover: async (pos) => {
+      const c = readyClient(path);
+      if (!c || !editor) return null;
+      flush(path);
+      const r = await c.request<{ contents: unknown } | null>("textDocument/hover", { textDocument: { uri: uriOf(path) }, position: positionAt(editor, pos) }).catch(() => null);
+      return hoverText(r?.contents).trim() || null;
+    },
+    complete: async (pos, explicit) => {
+      const c = readyClient(path);
+      if (!c || !editor) return null;
+      const doc = editor.core.doc();
+      const line = doc.lineAt(pos);
+      const word = /[\w.-]*$/.exec(line.text.slice(0, pos - line.from))![0];
+      const from = pos - word.length;
+      const before = doc.slice(Math.max(0, from - 1), from);
+      if (!explicit && before !== "[" && before !== " ") return null;
+      flush(path);
+      const r = await c
+        .request<{ items: Item[] } | Item[] | null>("textDocument/completion", { textDocument: { uri: uriOf(path) }, position: positionAt(editor, pos) })
+        .catch(() => null);
+      const items = Array.isArray(r) ? r : (r?.items ?? []);
+      return items.length ? { from, items: items.map((i) => ({ label: i.label, detail: i.detail, apply: i.insertText ?? i.label })) } : null;
+    },
+  };
 };
 
 // ---- the status bar and the settings ----
@@ -312,7 +274,7 @@ const counts = (path: string) => {
 };
 
 export const mountLsp = (ctx: Ctx) => {
-  ctx.editorExtensions.push(extensionsFor);
+  ctx.editorPlugins.push(pluginFor);
   ctx.store.subscribe((s, prev) => sync(ctx, s, prev));
   sync(ctx, ctx.store.get(), null);
 
@@ -329,8 +291,7 @@ export const mountLsp = (ctx: Ctx) => {
   ctx.statusActions["lsp-problems"] = (c) => {
     const d = focused(c.store.get());
     const v = d && views.get(d.path);
-    if (v) openLintPanel(v);
-    else c.toast("診断の一覧は横書きのエディタで開けます");
+    if (v) v.openDiagnostics();
   };
 
   ctx.commands.push({
@@ -343,7 +304,6 @@ export const mountLsp = (ctx: Ctx) => {
     run: (c) => {
       const d = focused(c.store.get());
       if (!d) return;
-      if (!views.has(d.path)) return c.toast("縦書きでは整形しません。横書きに切り替えてください");
       return formatNow(c, d);
     },
   });
@@ -353,7 +313,7 @@ export const mountLsp = (ctx: Ctx) => {
     label: "LSP と整形",
     group: "Golem",
     render: (c) =>
-      item("⌘S で整形する", "保存する前に golem lsp で整形する。自動保存と縦書きでは整形しない", toggle("formatOnSave", c.config.formatOnSave)),
+      item("⌘S で整形する", "保存する前に golem lsp で整形する。自動保存では整形しない", toggle("formatOnSave", c.config.formatOnSave)),
     onClick: async (el, c) => {
       if (el.closest<HTMLElement>("[data-toggle]")?.dataset.toggle !== "formatOnSave") return false;
       c.config.formatOnSave = !c.config.formatOnSave;

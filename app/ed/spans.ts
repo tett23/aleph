@@ -40,3 +40,9 @@ export const invisibleRanges = (text: string): Range[] => {
   }
   return out;
 };
+
+// zero-width, bidi and control characters (what CodeMirror's highlightSpecialChars shows), except tab
+const SPECIAL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffc]/g;
+
+/** Characters that would be invisible or confusing, always marked. */
+export const specialRanges = (text: string): Range[] => [...text.matchAll(SPECIAL)].map((m) => ({ from: m.index, to: m.index + 1, cls: "ed-special" }));

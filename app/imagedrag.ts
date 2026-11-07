@@ -1,4 +1,4 @@
-// Dragging an image from the tree onto a chapter (docs/adr/0018): followed with
+// Dragging an image from the tree onto a chapter (docs/adr/0018, docs/adr/0019): followed with
 // mouse events, a line where @figure goes, inserted as one change on release.
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
@@ -19,31 +19,29 @@ const fs = {
   listDir: api.listDir,
 };
 
-type Target = { path: string; line: number; y: number; left: number; width: number } | { refuse: string } | null;
+type Bar = { left: number; top: number; width: number; height: number };
+type Target = { path: string; line: number; bar: Bar | null } | { refuse: string } | null;
 
-/** What lies under the pointer: a horizontal .gm editor of a project and its line, a reason not to drop, or nothing. */
+/** What lies under the pointer: a .gm editor of a project and its line (in either writing mode), a reason not to drop, or nothing. */
 const targetAt = (ctx: Ctx, x: number, y: number): Target => {
   const el = document.elementFromPoint(x, y) as HTMLElement | null;
-  if (el?.closest(".vwrap")) return { refuse: "縦書きのエディタには差し込めません。横書きに切り替えてください" };
-  const editor = el?.closest<HTMLElement>(".cm-editor");
+  const editor = el?.closest<HTMLElement>(".ed");
   if (!editor) return null;
-  const path = [...ctx.editors.entries()].find(([, e]) => e.view?.dom === editor)?.[0];
+  const path = [...ctx.editors.entries()].find(([, e]) => e.edit?.view.root === editor)?.[0];
   const doc = ctx.store.get().open.find((d) => d.path === path);
-  const view = path ? ctx.editors.get(path)?.view : null;
-  if (!path || !doc || !view) return null;
+  const t = path ? ctx.editors.get(path)?.edit : null;
+  if (!path || !doc || !t) return null;
   if (doc.kind !== "gm") return { refuse: "図版を差し込めるのは .gm のシートです" };
   if (!doc.project) return { refuse: "Golem のプロジェクトの章に差し込めます" };
-  const pos = view.posAtCoords({ x, y }) ?? view.state.doc.length;
-  const line = view.state.doc.lineAt(pos);
-  const block = view.lineBlockAt(line.from);
-  const content = view.contentDOM.getBoundingClientRect();
-  return { path, line: line.number, y: content.top + block.bottom, left: content.left, width: content.width };
+  const pos = t.view.posAtCoords(x, y) ?? t.core.doc().length;
+  const line = t.core.doc().lineAt(pos).number;
+  return { path, line, bar: t.view.lineEndBar(line) };
 };
 
 const drop = async (ctx: Ctx, image: string, path: string, line: number) => {
   const doc = ctx.store.get().open.find((d) => d.path === path);
-  const view = ctx.editors.get(path)?.view;
-  if (!doc?.project || !view) return;
+  const t = ctx.editors.get(path)?.edit;
+  if (!doc?.project || !t) return;
   const plan = figurePlan(image, doc.project, ctx.projects);
   if (!plan) return ctx.toast("@figure に使えるのは PNG、JPEG、SVG、PDF の画像です");
   let figure: string;
@@ -52,8 +50,8 @@ const drop = async (ctx: Ctx, image: string, path: string, line: number) => {
     await api.copyFile(image, `${doc.project}/images/${name}`);
     figure = `images/${name}`;
   } else figure = plan.path;
-  const { at, insert } = figureInsert(view.state.doc.toString(), line, [figure]);
-  view.dispatch({ changes: { from: at, insert }, userEvent: "input.drop" });
+  const { at, insert } = figureInsert(t.core.text(), line, [figure]);
+  t.apply([{ from: at, insert }], "input.drop");
   ctx.toast(plan.copy ? `images/ にコピーし、@figure を差し込みました` : `@figure ${figure} を差し込みました`);
   if (plan.copy) {
     await reloadTree(ctx);
@@ -94,9 +92,9 @@ export const mountImageDrag = (ctx: Ctx) => {
         e.preventDefault();
         ghost!.style.transform = `translate(${e.clientX + 12}px, ${e.clientY + 8}px)`;
         target = targetAt(ctx, e.clientX, e.clientY);
-        const t = target && "path" in target ? target : null;
-        mark!.hidden = !t;
-        if (t) Object.assign(mark!.style, { top: `${t.y}px`, left: `${t.left}px`, width: `${t.width}px` });
+        const bar = target && "path" in target ? target.bar : null;
+        mark!.hidden = !bar;
+        if (bar) Object.assign(mark!.style, { top: `${bar.top}px`, left: `${bar.left}px`, width: `${bar.width}px`, height: `${bar.height}px` });
       };
       const up = (e: MouseEvent) => {
         end();
