@@ -641,3 +641,5 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 
 /* an image of Golem's HTML outside build/html, dropped (docs/adr/0043) */
 .plain .img-alt { color: var(--faint); font-size: 0.85em; }
+/* a Markdown image that is not read: remote, or outside the workspace (docs/adr/0047) */
+.img-note { display: inline-block; padding: 2px 8px; border: 1px dashed var(--border); color: var(--faint); font-size: 0.85em; }

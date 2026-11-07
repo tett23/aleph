@@ -8,6 +8,7 @@ import { icon } from "../icons.ts";
 import { markdownHtml } from "../md.ts";
 import { ext } from "../path.ts";
 import { uiState } from "../uistate.ts";
+import { stripRemoteImages } from "./svgimages.ts";
 
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
 
@@ -85,7 +86,7 @@ export const renderMermaid = async (pane: HTMLElement, src: string) => {
   mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: document.body.classList.contains("theme-dark") ? "dark" : "default" });
   try {
     const { svg } = await mermaid.render(`mmd${++mermaidSeq}`, src);
-    el.innerHTML = svg;
+    el.innerHTML = stripRemoteImages(svg);
   } catch (e) {
     el.innerHTML = `<pre class="error">${esc(e instanceof Error ? e.message : String(e))}</pre>`;
   }

@@ -122,3 +122,15 @@ test("a soft break with a Japanese character on either side adds no space; mailt
   assert.equal(markdownHtml("word\n日本語", { breaks: "blank-line" }), "<p>word日本語</p>");
   assert.equal(markdownHtml("<mailto:a@b.c>"), '<p><a href="mailto:a@b.c">mailto:a@b.c</a></p>');
 });
+
+test("images: local ones under the workspace are read, remote ones are named, not loaded (docs/adr/0047)", () => {
+  const base = { dir: "/w/notes", root: "/w" };
+  const html = (src: string) => markdownHtml(src, { base });
+  assert.equal(html("![灯台](images/a.png)"), `<p><img data-src="/w/notes/images/a.png" alt="灯台"></p>`);
+  assert.equal(html("前 ![灯台](../images/a.png) 後"), `<p>前 <img data-src="/w/images/a.png" alt="灯台"> 後</p>`);
+  assert.equal(html("![灯台](https://example.com/a.png)"), `<p><span class="img-note">灯台（外部の画像は読み込みません：https://example.com/a.png）</span></p>`);
+  assert.equal(html("![灯台](//example.com/a.png)"), `<p><span class="img-note">灯台（外部の画像は読み込みません：//example.com/a.png）</span></p>`);
+  assert.equal(html("![秘密](../../etc/a.png)"), `<p><span class="img-note">秘密（ワークスペースの外の画像は読み込みません）</span></p>`);
+  assert.equal(html("![秘密](/etc/a.png)"), `<p><span class="img-note">秘密（ワークスペースの外の画像は読み込みません）</span></p>`);
+  assert.doesNotMatch(markdownHtml("![a](https://example.com/a.png)"), /<img/);
+});
