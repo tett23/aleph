@@ -11,7 +11,7 @@ import { createHighlighter, languageOf } from "./lang.ts";
 import { createCompletionList, createDiagPanel, createSearchPanel, panelHost, popup, type SearchUi } from "./panels.ts";
 import { findAll, nearest, replacementOf, selectionMatches, type Match } from "./search.ts";
 import type { Range } from "./spans.ts";
-import { clampDiagnostics, diagLines, type Diag } from "./diag.ts";
+import { allSources, clampDiagnostics, diagLines, withSource, type Diag } from "./diag.ts";
 import { createView, type View } from "./view.ts";
 
 export type { Diag };
@@ -35,7 +35,8 @@ export type TextEditor = {
   /** Applies replacements as one undoable step and shows the caret. */
   apply: (rs: { from: number; to?: number; insert: string }[], kind: string) => void;
   setLayer: (name: string, ranges: Range[]) => void;
-  setDiagnostics: (list: Diag[]) => void;
+  /** Sets one source's diagnostics (the LSP's by default); other sources' stay (docs/adr/0030). */
+  setDiagnostics: (list: Diag[], source?: string) => void;
   /** The tokenizer's colours, turned off once the server's semantic tokens arrive. */
   setFallbackColors: (on: boolean) => void;
   openDiagnostics: () => void;
@@ -104,6 +105,7 @@ export const createEditor = (o: EditorOptions): Editor => {
   let completion: { list: ReturnType<typeof createCompletionList>; from: number } | null = null;
   let completeTimer = 0;
   let completeSeq = 0;
+  let diagSources = new Map<string, Diag[]>();
   let selMatchKey = "";
 
   const view: View = createView({
@@ -370,8 +372,9 @@ export const createEditor = (o: EditorOptions): Editor => {
       core.setLayer(name, ranges);
       view.whenIdle(() => view.layersChanged());
     },
-    setDiagnostics: (list) => {
-      core.setLayer("diag", clampDiagnostics(core.doc(), list));
+    setDiagnostics: (list, source = "default") => {
+      diagSources = withSource(diagSources, source, list);
+      core.setLayer("diag", clampDiagnostics(core.doc(), allSources(diagSources)));
       view.whenIdle(() => {
         updateDiagLines();
         view.layersChanged();

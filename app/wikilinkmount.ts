@@ -77,7 +77,7 @@ const mark = (ctx: Ctx, path: string, t: TextEditor) => {
     }
   }
   t.setLayer("link", missing);
-  t.setDiagnostics(diags);
+  t.setDiagnostics(diags, "wikilink");
 };
 
 /** Opens a link's target (at its heading), or offers to make a missing one beside the linking sheet. */

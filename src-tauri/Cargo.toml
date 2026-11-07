@@ -18,3 +18,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ignore = "0.4.34"
 regex = "1.13.1"
+
+# NSSpellChecker for English spelling (docs/adr/0030); already in the tree through Tauri
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSSpellChecker"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSRange"] }

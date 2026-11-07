@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clampDiagnostics, diagLines } from "./diag.ts";
+import { allSources, clampDiagnostics, diagLines, withSource, type Diag } from "./diag.ts";
 import { textOf } from "./text.ts";
 
 const doc = textOf("霧笛\n灯台\n");
@@ -35,4 +35,15 @@ test("diagnostics are kept inside the text, and one at a point underlines the ne
     ],
   );
   assert.equal(out[0].message, "a");
+});
+
+test("diagnostics from several sources lie together; each source replaces only its own (docs/adr/0030)", () => {
+  const d = (from: number, source: string): Diag => ({ from, to: from + 1, severity: "info", message: source, source });
+  let by = withSource(new Map(), "lsp", [d(0, "lsp")]);
+  by = withSource(by, "proofread", [d(2, "punctuation"), d(4, "raNuki")]);
+  assert.deepEqual(allSources(by).map((x) => x.from), [0, 2, 4]);
+  by = withSource(by, "proofread", [d(5, "fullwidth")]);
+  assert.deepEqual(allSources(by).map((x) => x.message), ["lsp", "fullwidth"]);
+  by = withSource(by, "lsp", []);
+  assert.deepEqual(allSources(by).map((x) => x.message), ["fullwidth"]);
 });

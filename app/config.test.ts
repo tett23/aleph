@@ -67,3 +67,14 @@ test("the key settings: bindings kept as string lists, the leader key checked, t
   assert.equal(normalize({ leaderKey: "Ctrl-j" }).leaderKey, "Ctrl-j");
   assert.deepEqual([defaults().keyBindings, defaults().leaderKey, defaults().keySequenceTimeout], [{}, "Mod-;", 1000]);
 });
+
+test("the writing checks: an old config without them gets the defaults; values are read rule by rule (docs/adr/0030)", () => {
+  const d = normalize({});
+  assert.equal(d.proofread.enabled, true);
+  assert.equal(Object.values(d.proofread.rules).every(Boolean), true);
+  const c = normalize({ proofread: { enabled: false, rules: { raNuki: false, bogus: true, spelling: "x" }, ignoreWords: ["Aleph", 3, " "] } });
+  assert.equal(c.proofread.enabled, false);
+  assert.equal(c.proofread.rules.raNuki, false);
+  assert.equal(c.proofread.rules.spelling, true);
+  assert.deepEqual(c.proofread.ignoreWords, ["Aleph"]);
+});
