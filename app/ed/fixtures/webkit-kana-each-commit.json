@@ -1,5 +1,5 @@
 {
-  "name": "kana committed one at a time at the start of a line (input injected by key events)",
+  "name": "SKK (hiragana mode): each kana committed as it is typed, at the start of a line",
   "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
   "note": "horizontal",
   "initial": "灯台の灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。",

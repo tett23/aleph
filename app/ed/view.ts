@@ -621,14 +621,15 @@ export const createView = (o: ViewOptions) => {
     whenIdle: (f: () => void) => ime.whenIdle(f),
     focus: () => {
       content.focus({ preventScroll: true });
-      writeSelection();
+      // writing the selection while composing would end the composition (seen with SKK in WebKit)
+      if (!ime.composing()) writeSelection();
     },
     hasFocus,
     /** Writes the core's selection into the DOM (after setting it from outside). */
     syncSelection: () => {
       const n = core.doc().lineAt(core.sel().head).number;
       if (!units.has(n)) draw();
-      if (hasFocus()) writeSelection();
+      if (hasFocus() && !ime.composing()) writeSelection();
     },
     revealCaret,
     coordsAt,

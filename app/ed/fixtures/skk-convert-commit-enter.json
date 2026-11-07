@@ -1,0 +1,167 @@
+{
+  "name": "SKK: convert a reading in the middle of a line and commit with Enter",
+  "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+  "note": "horizontal",
+  "initial": "灯台の灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。",
+  "events": [
+    {
+      "type": "select",
+      "anchor": 3,
+      "head": 3
+    },
+    {
+      "type": "keydown",
+      "key": "Shift",
+      "keyCode": 16,
+      "isComposing": false
+    },
+    {
+      "type": "compositionstart"
+    },
+    {
+      "type": "compositionupdate",
+      "data": "▽k"
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertCompositionText",
+      "data": "▽k",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertCompositionText",
+      "data": "▽k"
+    },
+    {
+      "type": "keydown",
+      "key": "K",
+      "keyCode": 229,
+      "isComposing": true
+    },
+    {
+      "type": "compositionupdate",
+      "data": "▽き"
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertCompositionText",
+      "data": "▽き",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertCompositionText",
+      "data": "▽き"
+    },
+    {
+      "type": "keydown",
+      "key": "i",
+      "keyCode": 229,
+      "isComposing": true
+    },
+    {
+      "type": "compositionupdate",
+      "data": "▽きr"
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertCompositionText",
+      "data": "▽きr",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertCompositionText",
+      "data": "▽きr"
+    },
+    {
+      "type": "keydown",
+      "key": "r",
+      "keyCode": 229,
+      "isComposing": true
+    },
+    {
+      "type": "compositionupdate",
+      "data": "▽きり"
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertCompositionText",
+      "data": "▽きり",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertCompositionText",
+      "data": "▽きり"
+    },
+    {
+      "type": "keydown",
+      "key": "i",
+      "keyCode": 229,
+      "isComposing": true
+    },
+    {
+      "type": "compositionupdate",
+      "data": "▼桐"
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertCompositionText",
+      "data": "▼桐",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertCompositionText",
+      "data": "▼桐"
+    },
+    {
+      "type": "keydown",
+      "key": " ",
+      "keyCode": 229,
+      "isComposing": true
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "deleteCompositionText",
+      "data": null,
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "deleteCompositionText",
+      "data": null
+    },
+    {
+      "type": "beforeinput",
+      "inputType": "insertFromComposition",
+      "data": "桐",
+      "isComposing": true
+    },
+    {
+      "type": "input",
+      "inputType": "insertFromComposition",
+      "data": "桐"
+    },
+    {
+      "type": "compositionend",
+      "data": "桐",
+      "dom": "灯台の桐灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。"
+    },
+    {
+      "type": "select",
+      "anchor": 4,
+      "head": 4
+    },
+    {
+      "type": "keydown",
+      "key": "Enter",
+      "keyCode": 229,
+      "isComposing": false
+    }
+  ],
+  "expected": "灯台の桐灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。",
+  "caret": 4
+}
