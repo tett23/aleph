@@ -57,3 +57,13 @@ test("the kept screen state: an object is kept as it is, anything else is empty"
   assert.deepEqual(normalize({ ui: [1] }).ui, {});
   assert.deepEqual(normalize({}).ui, {});
 });
+
+test("the key settings: bindings kept as string lists, the leader key checked, the wait clamped (docs/adr/0034)", () => {
+  const c = normalize({ keyBindings: { "git.commit": ["Leader g c", 3], bad: "Mod-s" }, leaderKey: "j", keySequenceTimeout: 50 });
+  assert.deepEqual(c.keyBindings, { "git.commit": ["Leader g c"] });
+  assert.equal(c.leaderKey, "Mod-;");
+  assert.equal(c.keySequenceTimeout, 200);
+  assert.equal(normalize({ keySequenceTimeout: 99999 }).keySequenceTimeout, 5000);
+  assert.equal(normalize({ leaderKey: "Ctrl-j" }).leaderKey, "Ctrl-j");
+  assert.deepEqual([defaults().keyBindings, defaults().leaderKey, defaults().keySequenceTimeout], [{}, "Mod-;", 1000]);
+});

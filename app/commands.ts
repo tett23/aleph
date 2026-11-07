@@ -2,7 +2,7 @@
 // for whether it can run, and default keys; the toolbar menu, the palette and
 // the keys all read from it.
 import { fuzzy } from "./fuzzy.ts";
-import { isMac, matchKey, type KeyEvent } from "./ed/keys.ts";
+import { isMac } from "./ed/keys.ts";
 import type { Ctx } from "./ctx.ts";
 import type { State } from "./store.ts";
 
@@ -43,13 +43,14 @@ export const keyLabel = (binding: string, mac = isMac()) =>
       const name = parts.pop()!;
       const mods = parts.map((p) => (p === "Mod" ? (mac ? "Meta" : "Ctrl") : p === "Cmd" ? "Meta" : p));
       const sorted = ORDER.filter((m) => mods.includes(m));
-      return sorted.map((m) => (mac ? SYMBOL[m] : `${m}+`)).join("") + (name.length === 1 ? name.toUpperCase() : name);
+      const key = name === "Minus" ? "-" : name;
+      // a bare key (after a leader) is the character typed; with modifiers it is the key's cap
+      return sorted.map((m) => (mac ? SYMBOL[m] : `${m}+`)).join("") + (key.length === 1 && sorted.length ? key.toUpperCase() : key);
     })
     .join(" ");
 
-/** The available command bound to a key; editor commands only while the editor has the focus. */
-export const commandForKey = (list: Command[], e: KeyEvent, s: State, editorFocused: boolean, mac = isMac()) =>
-  list.find((c) => (c.scope !== "editor" || editorFocused) && c.keys?.some((k) => !k.includes(" ") && matchKey(k, e, mac)) && c.when(s)) ?? null;
+/** The commands the keys may run now: available ones, and editor commands only while the editor has the focus. */
+export const keyedCommands = (list: Command[], s: State, editorFocused: boolean) => list.filter((c) => (c.scope !== "editor" || editorFocused) && c.when(s));
 
 /** What the ⌘P box shows: commands after a leading ">", sheets otherwise. */
 export const splitQuery = (input: string): { mode: "commands" | "files"; q: string } =>

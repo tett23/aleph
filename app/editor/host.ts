@@ -6,6 +6,7 @@ import type { Ctx } from "../ctx.ts";
 import { createEditor, type Editor } from "../ed/editor.ts";
 import { esc } from "../esc.ts";
 import { h } from "../icons.ts";
+import { dispatchKey } from "../keybind.ts";
 import { rel, stem } from "../path.ts";
 import { loadManifest, separatorOf } from "../separator.ts";
 import { focused, type Doc } from "../store.ts";
@@ -35,6 +36,7 @@ const editorFor = (el: HTMLElement, doc: Doc, ctx: Ctx, index: number, scroller:
     onFocus: () => ctx.store.dispatch({ type: "focus", index }),
     onCaret: () => ctx.refresh(["status"]),
     plugins: ctx.editorPlugins.flatMap((f) => f(doc, ctx) ?? []),
+    keys: (e) => dispatchKey(ctx, e, true),
     separator: () => separatorOf(doc.project, doc.path, ctx.editors.get(doc.path)?.text() ?? doc.text),
   });
 };

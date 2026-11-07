@@ -6,7 +6,8 @@ import { icon } from "../icons.ts";
 import { basename, rel, stem } from "../path.ts";
 import { dirty, focused, type LeftPanel, type RightPanel, type State } from "../store.ts";
 import { canVertical, effectiveSide, previewLabel, previewsFor } from "../toolbar.ts";
-import { keyLabel, menuCommands } from "../commands.ts";
+import { menuCommands } from "../commands.ts";
+import { hintOf } from "../keybind.ts";
 import { runCommand } from "../palette.ts";
 import { menu, onPress } from "./dom.ts";
 import { openSettings } from "./settings.ts";
@@ -103,7 +104,7 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
     if (t.dataset.tb === "more")
       menu(
         t,
-        menuCommands(ctx.commands, s).map((c) => ({ label: c.label, icon: c.icon ? icon(c.icon, 14) : "", hint: c.keys?.[0] ? keyLabel(c.keys[0]) : undefined, run: () => void runCommand(ctx, c) })),
+        menuCommands(ctx.commands, s).map((c) => ({ label: c.label, icon: c.icon ? icon(c.icon, 14) : "", hint: hintOf(ctx, c), run: () => void runCommand(ctx, c) })),
       );
   });
 

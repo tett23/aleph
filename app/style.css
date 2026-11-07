@@ -541,3 +541,15 @@ body.dragging-image, body.dragging-image * { user-select: none; cursor: copy !im
 .bookmarks .bm.drop { box-shadow: 0 2px 0 var(--text-2); }
 .bookmarks .grip { color: var(--faint); cursor: grab; }
 .bookmarks .empty { color: var(--faint); font-size: 12px; line-height: 1.7; }
+
+/* key bindings (docs/adr/0034) */
+.kbhead { display: flex; gap: 8px; align-items: center; margin: 14px 0 6px; }
+.kbhead .field { flex: 1; }
+.kblist { display: flex; flex-direction: column; }
+.kbrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.kbrow .d small { color: var(--faint); font-size: 11px; }
+.kbrow .keys { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: flex-end; }
+.kbrow .kb { display: inline-flex; align-items: center; gap: 1px; }
+.kbrow kbd { font: 11px var(--mono); padding: 1px 5px; border: 1px solid var(--border); border-radius: 4px; }
+.btn.small { padding: 1px 7px; font-size: 11px; }
+.keyseq { font-family: var(--mono); color: var(--accent); }
