@@ -399,3 +399,12 @@ table.grid tr.dragged td { opacity: 0.45; }
 .welcome img { width: 96px; }
 .mhead { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
 .toolbar .title small { color: var(--faint); margin-left: 6px; }
+
+/* semantic tokens from golem lsp (docs/adr/0009) */
+.st-cmd { color: var(--cmd); }
+.st-expr { color: var(--expr); }
+.st-comment, .st-escape, .st-mark { color: var(--faint); }
+.st-heading { font-weight: 600; }
+/* the size comes from the fallback tokenizer's spans, which these lie inside; nesting a second 0.86em would shrink them twice */
+.prose .st-cmd, .prose .st-expr { font-family: var(--mono); }
+.cm-panel.cm-panel-lint { font: 12px var(--ui); }

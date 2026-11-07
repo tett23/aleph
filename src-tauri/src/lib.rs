@@ -2,13 +2,12 @@
 //! needs (docs/adr/0003). Each concern is a module with its own tests.
 
 mod fsops;
-#[cfg_attr(not(test), allow(dead_code))] // used by the LSP bridge (docs/adr/0009)
 mod lsp;
 mod process;
 mod window;
 
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 type R<T> = Result<T, String>;
 
@@ -215,6 +214,45 @@ fn tool(
     )
 }
 
+// ---- golem lsp (docs/adr/0009) ----
+
+/// Starts `golem lsp` in a project; its messages arrive as `lsp-<id>` events,
+/// and `lsp-<id>-exit` when it ends.
+#[tauri::command]
+fn lsp_start(
+    app: AppHandle,
+    servers: tauri::State<lsp::Servers>,
+    id: String,
+    bin: Option<String>,
+    cwd: String,
+) -> R<()> {
+    let program = tool_path(&app, "golem", bin.as_deref())?;
+    let (a, b) = (app.clone(), app.clone());
+    let (ev, exit) = (format!("lsp-{id}"), format!("lsp-{id}-exit"));
+    servers.start(
+        &id,
+        &program,
+        &["lsp"],
+        Path::new(&cwd),
+        move |m| {
+            let _ = a.emit(&ev, m);
+        },
+        move || {
+            let _ = b.emit(&exit, ());
+        },
+    )
+}
+
+#[tauri::command]
+fn lsp_send(servers: tauri::State<lsp::Servers>, id: String, message: String) -> R<()> {
+    servers.send(&id, &message)
+}
+
+#[tauri::command]
+fn lsp_stop(servers: tauri::State<lsp::Servers>, id: String) {
+    servers.stop(&id)
+}
+
 #[derive(serde::Serialize)]
 struct ToolInfo {
     path: String,
@@ -251,6 +289,7 @@ fn bundled_version(name: &str) -> String {
 pub fn run_app() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(lsp::Servers::default())
         .setup(|app| {
             restore_window(app.handle());
             Ok(())
@@ -280,7 +319,10 @@ pub fn run_app() {
             temp_dir,
             git,
             tool,
-            tool_info
+            tool_info,
+            lsp_start,
+            lsp_send,
+            lsp_stop
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")
@@ -290,6 +332,9 @@ pub fn run_app() {
                 if let Some(w) = app.get_webview_window("main") {
                     save_window(&w.as_ref().window());
                 }
+            }
+            if let tauri::RunEvent::Exit = ev {
+                app.state::<lsp::Servers>().stop_all();
             }
         });
 }
