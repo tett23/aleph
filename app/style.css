@@ -584,3 +584,19 @@ body.dragging-image, body.dragging-image * { user-select: none; cursor: copy !im
 .links .lk small { display: block; color: var(--text-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .links .lk.missing { color: var(--faint); }
 a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
+
+/* keywords (docs/adr/0028) */
+.kw.mine { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.kw.mine span { border: 1px solid var(--border); border-radius: 10px; padding: 1px 4px 1px 8px; font-size: 12px; }
+.kw.mine span i { font-style: normal; color: var(--faint); margin-left: 4px; cursor: default; }
+.kw.mine .kwin { flex: 1; min-width: 80px; font-size: 12px; padding: 2px 6px; }
+.sec h6 { margin: 10px 0 4px; font-size: 11px; font-weight: 500; color: var(--faint); }
+.keywords .sec { padding: 8px 10px; }
+.keywords h5 { margin: 4px 0 6px; font-size: 11px; font-weight: 600; color: var(--faint); }
+.keywords .kwr { display: flex; justify-content: space-between; padding: 3px 6px; border-radius: 5px; cursor: default; font-size: 13px; }
+.keywords .kwr small { color: var(--faint); }
+.keywords .kwr:hover { background: var(--bg-3); }
+.keywords .kwr.on { background: var(--bg-3); color: var(--text); font-weight: 600; }
+.keywords .kws { padding: 4px 6px; border-radius: 5px; cursor: default; }
+.keywords .kws:hover { background: var(--bg-3); }
+.keywords .kws small { display: block; color: var(--faint); font-size: 11px; }

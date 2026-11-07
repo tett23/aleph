@@ -6,6 +6,7 @@ import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { gmBlocks } from "./gm.ts";
 import { forgetManifest, loadManifest, separatorOf } from "./separator.ts";
+import { addKeyword, collectKeywords, removeKeyword, suggest } from "./keywords.ts";
 import { goalOf, metaFor, parseMeta, renameKey, writeMeta, type Meta } from "./notes.ts";
 import { dirname, rel } from "./path.ts";
 import { linesCell, namesCell, rowsFor, targetFor } from "./plot/data.ts";
@@ -20,9 +21,15 @@ import { kindOf, projectOf, workspaceOf } from "./workspace.ts";
 const rootOf = (ctx: Ctx, path: string): string | null => projectOf(path, ctx.projects) ?? workspaceOf(path, ctx.store.get().workspaces);
 
 const metas = new Map<string, Meta>();
-const loadMeta = async (root: string) => {
+/** A root's metadata, read once (the keywords panel shares it, docs/adr/0028). */
+export const loadMeta = async (root: string) => {
   if (!metas.has(root)) metas.set(root, parseMeta(await api.readText(`${root}/.aleph/notes.json`).catch(() => "")));
   return metas.get(root)!;
+};
+/** Replaces a root's metadata and writes it. */
+export const putMeta = async (root: string, m: Meta) => {
+  metas.set(root, m);
+  await saveMeta(root);
 };
 const saveMeta = async (root: string) => {
   await api.makeDir(`${root}/.aleph`).catch(() => {});
@@ -113,7 +120,15 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
           g.goal ? `残り ${Math.max(0, g.goal - st.chars).toLocaleString()} 字 · ` : ""
         }原稿用紙 ${st.sheets} 枚</div>
       </div></div>` : ""}
-    ${kws.length ? `<div class="sec"><h5>キーワード</h5><div class="kw">${kws.map(([v, c]) => `<span style="--c:${c}">${esc(v)}</span>`).join("")}</div></div>` : ""}
+    <div class="sec"><h5>キーワード</h5>
+      <div class="kw mine">${(m.keywords ?? []).map((v) => `<span>${esc(v)}<i data-kw-rm="${esc(v)}" title="外す">×</i></span>`).join("")}<input class="field kwin" data-kw-add list="kw-cands" placeholder="足す（↩）"><datalist id="kw-cands">${suggest(
+        collectKeywords([{ root, meta }]),
+        "",
+      )
+        .filter((k) => !(m.keywords ?? []).includes(k))
+        .map((k) => `<option value="${esc(k)}">`)
+        .join("")}</datalist></div>
+      ${kws.length ? `<h6>プロットから</h6><div class="kw">${kws.map(([v, c]) => `<span style="--c:${c}">${esc(v)}</span>`).join("")}</div>` : ""}</div>
     ${
       musts.length || flavors.length
         ? `<div class="sec"><h5>書くこと <small>${rows.map((r) => esc(r.scene)).filter(Boolean).join("、")}</small></h5><div class="todo">${musts
@@ -137,6 +152,19 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
     const x = e.target as HTMLInputElement;
     if (x.dataset.note !== undefined) update((v) => ({ ...v, note: x.value }));
     else if (x.dataset.goal !== undefined) update((v) => ({ ...v, goal: Number(x.value) > 0 ? Number(x.value) : undefined }));
+  };
+  el.onkeydown = (e) => {
+    const x = e.target as HTMLInputElement;
+    if (x.dataset.kwAdd === undefined || e.key !== "Enter" || e.isComposing) return;
+    e.preventDefault();
+    meta[key] = { ...metaFor(meta, key), keywords: addKeyword(metaFor(meta, key).keywords ?? [], x.value) };
+    void saveMeta(root).then(() => ctx.refresh(["right", "left"]));
+  };
+  el.onclick = (e) => {
+    const k = (e.target as HTMLElement).closest<HTMLElement>("[data-kw-rm]")?.dataset.kwRm;
+    if (k === undefined) return;
+    meta[key] = { ...metaFor(meta, key), keywords: removeKeyword(metaFor(meta, key).keywords ?? [], k) };
+    void saveMeta(root).then(() => ctx.refresh(["right", "left"]));
   };
   el.onchange = (e) => {
     const x = e.target as HTMLInputElement;

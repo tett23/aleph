@@ -30,3 +30,11 @@ test("the goal: the one set by hand, else the plot's planned characters, else no
   assert.deepEqual(goalOf(undefined, 900), { goal: 900, from: "plot" });
   assert.deepEqual(goalOf(undefined, null), { goal: null, from: null });
 });
+
+test("keywords are read and written; an empty list is left out; renaming carries them (docs/adr/0028)", () => {
+  assert.deepEqual(parseMeta('{"a.gm":{"note":"","done":[],"keywords":["父","灯台",3]}}'), { "a.gm": { note: "", done: [], keywords: ["父", "灯台"] } });
+  assert.deepEqual(parseMeta('{"a.gm":{"note":"","done":[],"keywords":[]}}'), {});
+  const m = { "a.gm": { note: "", done: [], keywords: ["父"] }, "b.gm": { note: "", done: [], keywords: [] } };
+  assert.deepEqual(parseMeta(writeMeta(m)), { "a.gm": { note: "", done: [], keywords: ["父"] } });
+  assert.deepEqual(renameKey(m, "a.gm", "c.gm")["c.gm"].keywords, ["父"]);
+});
