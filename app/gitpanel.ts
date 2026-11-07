@@ -135,6 +135,14 @@ const run = async (el: HTMLElement, ctx: Ctx, a: string) => {
   await drawPanel(el, ctx);
 };
 
+/** push and pull from the command palette: the Git panel shows the result. */
+const gitCommand = async (ctx: Ctx, a: "push" | "pull") => {
+  const s = ctx.store.get();
+  if (!s.showLeft || s.left !== "git") ctx.store.dispatch({ type: "left", panel: "git" });
+  const el = document.querySelector<HTMLElement>(".git")?.parentElement;
+  if (el) await run(el, ctx, a);
+};
+
 /** ⌘⇧K: the Git panel with the message field focused. */
 const startCommit = (ctx: Ctx) => {
   const s = ctx.store.get();
@@ -175,13 +183,11 @@ export const mountGit = (ctx: Ctx) => {
   // a mark on files with changes not committed
   ctx.decor.push((p) => (changedPaths.has(p) ? `<span class="dot" title="コミットしていない変更"></span>` : ""));
 
-  ctx.commands.push({ label: "コミット（⌘⇧K）", icon: "git-commit-horizontal", when: (s) => !!s.workspace, run: startCommit });
-  window.addEventListener("keydown", (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      startCommit(ctx);
-    }
-  });
+  ctx.commands.push(
+    { id: "git.commit", menu: true, keys: ["Mod-Shift-k"], label: "コミット", icon: "git-commit-horizontal", when: (s) => !!s.workspace, run: startCommit },
+    { id: "git.push", label: "push", icon: "arrow-up-right", when: (s) => !!s.workspace, run: (c) => gitCommand(c, "push") },
+    { id: "git.pull", label: "pull", icon: "refresh-cw", when: (s) => !!s.workspace, run: (c) => gitCommand(c, "pull") },
+  );
 
   // saving: every few seconds, and before a sheet goes away (closed, or replaced by another)
   let timer = 0;

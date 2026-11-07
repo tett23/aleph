@@ -125,6 +125,57 @@ export const newChapter = async (ctx: Ctx, project: string) => {
   return path;
 };
 
+/** The tree's actions (the buttons above it), also run as commands (docs/adr/0023). */
+export const runTreeAct = async (ctx: Ctx, act: string) => {
+  const s = ctx.store.get();
+  switch (act) {
+    case "add-ws":
+      return addWorkspace(ctx);
+    case "refresh":
+      await reloadTree(ctx);
+      return ctx.refresh(["left"]);
+    case "collapse":
+      return ctx.store.dispatch({ type: "collapseAll" });
+    case "new-folder": {
+      const dir = targetDir(ctx);
+      const name = dir && (await ask("新しいフォルダの名前"));
+      if (!dir || !name) return;
+      await api.makeDir(`${dir}/${name}`);
+      await reloadTree(ctx);
+      return ctx.store.dispatch({ type: "expand", path: dir, on: true });
+    }
+    case "new-project": {
+      const ws = s.workspace;
+      const name = ws && (await ask("新しいプロジェクトの名前（golem new）"));
+      if (!ws || !name) return;
+      // fonts come from the shared library, never from golem's download (docs/adr/0004, docs/adr/0014)
+      const out = await golem(ctx, ws, ["new", name, "--no-fonts"]);
+      if (out.code !== 0) return toast((out.stderr || out.stdout).trim());
+      for (const f of ctx.onNewProject) await f(`${ws}/${name}`, ctx);
+      if (!ctx.config.libraryDir) toast("共有ライブラリがないので、フォントは入っていません。設定の「共有ライブラリ」でフォルダを決めると、開いたときにコピーします");
+      await reloadTree(ctx);
+      ctx.store.dispatch({ type: "expand", path: `${ws}/${name}`, on: true });
+      return ctx.open([`${ws}/${name}/chapters/01.gm`]);
+    }
+    case "new-file": {
+      const project = focused(s)?.project ?? null;
+      let path: string | null = null;
+      if (project) path = await newChapter(ctx, project);
+      else {
+        const dir = targetDir(ctx);
+        const name = dir && (await ask("新しいシートの名前", "untitled.md"));
+        if (!dir || !name) return;
+        path = `${dir}/${name}`;
+        if (await api.exists(path)) return toast(`${name} はもうあります`);
+        await api.writeText(path, "");
+      }
+      if (!path) return;
+      await reloadTree(ctx);
+      return ctx.open([path], { line: 1, col: 2 });
+    }
+  }
+};
+
 export const mountTree = (ctx: Ctx) => {
   ctx.left.files = {
     icon: "files",
@@ -149,52 +200,7 @@ export const mountTree = (ctx: Ctx) => {
           }
           return void ctx.open([d.file]);
         }
-        switch (d.act) {
-          case "add-ws":
-            return addWorkspace(ctx);
-          case "refresh":
-            await reloadTree(ctx);
-            return draw(el, ctx);
-          case "collapse":
-            return ctx.store.dispatch({ type: "collapseAll" });
-          case "new-folder": {
-            const dir = targetDir(ctx);
-            const name = dir && (await ask("新しいフォルダの名前"));
-            if (!dir || !name) return;
-            await api.makeDir(`${dir}/${name}`);
-            await reloadTree(ctx);
-            return ctx.store.dispatch({ type: "expand", path: dir, on: true });
-          }
-          case "new-project": {
-            const ws = s.workspace;
-            const name = ws && (await ask("新しいプロジェクトの名前（golem new）"));
-            if (!ws || !name) return;
-            // fonts come from the shared library, never from golem's download (docs/adr/0004, docs/adr/0014)
-            const out = await golem(ctx, ws, ["new", name, "--no-fonts"]);
-            if (out.code !== 0) return toast((out.stderr || out.stdout).trim());
-            for (const f of ctx.onNewProject) await f(`${ws}/${name}`, ctx);
-            if (!ctx.config.libraryDir) toast("共有ライブラリがないので、フォントは入っていません。設定の「共有ライブラリ」でフォルダを決めると、開いたときにコピーします");
-            await reloadTree(ctx);
-            ctx.store.dispatch({ type: "expand", path: `${ws}/${name}`, on: true });
-            return ctx.open([`${ws}/${name}/chapters/01.gm`]);
-          }
-          case "new-file": {
-            const project = focused(s)?.project ?? null;
-            let path: string | null = null;
-            if (project) path = await newChapter(ctx, project);
-            else {
-              const dir = targetDir(ctx);
-              const name = dir && (await ask("新しいシートの名前", "untitled.md"));
-              if (!dir || !name) return;
-              path = `${dir}/${name}`;
-              if (await api.exists(path)) return toast(`${name} はもうあります`);
-              await api.writeText(path, "");
-            }
-            if (!path) return;
-            await reloadTree(ctx);
-            return ctx.open([path], { line: 1, col: 2 });
-          }
-        }
+        return runTreeAct(ctx, d.act!);
       };
       el.ondblclick = async (e) => {
         const t = (e.target as HTMLElement).closest<HTMLElement>("[data-file]");

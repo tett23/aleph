@@ -19,7 +19,9 @@ export type SettingsSection = {
   onChange?: (el: HTMLInputElement, ctx: Ctx) => boolean | Promise<boolean>;
 };
 
-export type Command = { label: string; icon: string; when: (s: State) => boolean; run: (ctx: Ctx) => void | Promise<void> };
+export type { Command } from "./commands.ts";
+import type { Command } from "./commands.ts";
+import type { PaletteItem } from "./palette.ts";
 
 /** The view of the editor pane and of the pane beside it. */
 export type View = {
@@ -44,6 +46,8 @@ export type Ctx = {
   statusActions: Record<string, (ctx: Ctx) => void>;
   settings: SettingsSection[];
   commands: Command[];
+  /** The sheets for the ⌘P box (docs/adr/0022); null until that finder is mounted. */
+  findSheets: ((q: string) => PaletteItem[]) | null;
   view: View;
   /** Opens sheets: one, or several chapters together; a path may be taken by an opener (the plot). */
   open: (paths: string[], at?: At) => Promise<void>;

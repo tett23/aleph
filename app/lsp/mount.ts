@@ -236,9 +236,9 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
       };
     },
     keys: [
-      { key: "Mod-s", run: () => (void formatAndSave(ctx, current()), true) },
+      { id: "file.save", key: "Mod-s", run: () => (void formatAndSave(ctx, current()), true) },
       // ⌥⇧F matches by the key's place too: on macOS the option key turns F into "Ï"
-      { key: "Shift-Alt-f", run: () => (void formatNow(ctx, current()), true) },
+      { id: "editor.format", key: "Shift-Alt-f", run: () => (void formatNow(ctx, current()), true) },
     ],
     hover: async (pos) => {
       const c = readyClient(path);
@@ -291,20 +291,6 @@ export const mountLsp = (ctx: Ctx) => {
     const v = d && views.get(d.path);
     if (v) v.openDiagnostics();
   };
-
-  ctx.commands.push({
-    label: "整形（⌥⇧F）",
-    icon: "wand-sparkles",
-    when: (s) => {
-      const d = focused(s);
-      return !!d && lspDoc(d);
-    },
-    run: (c) => {
-      const d = focused(c.store.get());
-      if (!d) return;
-      return formatNow(c, d);
-    },
-  });
 
   ctx.settings.push({
     id: "lsp",

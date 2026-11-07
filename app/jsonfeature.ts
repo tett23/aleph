@@ -5,7 +5,7 @@ import type { Ctx } from "./ctx.ts";
 import type { EditorPlugin, TextEditor } from "./ed/editor.ts";
 import { diffText } from "./ed/ime.ts";
 import { checkJson, formatJson, formatThenSave, isJsonKind, type Flavor } from "./ed/json.ts";
-import { focused, type Doc } from "./store.ts";
+import type { Doc } from "./store.ts";
 
 const CHECK_DELAY = 300;
 const editors = new Map<string, { t: TextEditor; flavor: Flavor }>();
@@ -47,6 +47,7 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
     },
     keys: [
       {
+        id: "file.save",
         key: "Mod-s",
         run: () => {
           if (!t) return false;
@@ -55,37 +56,12 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
           return true;
         },
       },
-      { key: "Shift-Alt-f", run: () => (t ? (ctx.toast(notice(formatIn(t, flavor))), true) : false) },
+      { id: "editor.format", key: "Shift-Alt-f", run: () => (t ? (ctx.toast(notice(formatIn(t, flavor))), true) : false) },
     ],
   };
 };
 
 export const mountJson = (ctx: Ctx) => {
   ctx.editorPlugins.push(pluginFor);
-  ctx.commands.push({
-    label: "整形（⌥⇧F）",
-    icon: "wand-sparkles",
-    when: (s) => {
-      const d = focused(s);
-      return !!d && isJsonKind(d.kind);
-    },
-    run: (c) => {
-      const d = focused(c.store.get());
-      const e = d && editors.get(d.path);
-      if (e) c.toast(notice(formatIn(e.t, e.flavor)));
-    },
-  });
-  // the list of the editor's diagnostics (the status bar's LSP item is for golem lsp only)
-  ctx.commands.push({
-    label: "診断の一覧",
-    icon: "list",
-    when: (s) => {
-      const d = focused(s);
-      return !!d && isJsonKind(d.kind);
-    },
-    run: (c) => {
-      const d = focused(c.store.get());
-      if (d) editors.get(d.path)?.t.openDiagnostics();
-    },
-  });
+
 };

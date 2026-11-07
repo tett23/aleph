@@ -36,7 +36,14 @@ export const mountPlugins = async (ctx: Ctx) => {
     results = await host.load(sources, ctx.config.disabledPlugins, importer);
     // the menu's items follow what is loaded now
     for (const c of mine) ctx.commands.splice(ctx.commands.indexOf(c), 1);
-    mine = host.commands().map((c) => ({ label: c.label, icon: "puzzle", when: () => true, run: (cc) => c.run(current(cc.store.get())) }));
+    // ids plugin.<name>.<n> (docs/adr/0023); the name is the file's without .js, other characters as "-"
+    const counts = new Map<string, number>();
+    mine = host.commands().map((c) => {
+      const name = c.plugin.replace(/\.js$/, "").replace(/[^\w-]/g, "-") || "x";
+      const n = (counts.get(name) ?? 0) + 1;
+      counts.set(name, n);
+      return { id: `plugin.${name}.${n}`, menu: true, label: `${c.label}（${name}）`, icon: "puzzle", when: () => true, run: (cc) => c.run(current(cc.store.get())) };
+    });
     ctx.commands.push(...mine);
     ctx.refresh(["status"]);
   };

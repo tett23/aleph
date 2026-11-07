@@ -20,7 +20,7 @@ export type CompletionItem = { label: string; detail?: string; apply: string };
 /** What a plugin (the LSP) adds to an editor. */
 export type EditorPlugin = {
   /** Keys tried before the editor's own. */
-  keys?: { key: string; run: () => boolean }[];
+  keys?: { id?: string; key: string; run: () => boolean }[];
   hover?: (pos: number) => Promise<string | null>;
   /** Completion at a position; `explicit` when asked for with Ctrl-Space. */
   complete?: (pos: number, explicit: boolean) => Promise<{ from: number; items: CompletionItem[] } | null>;
@@ -39,6 +39,10 @@ export type TextEditor = {
   /** The tokenizer's colours, turned off once the server's semantic tokens arrive. */
   setFallbackColors: (on: boolean) => void;
   openDiagnostics: () => void;
+  /** Runs one of the editor's commands by id (docs/adr/0023); false when it has none by that id. */
+  command: (id: string) => boolean;
+  /** Whether the editor has a command by that id. */
+  hasCommand: (id: string) => boolean;
 };
 
 export type Editor = {
@@ -148,16 +152,16 @@ export const createEditor = (o: EditorOptions): Editor => {
     o.onCaret?.();
   };
 
-  const KEYS: { key: string; run: () => boolean }[] = [
-    { key: "Mod-s", run: () => (o.onSave(), true) },
-    { key: "Mod-z", run: () => (core.undo() && view.revealCaret(), true) },
-    { key: "Mod-Shift-z", run: () => (core.redo() && view.revealCaret(), true) },
+  const KEYS: { id?: string; key: string; run: () => boolean }[] = [
+    { id: "file.save", key: "Mod-s", run: () => (o.onSave(), true) },
+    { id: "editor.undo", key: "Mod-z", run: () => (core.undo() && view.revealCaret(), true) },
+    { id: "editor.redo", key: "Mod-Shift-z", run: () => (core.redo() && view.revealCaret(), true) },
     { key: "Mod-y", run: () => (core.redo() && view.revealCaret(), true) },
-    { key: "Mod-a", run: () => (selectAll(), true) },
-    { key: "Mod-f", run: () => (openSearch(), true) },
-    { key: "Ctrl-Space", run: () => (scheduleComplete(true), true) },
-    { key: "Tab", run: () => (doIndent(1), true) },
-    { key: "Shift-Tab", run: () => (doIndent(-1), true) },
+    { id: "editor.selectAll", key: "Mod-a", run: () => (selectAll(), true) },
+    { id: "editor.find", key: "Mod-f", run: () => (openSearch(), true) },
+    { id: "editor.complete", key: "Ctrl-Space", run: () => (scheduleComplete(true), true) },
+    { id: "editor.indent", key: "Tab", run: () => (doIndent(1), true) },
+    { id: "editor.outdent", key: "Shift-Tab", run: () => (doIndent(-1), true) },
     {
       key: "Escape",
       run: () => {
@@ -365,6 +369,13 @@ export const createEditor = (o: EditorOptions): Editor => {
       });
     },
     setFallbackColors: (on) => view.toggleClass("no-fallback", !on),
+    command: (id) => {
+      // a plugin's command first (the LSP's ⌘S formats before saving), then the editor's own
+      for (const p of plugins) for (const k of p.keys ?? []) if (k.id === id && k.run()) return true;
+      const k = KEYS.find((x) => x.id === id);
+      return k ? k.run() : false;
+    },
+    hasCommand: (id) => plugins.some((p) => p.keys?.some((k) => k.id === id)) || KEYS.some((x) => x.id === id),
     openDiagnostics: () => {
       diagPanel ??= createDiagPanel(panelHost(view.root), (pos) => core.doc().lineAt(pos).number, {
         pick: (d) => {

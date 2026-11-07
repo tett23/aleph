@@ -218,6 +218,8 @@ export const mountLibrary = (ctx: Ctx) => {
       }
   });
   ctx.commands.push({
+    id: "library.copyFonts",
+    menu: true,
     label: "共有ライブラリのフォントをコピー",
     icon: "type",
     when: (s) => !!focused(s)?.project && !!ctx.config.libraryDir,

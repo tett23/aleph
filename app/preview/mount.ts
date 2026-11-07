@@ -256,7 +256,7 @@ const sendPlain = async (ctx: Ctx) => {
   await emit("aleph:plain", { sections: sectionsOf(chaptersShown(s)), vertical: verticalOn(s) }).catch(() => {});
 };
 
-const openWindow = async (ctx: Ctx, view: "plain" | "pages", project: string) => {
+export const openWindow = async (ctx: Ctx, view: "plain" | "pages", project: string) => {
   const label = `${view}-${Math.abs([...project].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7))}`;
   const existing = await WebviewWindow.getByLabel(label);
   if (existing) return void existing.setFocus();

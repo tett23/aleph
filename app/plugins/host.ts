@@ -63,6 +63,7 @@ export const createHost = (toast: (msg: string) => void) => {
     },
     commands: () =>
       commands.map(({ plugin, f }) => ({
+        plugin,
         label: f.label,
         run: async (cur: Current) => {
           try {
