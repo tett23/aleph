@@ -31,6 +31,8 @@ const ICONS: Record<string, string> = {
 };
 
 let entries: Entry[] = [];
+/** The workspace as the tree last read it. */
+export const treeEntries = () => entries;
 const chapters = new Map<string, string[]>();
 
 /** Reads the workspace again: the tree, the projects, their chapters and the sheets' titles. */
