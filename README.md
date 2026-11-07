@@ -1,8 +1,8 @@
-# aleph
+# Aleph
 
 [![CI](https://github.com/tett23/aleph/actions/workflows/ci.yml/badge.svg)](https://github.com/tett23/aleph/actions/workflows/ci.yml)
 
-aleph is an editor and preview environment for [Golem](https://github.com/tett23/golem), a typesetting system, under development.
+Aleph is an editor and preview environment for [Golem](https://github.com/tett23/golem), a typesetting system, under development.
 
 [日本語の README](README.ja.md)
 
@@ -11,8 +11,8 @@ README.ja.md is a machine translation of it.
 
 ## Overview
 
-aleph is a desktop application built with [Tauri](https://tauri.app/).
-It is for writing the manuscripts of Golem and seeing how they are typeset.
+Aleph is a desktop application built with [Tauri](https://tauri.app/).
+It is for writing the manuscripts of Golem, seeing how they are typeset, and managing the plot of a work.
 
 It will edit these formats:
 
@@ -23,11 +23,13 @@ It will edit these formats:
 - SVG (`.svg`)
 - PDF (`.pdf`)
 - Mermaid
+- Images (PNG, JPEG, GIF, WebP), for viewing
 
 ## Status
 
-Nothing is implemented yet.
-The design is being decided in ADRs (Architecture Decision Records) under [docs/adr/](docs/adr/).
+The implementation has not started.
+A throwaway prototype is in [prototype/](prototype/); its README tells how to run it.
+The design learned from the prototype is accepted in ADRs (Architecture Decision Records) under [docs/adr/](docs/adr/), none of them implemented yet.
 The specification is in [docs/specifications.md](docs/specifications.md).
 
 ## Development

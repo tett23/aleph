@@ -55,7 +55,7 @@ jobs:
 
   # The app: the TypeScript side (type check, node --test, Vite build) and the
   # Rust side (rustfmt, clippy, cargo test), on macOS, the platform Aleph
-  # targets first (docs/adr/0001, docs/adr/0002). Until the implementation
+  # targets first (docs/adr/0002, docs/adr/0003). Until the implementation
   # (src-tauri/ at the root) exists, the throwaway prototype/ is checked.
   app:
     runs-on: macos-15
