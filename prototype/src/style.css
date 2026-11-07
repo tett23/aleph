@@ -197,8 +197,11 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .todo input { accent-color: var(--accent); margin-top: 3px; }
 .todo label.done { color: var(--faint); text-decoration: line-through; }
 .flavor { font-size: 12px; color: var(--text-2); margin-top: 8px; }
-.note { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; font: 12.5px/1.7 var(--ui); color: var(--text); margin: 0; resize: vertical; outline: none; min-height: 180px; }
-.note:focus { border-color: var(--accent); }
+/* the note sits on the panel itself: no box, only a faint ground while it is touched */
+.note { width: 100%; background: transparent; border: none; border-radius: 4px; padding: 6px 8px; margin: 0 -8px; width: calc(100% + 16px); font: 12.5px/1.75 var(--ui); color: var(--text); resize: none; outline: none; min-height: 180px; transition: background 0.12s; }
+.note::placeholder { color: var(--faint); }
+.note:hover { background: var(--hover); }
+.note:focus { background: var(--sel); }
 .fragment { font-family: var(--body); font-size: 13px; padding: 4px 0; color: var(--text); }
 .outline div { padding: 3px 6px; border-radius: 4px; cursor: default; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .outline div:hover { background: var(--hover); }
