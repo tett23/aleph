@@ -600,3 +600,9 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .keywords .kws { padding: 4px 6px; border-radius: 5px; cursor: default; }
 .keywords .kws:hover { background: var(--bg-3); }
 .keywords .kws small { display: block; color: var(--faint); font-size: 11px; }
+
+/* embeds in the Markdown preview (docs/adr/0029) */
+.pview .embed { border: 1px solid var(--border); border-radius: 6px; margin: 1em 0; }
+.pview .embed-head { font-size: 12px; color: var(--text-2); padding: 4px 10px; border-bottom: 1px solid var(--border); background: var(--bg-2); cursor: pointer; }
+.pview .embed-body { padding: 4px 12px; }
+.pview .embed-note { color: var(--faint); font-size: 12px; padding: 6px 0; }
