@@ -12,7 +12,7 @@ import { sheetsOf } from "./quickopen.ts";
 import { allDocs, focused } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree, treeEntries, treeReloaded } from "./ui/tree.ts";
-import { backlinks, buildIndex, completeAt, findHeading, markMissing, outlinks, parseWikilinks, renameEdits, resolveLink, type Index, type Sheet, type Wikilink } from "./wikilink.ts";
+import { backlinks, buildIndex, completeAt, findHeading, groupBacklinks, markMissing, outlinks, parseWikilinks, renameEdits, resolveLink, type Index, type Sheet, type Wikilink } from "./wikilink.ts";
 import { IMAGE_KINDS, kindOf, TEXT_KINDS } from "./workspace.ts";
 import { expandEmbeds } from "./embed.ts";
 import { parseMarkdown } from "./md.ts";
@@ -111,11 +111,18 @@ const drawPanel = (el: HTMLElement, ctx: Ctx) => {
   if (!d || !ws) return void (el.innerHTML = `<div class="empty">シートを開くと、そのシートを指すリンクを出します。</div>`);
   const row = (path: string, line: number, text: string, key: string, missing = false) =>
     `<div class="lk ${missing ? "missing" : ""}" ${key}>${esc(ctx.titles.get(path) ?? basename(path))} <span class="muted">${line} 行</span><small>${esc(text.trim().slice(0, 80))}</small></div>`;
-  const back = backlinks(index, d.path);
+  // by linking sheet (docs/adr/0038)
+  const back = groupBacklinks(backlinks(index, d.path));
   const out = d.kind === "md" ? outlinks(index, d.path) : [];
-  el.innerHTML = `<div class="links"><div class="sec"><h5>このシートを指すリンク（${back.length}）</h5>${
-    back.map((b) => row(b.from, b.line, b.text, `data-lk-open="${esc(b.from)}" data-lk-line="${b.line}"`)).join("") || `<div class="empty">ありません</div>`
-  }</div>${
+  const groups = back.groups
+    .map(
+      (g) =>
+        `<div class="lkg"><div class="lkh" data-lk-open="${esc(g.from)}" data-lk-line="1">${esc(ctx.titles.get(g.from) ?? basename(g.from))} <span class="muted">${g.count} 件</span></div>${g.lines
+          .map((l) => `<div class="lk" data-lk-open="${esc(g.from)}" data-lk-line="${l.line}"><span class="muted">${l.line} 行</span><small>${esc(l.text.trim().slice(0, 80))}</small></div>`)
+          .join("")}</div>`,
+    )
+    .join("");
+  el.innerHTML = `<div class="links"><div class="sec"><h5>このシートを指すリンク（${back.sheets} シート、${back.links} 件）</h5>${groups || `<div class="empty">ありません</div>`}</div>${
     d.kind === "md"
       ? `<div class="sec"><h5>このシートから出るリンク（${out.length}）</h5>${
           out
