@@ -11,6 +11,7 @@ import { openPaths } from "./docs.ts";
 import { mountTree, reloadTree } from "./ui/tree.ts";
 import { git, mountTools } from "./tools.ts";
 import { mountEditors } from "./editor/host.ts";
+import { createVertical } from "./editor/vertical.ts";
 import { rel } from "./path.ts";
 
 /** The parts of the state worth keeping between launches, per viewer (localStorage may be unavailable). */
@@ -148,6 +149,7 @@ const start = async () => {
   mountTree(ctx);
   mountTools(ctx);
   mountEditors(ctx);
+  ctx.verticalEditor = createVertical;
   await reloadTree(ctx);
   store.subscribe((s, prev) => {
     if (s.workspace !== prev.workspace) void reloadTree(ctx).then(() => ctx.refresh(["left"]));
