@@ -25,9 +25,11 @@ export const runDiag = async (ctx: Ctx, project: string, kind: Kind) => {
   const args = kind === "preflight" ? ["preflight", "--format", "json"] : [kind, "--format", "json", "-v"];
   const out = await golem(ctx, project, args).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
   const r = parseDiagnostics(out.stderr);
-  results.set(k, { result: r.raw === "" && out.code !== 0 ? { items: [], raw: out.stdout.trim() || `終了コード ${out.code}` } : r, at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) });
+  const done = { result: r.raw === "" && out.code !== 0 ? { items: [], raw: out.stdout.trim() || `終了コード ${out.code}` } : r, at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) };
+  results.set(k, done);
   running.delete(k);
   ctx.refresh(["status", "left"]);
+  return done.result;
 };
 
 const SEV: Record<Diagnostic["severity"], [string, string]> = {
@@ -84,7 +86,7 @@ const drawPanel = (el: HTMLElement, ctx: Ctx) => {
 };
 
 /** Shows a project's result of `kind` in the panel. */
-const show = (ctx: Ctx, project: string, kind: Kind) => {
+export const showDiag = (ctx: Ctx, project: string, kind: Kind) => {
   shown = { project, kind };
   const s = ctx.store.get();
   // the same panel's icon folds it, so only switch when it is not shown
@@ -110,7 +112,7 @@ export const mountDiagnostics = (ctx: Ctx) => {
   for (const kind of ["lint", "preflight"] as const)
     ctx.statusActions[`diag-${kind}`] = (c) => {
       const project = focused(c.store.get())?.project;
-      if (project) show(c, project, kind);
+      if (project) showDiag(c, project, kind);
     };
 
   // when a project is opened, and 2.5 s after saving its .gm, .emet or .toml: lint, then preflight
