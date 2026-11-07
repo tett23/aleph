@@ -146,9 +146,7 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
         ${subs.map((s) => `<span class="f chip ${filter === s ? "on" : ""}" data-filter="${esc(s)}" style="--c:${subplotColor(subs, s)}">${esc(s)}</span>`).join("")}
         <span class="sp"></span>
         <span class="muted">${rows.length} シーン · 予定 ${total.toLocaleString()} 字</span>
-        <span class="f" data-act="add">${icon("plus", 14)}シーン</span>
         ${mode !== "gantt" ? `<span class="f" data-act="addcol" title="任意の列を足す">${icon("plus", 14)}列</span>` : ""}
-        ${mode !== "table" ? `<span class="f" data-gz="out" title="ガントを縮小">${icon("zoom-out", 14)}</span><span class="f" data-gz="fit" title="100% に戻す">${Math.round(gz * 100)}%</span><span class="f" data-gz="in" title="ガントを拡大">${icon("zoom-in", 14)}</span>` : ""}
         ${mode !== "table" ? `<span class="f" data-act="calendar" title="ガントの時の並び">${icon("calendar-cog", 14)}暦</span>` : ""}
         ${opts.standalone ? "" : `<span class="f" data-act="window" title="別ウィンドウ">${icon("external-link", 14)}</span>`}
       </div>
@@ -158,7 +156,7 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
         ${visible
           .map(
             ({ r, i }) =>
-              `<tr data-row="${i}"><td class="rowtools"><span data-act="del" title="削除">${icon("x", 12)}</span></td>${PLOT_COLUMNS.map(
+              `<tr data-row="${i}"><td class="rowtools"><span class="grip" data-grip title="ドラッグして並べ替える">${icon("grip-vertical", 13)}</span><span data-act="del" title="削除">${icon("x", 12)}</span></td>${PLOT_COLUMNS.map(
                 ([k]) =>
                   k === "subplots"
                     ? `<td><div class="cell" contenteditable="plaintext-only" data-k="${k}">${esc(r[k])}</div><div class="chips">${namesCell(r[k]).map((s) => `<span class="chip" style="--c:${subplotColor(subs, s)}">${esc(s)}</span>`).join("")}</div></td>`
@@ -167,10 +165,12 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
                       : `<td><div class="cell ${k === "fragments" ? "body" : ""}" contenteditable="plaintext-only" data-k="${k}">${esc(r[k])}</div></td>`,
               ).join("")}${extras.map((x) => `<td><div class="cell" contenteditable="plaintext-only" data-k="${esc(x)}">${esc(r[x] ?? "")}</div></td>`).join("")}</tr>`,
           )
-          .join("")}</tbody></table></div>`
+          .join("")}</tbody></table>
+          <div class="addrow" data-act="add">${icon("plus", 13)}シーンを足す</div>
+          <div class="insline" hidden><span class="insplus" title="ここに行を足す">${icon("plus", 12)}</span></div></div>`
           : ""
       }
-      ${mode !== "table" ? `<div class="gantt">${gantt(filter ? rows.filter((r) => namesCell(r.subplots).includes(filter!)) : rows, filter ? [filter] : subs, calendarOf(rows, calendarFile), gz)}</div>` : ""}`;
+      ${mode !== "table" ? `<div class="gantt-box"><div class="gtools"><span class="iconbtn" data-gz="out" title="縮小">${icon("zoom-out", 14)}</span><span class="gzv" data-gz="fit" title="100% に戻す">${Math.round(gz * 100)}%</span><span class="iconbtn" data-gz="in" title="拡大">${icon("zoom-in", 14)}</span></div><div class="gantt">${gantt(filter ? rows.filter((r) => namesCell(r.subplots).includes(filter!)) : rows, filter ? [filter] : subs, calendarOf(rows, calendarFile), gz)}</div></div>` : ""}`;
   };
 
   el.addEventListener("input", (e) => {
@@ -184,6 +184,14 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
     if ((e.target as HTMLElement).dataset.k) render();
   });
   el.addEventListener("click", async (e) => {
+    if ((e.target as HTMLElement).closest(".insplus")) {
+      const at = Number((e.target as HTMLElement).closest<HTMLElement>(".insline")!.dataset.at);
+      rows.splice(at, 0, newRow());
+      save();
+      render();
+      (el.querySelector(`tr[data-row="${at}"] .cell`) as HTMLElement | null)?.focus();
+      return;
+    }
     const t = (e.target as HTMLElement).closest<HTMLElement>("[data-mode],[data-filter],[data-act],[data-open],[data-gz],[data-rmcol],.bar");
     if (!t) return;
     if (t.dataset.mode) {
@@ -208,8 +216,13 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
       save();
     } else if (t.dataset.filter !== undefined) filter = t.dataset.filter || null;
     else if (t.dataset.act === "add") {
-      rows.push(Object.fromEntries([...PLOT_COLUMNS.map(([k]) => [k, k === "subplots" && filter ? filter : ""]), ...extras.map((x) => [x, ""])]) as PlotRow);
+      rows.push(newRow());
       save();
+      render();
+      const wrap = el.querySelector<HTMLElement>(".table-wrap");
+      if (wrap) wrap.scrollTop = wrap.scrollHeight;
+      (el.querySelector(`tr[data-row="${rows.length - 1}"] .cell`) as HTMLElement | null)?.focus();
+      return;
     } else if (t.dataset.act === "del") {
       rows.splice(Number(t.closest("tr")!.dataset.row), 1);
       save();
@@ -233,6 +246,79 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
       return;
     }
     render();
+  });
+
+  // ---- inserting at a row border, and dragging rows ----
+  const newRow = () =>
+    Object.fromEntries([...PLOT_COLUMNS.map(([k]) => [k, k === "subplots" && filter ? filter : ""]), ...extras.map((x) => [x, ""])]) as PlotRow;
+  /** The border nearest to y (client px) within the table: the index of rows to insert before, and its y in the wrap. */
+  const borderAt = (wrap: HTMLElement, y: number, slack: number) => {
+    const trs = [...wrap.querySelectorAll<HTMLTableRowElement>("tbody tr")];
+    const top = wrap.getBoundingClientRect().top - wrap.scrollTop;
+    let best: { at: number; y: number; d: number } | null = null;
+    trs.forEach((tr, n) => {
+      const r = tr.getBoundingClientRect();
+      const idx = Number(tr.dataset.row);
+      for (const [edge, at] of [
+        [r.top, idx],
+        [r.bottom, idx + 1],
+      ] as const) {
+        if (n > 0 && edge === r.top) continue; // the top of a row is the bottom of the previous one
+        const d = Math.abs(y - edge);
+        if (d <= slack && (!best || d < best.d)) best = { at, y: edge - top, d };
+      }
+    });
+    return best as { at: number; y: number } | null;
+  };
+  let drag: { from: number; at: number | null } | null = null;
+  const showLine = (wrap: HTMLElement, b: { at: number; y: number } | null, dragging: boolean) => {
+    const line = wrap.querySelector<HTMLElement>(".insline");
+    if (!line) return;
+    line.hidden = !b;
+    line.classList.toggle("dragging", dragging);
+    if (b) {
+      line.style.top = `${b.y}px`;
+      line.dataset.at = String(b.at);
+    }
+  };
+  el.addEventListener("mousemove", (e) => {
+    const wrap = (e.target as HTMLElement).closest<HTMLElement>(".table-wrap");
+    if (!wrap || drag) return;
+    if ((e.target as HTMLElement).closest(".insline")) return;
+    showLine(wrap, borderAt(wrap, e.clientY, 4), false);
+  });
+  el.addEventListener("mouseleave", () => el.querySelector<HTMLElement>(".insline")?.setAttribute("hidden", ""));
+  el.addEventListener("mousedown", (e) => {
+    const grip = (e.target as HTMLElement).closest<HTMLElement>("[data-grip]");
+    const wrap = grip?.closest<HTMLElement>(".table-wrap");
+    if (!grip || !wrap) return;
+    e.preventDefault();
+    const tr = grip.closest("tr")!;
+    drag = { from: Number(tr.dataset.row), at: null };
+    tr.classList.add("dragged");
+    const move = (ev: MouseEvent) => {
+      const b = borderAt(wrap, ev.clientY, 1e9);
+      drag!.at = b?.at ?? null;
+      showLine(wrap, b, true);
+      // scroll near the edges
+      const r = wrap.getBoundingClientRect();
+      if (ev.clientY < r.top + 30) wrap.scrollTop -= 12;
+      if (ev.clientY > r.bottom - 30) wrap.scrollTop += 12;
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+      const d = drag!;
+      drag = null;
+      if (d.at !== null && d.at !== d.from && d.at !== d.from + 1) {
+        const [row] = rows.splice(d.from, 1);
+        rows.splice(d.at > d.from ? d.at - 1 : d.at, 0, row);
+        save();
+      }
+      render();
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
   });
 
   // pinch or ⌘ + scroll over the chart zooms it

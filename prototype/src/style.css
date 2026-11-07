@@ -199,9 +199,11 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .flavor { font-size: 12px; color: var(--text-2); margin-top: 8px; }
 /* the note sits on the panel itself: no box, only a faint ground while it is touched */
 .note { width: 100%; background: transparent; border: none; border-radius: 4px; padding: 6px 8px; margin: 0 -8px; width: calc(100% + 16px); font: 12.5px/1.75 var(--ui); color: var(--text); resize: none; outline: none; min-height: 180px; transition: background 0.12s; }
-.note::placeholder { color: var(--faint); }
-.note:hover { background: var(--hover); }
-.note:focus { background: var(--sel); }
+.note::placeholder, .soft::placeholder { color: var(--faint); }
+.note:hover, .soft:hover { background: var(--hover); }
+.note:focus, .soft:focus { background: var(--sel); }
+/* the same quiet field for the commit message */
+.soft { width: calc(100% + 16px); background: transparent; border: none; border-radius: 4px; padding: 6px 8px; font: 12.5px/1.7 var(--ui); color: var(--text); resize: none; outline: none; transition: background 0.12s; }
 .fragment { font-family: var(--body); font-size: 13px; padding: 4px 0; color: var(--text); }
 .outline div { padding: 3px 6px; border-radius: 4px; cursor: default; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .outline div:hover { background: var(--hover); }
@@ -209,7 +211,7 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .git .file { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 4px; font-size: 12.5px; cursor: default; }
 .git .file:hover, .git .file.on { background: var(--sel); }
 .git .file .st { margin-left: auto; font: 11px var(--mono); color: var(--mod); }
-.git textarea { width: 100%; height: 64px; margin: 8px 0; }
+.git textarea { height: 72px; margin: 8px -8px; }
 .git .row { display: flex; gap: 6px; flex-wrap: wrap; }
 .git pre { font: 11px/1.6 var(--mono); white-space: pre-wrap; margin: 8px 0 0; color: var(--text-2); }
 .git .d-add { color: var(--add); }
@@ -237,8 +239,8 @@ table.grid th { position: sticky; top: 0; background: var(--bg-2); text-align: l
 table.grid th .ic { color: var(--faint); margin-right: 4px; }
 table.grid td { border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); vertical-align: top; padding: 0; min-width: 90px; position: relative; }
 table.grid td.rowtools { min-width: 24px; width: 24px; text-align: center; color: var(--faint); padding-top: 6px; }
-table.grid td.rowtools span { visibility: hidden; cursor: default; }
-table.grid tr:hover td.rowtools span { visibility: visible; }
+table.grid td.rowtools span { opacity: 0.25; cursor: default; }
+table.grid tr:hover td.rowtools span { opacity: 1; }
 table.grid .cell { padding: 5px 8px; min-height: 30px; outline: none; line-height: 1.6; white-space: pre-wrap; max-width: 320px; }
 table.grid .cell:focus { box-shadow: inset 0 0 0 2px var(--accent-bg); background: var(--bg); }
 table.grid .cell.body { font-family: var(--body); }
@@ -247,8 +249,9 @@ table.grid .open { position: absolute; right: 4px; top: 6px; color: var(--faint)
 table.grid .chips { display: flex; gap: 3px; flex-wrap: wrap; padding: 0 8px 5px; }
 table.grid .chips:empty { display: none; }
 table.grid td:has(.chips) .cell { font-size: 11px; color: var(--faint); min-height: 22px; padding-bottom: 0; }
-.gantt { border-top: 1px solid var(--border); padding: 14px 16px; flex: 0 0 auto; max-height: 50%; overflow: auto; }
-.plot > .gantt:first-child, .bar2 + .gantt { flex: 1; max-height: none; }
+.gantt-box { position: relative; border-top: 1px solid var(--border); flex: 0 0 auto; max-height: 50%; display: flex; min-height: 0; }
+.bar2 + .gantt-box { flex: 1; max-height: none; }
+.gantt { padding: 14px 16px; overflow: auto; flex: 1; min-height: 0; }
 .gantt-svg { display: block; font: 11px var(--ui); }
 .gantt-svg .tick { stroke: var(--border); }
 .gantt-svg .tl { fill: var(--faint); }
@@ -362,3 +365,17 @@ table.grid td:has(.chips) .cell { font-size: 11px; color: var(--faint); min-heig
 table.grid th.extra { color: var(--text); }
 table.grid th .rmcol { margin-left: 6px; color: var(--faint); visibility: hidden; cursor: default; }
 table.grid th:hover .rmcol { visibility: visible; }
+
+/* the plot table: add below, insert at a border, drag to reorder */
+.table-wrap { position: relative; }
+.addrow { display: flex; align-items: center; gap: 6px; padding: 8px 12px; color: var(--text-2); font-size: 12.5px; cursor: default; border-bottom: 1px solid var(--border); }
+.addrow:hover { background: var(--hover); color: var(--text); }
+.insline { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--accent); z-index: 3; pointer-events: none; }
+.insline .insplus { position: absolute; left: 2px; top: -10px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; pointer-events: auto; cursor: default; }
+.insline.dragging .insplus { display: none; }
+table.grid td.rowtools { width: 40px; min-width: 40px; white-space: nowrap; }
+table.grid td.rowtools .grip { cursor: grab; margin-right: 2px; }
+table.grid tr.dragged td { opacity: 0.45; }
+/* the Gantt chart's own zoom */
+.gtools { position: absolute; right: 14px; top: 8px; display: inline-flex; align-items: center; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 1px 4px; z-index: 2; color: var(--text-2); }
+.gzv { font-size: 11.5px; min-width: 40px; text-align: center; cursor: default; }

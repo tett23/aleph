@@ -129,7 +129,7 @@ export const mountGit = async (el: HTMLElement, ctx: Ctx) => {
     el.innerHTML = `<div class="git">
       <div class="sec"><h5>${esc(basename(root))} <small>${icon("git-branch", 12)} ${esc(br.stdout.trim())}</small></h5>
         ${files.length ? files.map((f) => `<div class="file ${selected === f.path ? "on" : ""}" data-f="${esc(f.path)}">${icon("file-text", 13)}<span>${esc(f.path)}</span><span class="st">${esc(f.st)}</span></div>`).join("") : `<div class="muted">変更はありません</div>`}
-        <textarea class="field" placeholder="コミットメッセージ">${esc(msg)}</textarea>
+        <textarea class="soft commitmsg" placeholder="コミットメッセージ">${esc(msg)}</textarea>
         <div class="row"><span class="btn pri" data-a="commit">コミット</span><span class="btn" data-a="push">push</span><span class="btn" data-a="pull">pull</span><span class="btn" data-a="refresh">${icon("refresh-cw", 12)}</span></div>
         ${diff ? `<pre>${esc(diff.stdout || "(差分なし。新しいファイルです)").split("\n").map((l) => (l.startsWith("+") && !l.startsWith("+++") ? `<span class="d-add">${l}</span>` : l.startsWith("-") && !l.startsWith("---") ? `<span class="d-del">${l}</span>` : l)).join("\n")}</pre>` : ""}
       </div>
