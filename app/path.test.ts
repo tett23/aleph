@@ -17,3 +17,11 @@ test("relative paths stay whole outside the root", () => {
   assert.equal(rel("/w", "/wx/a.gm"), "/wx/a.gm");
   assert.equal(rel("/w", "/w"), "/w");
 });
+
+test("resolving a relative path against a directory", async () => {
+  const { resolve } = await import("./path.ts");
+  assert.equal(resolve("/w/p/build/html/chapters", "../images/a.png"), "/w/p/build/html/images/a.png");
+  assert.equal(resolve("/w/p", "./a/./b.png"), "/w/p/a/b.png");
+  assert.equal(resolve("/w/p", "/abs/x.png"), "/abs/x.png");
+  assert.equal(resolve("/w", "../../x"), "/x");
+});

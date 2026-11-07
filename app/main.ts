@@ -1,7 +1,10 @@
 // Entry of the main window: the settings, the store and the frame drawn from it.
 import "./style.css";
 import { api } from "./api.ts";
-import { isDark, normalize, type Config } from "./config.ts";
+import { normalize, type Config } from "./config.ts";
+import { applyTheme } from "./theme.ts";
+import { mountPreview } from "./preview/mount.ts";
+import { startPreviewWindow } from "./preview/window.ts";
 import type { Ctx } from "./ctx.ts";
 import { createStore, initialState, type State } from "./store.ts";
 import { toast } from "./ui/dom.ts";
@@ -30,15 +33,6 @@ const kept = (): Partial<State> => {
   } catch {
     return {};
   }
-};
-
-export const applyTheme = (c: Config) => {
-  const dark = isDark(c.theme, matchMedia("(prefers-color-scheme: dark)").matches);
-  document.body.classList.toggle("theme-dark", dark);
-  const st = document.body.style;
-  st.setProperty("--lh", String(c.lineHeight));
-  st.setProperty("--fs-body", `${c.fontSize}px`);
-  st.setProperty("--fs-code", `${c.codeFontSize}px`);
 };
 
 const start = async () => {
@@ -152,6 +146,7 @@ const start = async () => {
   mountTools(ctx);
   mountEditors(ctx);
   mountLsp(ctx);
+  mountPreview(ctx);
   ctx.verticalEditor = createVertical;
   await reloadTree(ctx);
   store.subscribe((s, prev) => {
@@ -168,4 +163,6 @@ const start = async () => {
   draw(store.get(), null);
 };
 
-void start();
+const view = new URLSearchParams(location.search).get("view");
+if (view === "pages" || view === "plain") void startPreviewWindow(view, new URLSearchParams(location.search).get("project") ?? "");
+else void start();

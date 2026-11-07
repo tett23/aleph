@@ -14,3 +14,10 @@ export const stem = (p: string) => {
 };
 /** `p` relative to `root`, or `p` itself outside it. */
 export const rel = (root: string, p: string) => (p.startsWith(root + "/") ? p.slice(root.length + 1) : p);
+/** `p` against the directory `dir`; an absolute `p` is itself. */
+export const resolve = (dir: string, p: string) =>
+  "/" +
+  (p.startsWith("/") ? p : `${dir}/${p}`)
+    .split("/")
+    .reduce<string[]>((acc, part) => (part === ".." ? acc.slice(0, -1) : part && part !== "." ? [...acc, part] : acc), [])
+    .join("/");
