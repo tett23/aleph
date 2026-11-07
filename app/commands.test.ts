@@ -85,7 +85,7 @@ const INITIAL = [
   "editor.undo", "editor.redo", "editor.selectAll", "editor.find", "editor.indent", "editor.outdent", "editor.complete", "editor.format",
   "git.commit", "git.push", "git.pull",
   "palette.open", "settings.open", "md.convertToGm", "library.copyFonts", "dev.recordIme",
-  "view.left.bookmarks", "bookmark.toggle",
+  "view.left.bookmarks", "bookmark.toggle", "file.quickOpen",
 ];
 
 test("every command ADR 0023 lists is registered somewhere in the app", async () => {
