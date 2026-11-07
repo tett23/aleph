@@ -90,6 +90,7 @@ const ctx: Ctx = {
   workspace: () => currentWs(),
   refreshTree: () => refreshTree(),
   refreshRight: () => void renderRight(),
+  refreshMarks: () => state.editor?.refreshMarks(true),
   toast,
   afterConfig: async () => {
     if (state.workspace && !config.workspaces.includes(state.workspace)) state.workspace = null;
@@ -364,8 +365,48 @@ app.querySelector(".ribbon")!.addEventListener("click", (e) => {
 });
 
 // ---------------- documents ----------------
-let saveTimer = 0;
 let buildTimer = 0;
+
+// autosave: every few seconds when the sheet has changed (⌘S saves at once)
+setInterval(() => {
+  const d = state.doc;
+  if (d && state.editor && state.editor.text() !== d.saved) save(false);
+}, Math.max(2, config.autosaveSeconds || 10) * 1000);
+
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/** Commits every change of a workspace; returns git's last line. */
+const commitAll = async (ws: string, message: string) => {
+  await save(true);
+  const st = await api.git(ws, ["status", "--porcelain=v1"]);
+  if (st.code !== 0) return "Git のリポジトリではありません";
+  if (!st.stdout.trim()) return "変更はありません";
+  await api.git(ws, ["add", "-A"]);
+  const out = await api.git(ws, ["commit", "-m", message]);
+  await refreshTree();
+  state.editor?.refreshMarks(true);
+  return (out.stdout + out.stderr).trim().split("\n")[0] || "コミットしました";
+};
+
+/** Once a day, commit each workspace that has changes. */
+const autoCommit = async () => {
+  if (!config.autoCommit) return;
+  const day = today();
+  for (const ws of config.workspaces) {
+    if (config.lastAutoCommit[ws] === day) continue;
+    const st = await api.git(ws, ["status", "--porcelain=v1"]).catch(() => null);
+    if (!st || st.code !== 0) continue;
+    if (st.stdout.trim()) {
+      const r = await commitAll(ws, `Autosave ${day}`);
+      toast(`${basename(ws)}: 1 日 1 回の自動コミット（${r}）`);
+    }
+    config.lastAutoCommit[ws] = day;
+    await saveConfig();
+  }
+};
 
 const closeDoc = async () => {
   if (state.doc && state.editor && state.editor.text() !== state.doc.saved) await save();
@@ -521,8 +562,6 @@ const onEdit = (text: string) => {
   if (!state.doc) return;
   state.doc.text = text;
   renderTitle();
-  clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => save(false), 1500); // autosave like Ulysses
   scheduleStatus();
   if (state.side === "plain") scheduleSide();
 };
@@ -530,7 +569,6 @@ const onEdit = (text: string) => {
 const save = async (explicit = false) => {
   const d = state.doc;
   if (!d || !state.editor) return;
-  clearTimeout(saveTimer);
   const text = state.editor.text();
   if (text === d.saved && !explicit) return;
   await api.writeText(d.path, text);
@@ -654,6 +692,7 @@ const moreMenu = (anchor: HTMLElement) => {
           { label: "ページを別ウィンドウで開く", icon: icon("external-link", 14), run: () => openPagesWindow(d.project!) },
           { label: "本文を別ウィンドウで開く", icon: icon("external-link", 14), run: () => openPlainWindow(d.path) },
           { label: "プロットを別ウィンドウで開く", icon: icon("table-2", 14), run: () => new WebviewWindow(`plot-${Date.now()}`, { url: `index.html?view=plot&project=${encodeURIComponent(d.project!)}`, title: `プロット — ${basename(d.project!)}`, width: 1300, height: 800 }) },
+          { label: "今すぐコミット…", icon: icon("git-commit-horizontal", 14), run: () => commitNow() },
           { label: "golem fmt で整形", icon: icon("wand-sparkles", 14), run: () => runGolem(d, ["fmt", rel(d.project!, d.path)]) },
           { label: "golem check", icon: icon("circle-check", 14), run: () => runGolem(d, ["check"]) },
           { label: "共有ライブラリのフォントをコピー", icon: icon("type", 14), run: async () => toast((await copyFonts(d.project!)).join(", ") || "足りないフォントはありません") },
@@ -662,6 +701,13 @@ const moreMenu = (anchor: HTMLElement) => {
     ...(registry.commands.length ? (["-"] as const) : []),
     ...registry.commands.map((c) => ({ label: c.label, icon: icon("puzzle", 14), run: () => void c.run(ctx.current()) })),
   ]);
+};
+
+const commitNow = async () => {
+  const ws = currentWs();
+  if (!ws) return;
+  const msg = await ask("コミットメッセージ", `Update ${state.doc ? stem(state.doc.path) : basename(ws)}`);
+  if (msg) toast(await commitAll(ws, msg));
 };
 
 const runGolem = async (d: Doc, args: string[]) => {
@@ -842,6 +888,10 @@ document.addEventListener("keydown", (e) => {
     state.showLeft = true;
     renderSide();
   }
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    commitNow();
+  }
   if ((e.metaKey || e.ctrlKey) && e.key === ",") {
     e.preventDefault();
     openSettings(ctx);
@@ -856,4 +906,6 @@ export const start = async () => {
   const last = store.get<string | null>("lastFile", null);
   if (last && (await api.exists(last))) openFile(last);
   setInterval(() => state.doc && store.set("lastFile", state.doc.path), 2000);
+  autoCommit();
+  setInterval(autoCommit, 60 * 60 * 1000);
 };

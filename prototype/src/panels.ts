@@ -23,6 +23,7 @@ export type Ctx = {
   workspace: () => string | null;
   refreshTree: () => Promise<void>;
   refreshRight: () => void;
+  refreshMarks: () => void;
   toast: (msg: string) => void;
   afterConfig: () => Promise<void>;
 };
@@ -152,6 +153,7 @@ export const mountGit = async (el: HTMLElement, ctx: Ctx) => {
       if (out) {
         ctx.toast((out.stdout + out.stderr).trim().split("\n").slice(-3).join("\n") || "完了");
         if (a === "commit" && out.code === 0) msg = "";
+        if (a === "commit") ctx.refreshMarks();
         await ctx.refreshTree();
         ctx.refreshRight();
       }
@@ -307,10 +309,12 @@ export const openSettings = async (ctx: Ctx) => {
           section.v === "general"
             ? `<div class="item"><div class="d"><div>外観</div><small>システムに合わせるか、固定するか</small></div>${(["light", "dark", "auto"] as const).map((t) => `<span class="btn ${config.theme === t ? "pri" : ""}" data-theme="${t}">${{ light: "ライト", dark: "ダーク", auto: "自動" }[t]}</span>`).join("")}</div>
                <div class="item"><div class="d"><div>保存したらページを組みなおす</div><small>golem build --target pdf のあと shem でページを描く</small></div><span class="toggle ${config.rebuildOnSave ? "on" : ""}" data-toggle="rebuildOnSave"></span></div>
+               <div class="item"><div class="d"><div>1 日 1 回自動でコミットする</div><small>ワークスペースに変更があれば git add -A して「Autosave 日付」でコミットする。手動では Git のパネルか ⌘⇧K</small></div><span class="toggle ${config.autoCommit ? "on" : ""}" data-toggle="autoCommit"></span></div>
                <div class="item"><div class="d"><div>ページの解像度</div><small>shem render --dpi</small></div><input class="field num" type="number" data-num="dpi" value="${config.dpi}"></div>`
             : section.v === "editor"
               ? `<div class="item"><div class="d"><div>1 行の字数</div><small>空なら style.toml の [page.grid] characters</small></div><input class="field num" type="number" data-num="charsOverride" value="${config.charsOverride ?? ""}" placeholder="—"></div>
                  <div class="item"><div class="d"><div>行間</div><small>文字の大きさに対する行の高さ（既定 1.75）。エディタ、縦書き、本文のプレビューに効く</small></div><input class="field num" type="number" step="0.05" min="1" max="3" data-num="lineHeight" value="${config.lineHeight}"></div>
+                 <div class="item"><div class="d"><div>自動保存の間隔</div><small>変更があれば、この秒数ごとに保存する。⌘S ですぐ保存する</small></div><input class="field num" type="number" min="2" data-num="autosaveSeconds" value="${config.autosaveSeconds}"> 秒</div>
                  <div class="item"><div class="d"><div>不可視文字を表示</div><small>半角スペース ·、全角スペース □、タブ →、改行 ↵。ゼロ幅の文字などはいつも表示する</small></div><span class="toggle ${config.showInvisibles ? "on" : ""}" data-toggle="showInvisibles"></span></div>
                  <div class="item"><div class="d"><div>原稿用紙の換算</div><small>字 × 行。段落ごとに行を改めて数える</small></div><input class="field num" type="number" data-ms="cols" value="${config.manuscript.cols}"> × <input class="field num" type="number" data-ms="rows" value="${config.manuscript.rows}"></div>`
               : section.v === "tools"

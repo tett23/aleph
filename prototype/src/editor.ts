@@ -199,7 +199,7 @@ export type Editor = {
   setWidth: (chars: number) => void;
   setInvisibles: (on: boolean) => void;
   setGrid: (g: Grid) => void;
-  refreshMarks: () => void;
+  refreshMarks: (resetBase?: boolean) => void;
   goto: (line: number, col?: number) => void;
   destroy: () => void;
 };
@@ -339,8 +339,8 @@ export const createEditor = (o: EditorOptions): Editor => {
       grid = g;
       editor.refreshMarks();
     },
-    refreshMarks: async () => {
-      if (baseText === undefined) baseText = await o.base();
+    refreshMarks: async (resetBase = false) => {
+      if (resetBase || baseText === undefined) baseText = await o.base();
       const text = view.state.doc.toString();
       const effects: StateEffect<unknown>[] = [setMarks.of(lineMarks(baseText, text))];
       if (o.kind === "gm") effects.push(setBreaks.of(estimatePageBreaks(text, grid)));

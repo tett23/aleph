@@ -11,6 +11,9 @@ export type Config = {
   rebuildOnSave: boolean;
   showInvisibles: boolean;
   lineHeight: number;
+  autosaveSeconds: number;
+  autoCommit: boolean;
+  lastAutoCommit: Record<string, string>; // workspace -> YYYY-MM-DD
   dpi: number;
   plugins: string[];
 };
@@ -26,6 +29,9 @@ const defaults: Config = {
   rebuildOnSave: true,
   showInvisibles: false,
   lineHeight: 1.75,
+  autosaveSeconds: 10,
+  autoCommit: true,
+  lastAutoCommit: {},
   dpi: 110,
   plugins: [],
 };
