@@ -19,6 +19,12 @@ export const isProject = (e: Entry) => e.dir && e.children.some((c) => !c.dir &&
 export const collectProjects = (entries: Entry[]): string[] =>
   entries.flatMap((e) => (!e.dir ? [] : isProject(e) ? [e.path] : collectProjects(e.children)));
 
+/** The workspace's root as an entry, to treat a root that holds manifest.toml as a project. */
+const rootEntry = (root: string, entries: Entry[]): Entry => ({ path: root, name: root.slice(root.lastIndexOf("/") + 1), dir: true, children: entries });
+
+/** The projects of a workspace: the root itself when it holds manifest.toml, else those inside it. */
+export const projectsIn = (root: string, entries: Entry[]): string[] => (isProject(rootEntry(root, entries)) ? [root] : collectProjects(entries));
+
 /** The project that contains a path, if any. */
 export const projectOf = (path: string, projects: string[]) =>
   projects.filter((p) => path.startsWith(p + "/")).sort((a, b) => b.length - a.length)[0] ?? null;
@@ -115,4 +121,10 @@ export const selectChapters = (gmRows: string[], current: string[], anchor: stri
   const base = current.length ? current : [anchor];
   const next = base.includes(clicked) ? base.filter((p) => p !== clicked) : [...base, clicked];
   return gmRows.filter((p) => next.includes(p));
+};
+
+/** The tree's rows of a workspace; a root project shows as its own row, always open, with its chapters first. */
+export const workspaceRows = (root: string, entries: Entry[], expanded: Set<string>, chaptersOf: (project: string) => string[]): Row[] => {
+  const top = rootEntry(root, entries);
+  return isProject(top) ? treeRows([top], new Set([...expanded, root]), chaptersOf) : treeRows(entries, expanded, chaptersOf);
 };
