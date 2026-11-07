@@ -22,6 +22,7 @@ import { mountAttach } from "./attach.ts";
 import { mountLibrary } from "./libpanel.ts";
 import { mountDiagnostics } from "./diag/mount.ts";
 import { mountSearch } from "./searchpanel.ts";
+import { mountMdConvert } from "./mdconvert.ts";
 import { currentBranch, mountGit } from "./gitpanel.ts";
 import { rel } from "./path.ts";
 
@@ -159,6 +160,7 @@ const start = async () => {
   mountAttach(ctx);
   mountLibrary(ctx);
   mountSearch(ctx);
+  mountMdConvert(ctx);
   // a file to open, sent by another window (the plot window)
   void listen<{ path: string }>("aleph:open", (e) => void ctx.open([e.payload.path]));
   ctx.verticalEditor = createVertical;
