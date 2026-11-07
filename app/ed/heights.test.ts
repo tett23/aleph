@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { blockViewport, createHeights, estimateSize, renderRange, scrollTarget } from "./heights.ts";
+import { blockViewport, clampPoint, createHeights, estimateSize, renderRange, scrollTarget } from "./heights.ts";
 
 test("an unmeasured line is estimated from its characters and the characters per line", () => {
   assert.equal(estimateSize(0, 38, 28), 28);
@@ -64,4 +64,12 @@ test("where to scroll to show a line: centred, or just enough to bring it in", (
   assert.equal(scrollTarget(500, 30, vp, false), 500 - 24);
   // already in view: stays
   assert.equal(scrollTarget(1200, 30, vp, false), 1000);
+});
+
+test("a press outside the lines' box is moved just inside it (right of a line, above or below)", () => {
+  const box = rect(100, 50, 600, 400);
+  assert.deepEqual(clampPoint(box, 900, 200), { x: 699, y: 200 });
+  assert.deepEqual(clampPoint(box, 20, 30), { x: 101, y: 51 });
+  assert.deepEqual(clampPoint(box, 300, 800), { x: 300, y: 449 });
+  assert.deepEqual(clampPoint(box, 300, 200), { x: 300, y: 200 });
 });
