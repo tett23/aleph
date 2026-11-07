@@ -139,7 +139,7 @@ export const renderToolbar = (root: HTMLElement, s: State, ctx: Ctx, titles: Map
   // the editor's switch on the left, the preview's on the right (docs/adr/0005)
   toolbar.innerHTML = `
     <span class="iconbtn" data-tb="left" title="サイドバー">${icon("panel-left")}</span>
-    ${d && canVertical(d.kind) && s.open.length === 1 ? `<span class="seg"><span data-vert="1" class="${s.vertical ? "on" : ""}">縦</span><span data-vert="0" class="${s.vertical ? "" : "on"}">横</span></span>` : ""}
+    ${s.open.length && s.open.every((x) => canVertical(x.kind)) ? `<span class="seg"><span data-vert="1" class="${s.vertical ? "on" : ""}">縦</span><span data-vert="0" class="${s.vertical ? "" : "on"}">横</span></span>` : ""}
     <span class="title" data-tauri-drag-region>${titleHtml(s, titles)}</span>
     ${sides.length ? `<span class="seg">${sides.map((k) => `<span data-side="${k}" class="${side === k ? "on" : ""}">${previewLabel(d!.kind, k)}</span>`).join("")}</span>` : ""}
     ${ctx.commands.some((c) => c.when(s)) ? `<span class="iconbtn" data-tb="more" title="ほかの操作">${icon("more-horizontal")}</span>` : ""}

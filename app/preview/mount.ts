@@ -5,13 +5,13 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { api } from "../api.ts";
 import type { Ctx } from "../ctx.ts";
-import type { Editor } from "../editor/cm.ts";
+import type { Editor } from "../ed/editor.ts";
 import { stubEditor } from "../editor/stub.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { basename, dirname, stem } from "../path.ts";
 import { focused, type Doc, type State } from "../store.ts";
-import { effectiveSide } from "../toolbar.ts";
+import { effectiveSide, verticalOn } from "../toolbar.ts";
 import { golem, shem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { IMAGE_KINDS } from "../workspace.ts";
@@ -178,7 +178,7 @@ const drawSide = (head: HTMLElement, body: HTMLElement, ctx: Ctx) => {
     lastKey = key;
     if (project && docs.some((x) => !html.has(x.path)) && !hb?.busy && !hb?.error) void buildHtml(ctx, project, docs.map((x) => x.path));
     // several chapters open: written horizontally (docs/adr/0006), and so is their text
-    return renderPlain(body, sectionsOf(docs), s.vertical && s.open.length === 1);
+    return renderPlain(body, sectionsOf(docs), verticalOn(s));
   }
   const key = `${doc.kind}|${s.vertical}|${doc.path}|${doc.text}`;
   if (key === lastKey && body.querySelector(".pview")) return;
@@ -253,7 +253,7 @@ const watchWidth = (ctx: Ctx, body: HTMLElement, project: string) => {
 
 const sendPlain = async (ctx: Ctx) => {
   const s = ctx.store.get();
-  await emit("aleph:plain", { sections: sectionsOf(chaptersShown(s)), vertical: s.vertical && s.open.length === 1 }).catch(() => {});
+  await emit("aleph:plain", { sections: sectionsOf(chaptersShown(s)), vertical: verticalOn(s) }).catch(() => {});
 };
 
 const openWindow = async (ctx: Ctx, view: "plain" | "pages", project: string) => {

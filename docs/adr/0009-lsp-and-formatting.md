@@ -1,6 +1,6 @@
 # ADR 0009: LSP と整形
 
-ステータス: 採択
+ステータス: 採択→縦書きで LSP の表示と整形をしない部分は[ADR 0019](0019-one-editor-for-both-writing-modes.md)
 
 ## 文脈
 

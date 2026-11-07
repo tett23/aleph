@@ -16,8 +16,8 @@ import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar,
 import { openPaths } from "./docs.ts";
 import { mountTree, reloadTree } from "./ui/tree.ts";
 import { git, mountTools } from "./tools.ts";
+import { startRecorder } from "./ed/recorder.ts";
 import { mountEditors } from "./editor/host.ts";
-import { createVertical } from "./editor/vertical.ts";
 import { mountLsp } from "./lsp/mount.ts";
 import { mountAttach } from "./attach.ts";
 import { mountLibrary } from "./libpanel.ts";
@@ -86,9 +86,8 @@ const start = async () => {
     onRename: [],
     onNewProject: [],
     editors: new Map(),
-    editorExtensions: [],
+    editorPlugins: [],
     kindViews: {},
-    verticalEditor: null,
     save: async (paths, opts) => {
       // the basic save: write the sheets with changes (docs/adr/0011 adds autosave and the rest)
       for (const d of store.get().open) {
@@ -143,7 +142,7 @@ const start = async () => {
       void ctx.left[s.left]?.render(shell.leftBody, ctx);
     if (what.includes("right") || changed("right") || changed("focus") || changed("open") || changed("showRight"))
       if (s.showRight) void ctx.right[s.right]?.render(shell.rightBody, ctx);
-    if (what.includes("main") || changed("plot") || prev?.open.map((d) => d.path).join() !== s.open.map((d) => d.path).join() || changed("vertical")) {
+    if (what.includes("main") || changed("plot") || prev?.open.map((d) => d.path).join() !== s.open.map((d) => d.path).join()) {
       cleanupMain?.();
       shell.mainBody.innerHTML = "";
       if (!s.open.length && !s.plot)
@@ -173,7 +172,6 @@ const start = async () => {
   mountMdConvert(ctx);
   // a file to open, sent by another window (the plot window)
   void listen<{ path: string }>("aleph:open", (e) => void ctx.open([e.payload.path]));
-  ctx.verticalEditor = createVertical;
   await reloadTree(ctx);
   store.subscribe((s, prev) => {
     if (s.workspace !== prev.workspace) void reloadTree(ctx).then(() => ctx.refresh(["left"]));
@@ -194,4 +192,5 @@ const start = async () => {
 const view = new URLSearchParams(location.search).get("view");
 if (view === "plot") void startPlotWindow(new URLSearchParams(location.search).get("project") ?? "");
 else if (view === "pages" || view === "plain") void startPreviewWindow(view, new URLSearchParams(location.search).get("project") ?? "");
+else if (view === "imelog") startRecorder(document.getElementById("app")!);
 else void start();
