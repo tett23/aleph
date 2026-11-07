@@ -6,7 +6,7 @@ import { bookmarkClicks, bookmarkSections } from "./bookmarkpanel.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { basename, rel } from "./path.ts";
-import { parseRecent, pushRecentSheets, renameRecent, type Recent } from "./recent.ts";
+import { keepExisting, parseRecent, pushRecentSheets, renameRecent, type Recent } from "./recent.ts";
 import { focused } from "./store.ts";
 import { uiState } from "./uistate.ts";
 
@@ -25,7 +25,14 @@ export const mountRecent = (ctx: Ctx) => {
     const f = focused(s);
     const opened = [...(f ? [f.path] : []), ...s.open.map((d) => d.path).filter((p) => p !== f?.path)];
     const r = all();
-    put({ ...r, [s.workspace]: pushRecentSheets(r[s.workspace] ?? [], opened) });
+    const ws = s.workspace;
+    const next = pushRecentSheets(r[ws] ?? [], opened);
+    put({ ...r, [ws]: next });
+    // the sheets gone from the disk drop out of the list written again (docs/adr/0026)
+    void Promise.all(next.map(async (p) => ((await api.exists(p)) ? p : null))).then((ok) => {
+      const kept = keepExisting(next, new Set(ok.filter((p): p is string => !!p)));
+      if (kept.length !== next.length && all()[ws]?.join("\n") === next.join("\n")) put({ ...all(), [ws]: kept });
+    });
     if (s.showLeft && s.left === "bookmarks") ctx.refresh(["left"]);
   });
 

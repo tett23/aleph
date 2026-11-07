@@ -85,3 +85,10 @@ test("put back at the end when the array got shorter; under a new name when rena
   assert.equal(restoreChapters('chapters = ["a.gm"]\n', removed), 'chapters = ["a.gm", "x.gm"]\n');
   assert.equal(restoreChapters('chapters = ["a.gm"]\n', removed, { from: "x.gm", to: "x-2.gm" }), 'chapters = ["a.gm", "x-2.gm"]\n');
 });
+
+test("several chapters of one folder are taken out together and put back (docs/adr/0033)", () => {
+  const src = 'chapters = ["part1/a.gm", "x.gm", "part1/b.gm"]\n';
+  const r = removeChapters(src, ["part1/a.gm", "part1/b.gm"]);
+  assert.equal(r.src, 'chapters = ["x.gm"]\n');
+  assert.equal(restoreChapters(r.src, r.removed), src);
+});

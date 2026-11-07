@@ -18,3 +18,6 @@ export const parseRecent = (v: unknown): Recent => {
 /** A file or folder renamed (absolute paths): it and what is under it take the new path. */
 export const renameRecent = (list: string[], from: string, to: string) =>
   list.map((p) => (p === from ? to : p.startsWith(from + "/") ? to + p.slice(from.length) : p));
+
+/** The list without the sheets that no longer exist, as it is written again (docs/adr/0026). */
+export const keepExisting = (list: string[], exists: Set<string>) => list.filter((p) => exists.has(p));

@@ -116,3 +116,9 @@ test("tables: column alignment", () => {
     '<table><thead><tr><th style="text-align:left">a</th><th style="text-align:center">b</th><th style="text-align:right">c</th><th>d</th></tr></thead><tbody><tr><td style="text-align:left">1</td><td style="text-align:center">2</td><td style="text-align:right">3</td><td>4</td></tr></tbody></table>',
   );
 });
+
+test("a soft break with a Japanese character on either side adds no space; mailto autolinks (docs/adr/0035)", () => {
+  assert.equal(markdownHtml("日本語\nword", { breaks: "blank-line" }), "<p>日本語word</p>");
+  assert.equal(markdownHtml("word\n日本語", { breaks: "blank-line" }), "<p>word日本語</p>");
+  assert.equal(markdownHtml("<mailto:a@b.c>"), '<p><a href="mailto:a@b.c">mailto:a@b.c</a></p>');
+});

@@ -166,7 +166,7 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .t-em { font-style: italic; }
 .t-strong { font-weight: 600; }
 .t-del { text-decoration: line-through; }
-.ed:not(.no-fallback) :is(.t-mark, .t-comment, .t-escape, .t-meta) { color: var(--faint); }
+.ed:not(.no-fallback) :is(.t-mark, .t-comment, .t-escape, .t-meta, .t-punct) { color: var(--faint); }
 .ed:not(.no-fallback) :is(.t-cmd, .t-keyword, .t-operator, .t-attr, .t-tag) { color: var(--cmd); }
 .ed:not(.no-fallback) :is(.t-expr, .t-string, .t-type, .t-number) { color: var(--expr); }
 .ed:not(.no-fallback) .t-quote { color: var(--text-2); }

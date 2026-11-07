@@ -6,7 +6,7 @@ import type { Ctx } from "./ctx.ts";
 import { isMac } from "./ed/keys.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
-import { canonical, cleanBindings, conflicts, effectiveBindings, expire, press, readBinding, reservedKey, setBinding, strokeOf, unusableFirst, type Pending, type Stroke } from "./keymap.ts";
+import { canonical, cleanBindings, conflicts, effectiveBindings, expire, press, readBinding, reservedKey, setBinding, strokeOf, takeAway, unusableFirst, writtenBinding, type Pending, type Stroke } from "./keymap.ts";
 import { runCommand } from "./palette.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { item } from "./ui/settings.ts";
@@ -103,8 +103,6 @@ const record = (ctx: Ctx, show: (text: string) => void): Promise<Stroke[] | null
   });
 
 /** A recorded sequence as written in config.json: the leader key as Leader. */
-const written = (ctx: Ctx, strokes: Stroke[]) => strokes.map((s, i) => (i === 0 && s === ctx.config.leaderKey && strokes.length > 1 ? "Leader" : s)).join(" ");
-
 const nameOf = (ctx: Ctx, id: string) => ctx.commands.find((c) => c.id === id)?.label ?? id;
 
 /** Why a recorded sequence cannot be used, or null. */
@@ -120,16 +118,13 @@ const saveBindings = async (ctx: Ctx, user: Record<string, string[]>) => {
 const addBinding = async (ctx: Ctx, c: Command, strokes: Stroke[]) => {
   const no = refusal(strokes);
   if (no) return ctx.toast(no);
-  const b = written(ctx, strokes);
+  const b = writtenBinding(strokes, ctx.config.leaderKey);
   const all = effectiveBindings(ctx.commands, ctx.config.keyBindings, ctx.config.leaderKey);
   const cf = conflicts(all, readBinding(b, ctx.config.leaderKey)!, c.id);
   let user = ctx.config.keyBindings;
   if (cf.same.length) {
     if (!(await confirmDialog(`${labelOf(ctx, b)} は「${cf.same.map((id) => nameOf(ctx, id)).join("」「")}」に割り当て済みです。置き換えますか`, "置き換える"))) return;
-    for (const id of cf.same) {
-      const other = ctx.commands.find((x) => x.id === id)!;
-      user = setBinding(user, ctx.commands, id, bindingsOf({ ...ctx, config: { ...ctx.config, keyBindings: user } }, other).filter((x) => readBinding(x, ctx.config.leaderKey)?.join(" ") !== readBinding(b, ctx.config.leaderKey)!.join(" ")));
-    }
+    user = takeAway(user, ctx.commands, cf.same, readBinding(b, ctx.config.leaderKey)!, ctx.config.leaderKey);
   }
   const mine = user[c.id] ?? c.keys ?? [];
   if (!mine.includes(b)) user = setBinding(user, ctx.commands, c.id, [...mine, b]);

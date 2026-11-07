@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addCommand, keyedCommands, keyLabel, menuCommands, pushRecent, rankCommands, splitQuery, validId, type Command } from "./commands.ts";
+import { addCommand, addCommands, keyedCommands, keyLabel, menuCommands, pushRecent, rankCommands, splitQuery, validId, type Command } from "./commands.ts";
 
 const st = { workspace: "/w" } as never;
 const cmd = (id: string, extra: Partial<Command> = {}): Command => ({ id, label: id, when: () => true, run: () => {}, ...extra });
@@ -94,4 +94,23 @@ test("every command ADR 0023 lists is registered somewhere in the app", async ()
   for (const [prefix, table] of [["view.left.", /\["(files|git|diagnostics|library)", "/g], ["view.right.", /\["(attach|outline|links|library)", "/g], ["preview.", /\["(none|plain|pages)", "/g]] as const)
     for (const m of src.matchAll(table)) ids.add(prefix + m[1]);
   assert.deepEqual(INITIAL.filter((id) => !ids.has(id)), []);
+});
+
+test("several commands at once go through the same checks (docs/adr/0023)", () => {
+  const list: Command[] = [];
+  addCommands(list, cmd("a.one"), cmd("a.two"));
+  assert.deepEqual(list.map((c) => c.id), ["a.one", "a.two"]);
+  assert.throws(() => addCommands(list, cmd("a.three"), cmd("a.one")));
+  assert.throws(() => addCommands(list, cmd("Bad id")));
+});
+
+test("every part of the app registers its commands through addCommand(s) (docs/adr/0023)", async () => {
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const files = (dir: string): string[] =>
+    readdirSync(dir).flatMap((f) => {
+      const p = `${dir}/${f}`;
+      return statSync(p).isDirectory() ? files(p) : p.endsWith(".ts") && !p.endsWith(".test.ts") ? [p] : [];
+    });
+  const direct = files(new URL(".", import.meta.url).pathname).filter((p) => /\.commands\.push\(/.test(readFileSync(p, "utf8")));
+  assert.deepEqual(direct, []);
 });

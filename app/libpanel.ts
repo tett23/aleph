@@ -1,6 +1,7 @@
 // The shared library in the app (docs/adr/0014): the cross-project panel on the
 // left, the open project's on the right, files dropped on them, fonts copied to
 // projects, and images dropped on the editor or the tree.
+import { addCommands } from "./commands.ts";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api } from "./api.ts";
@@ -217,7 +218,7 @@ export const mountLibrary = (ctx: Ctx) => {
         void fontsFor(ctx, d.project, true);
       }
   });
-  ctx.commands.push({
+  addCommands(ctx.commands, {
     id: "library.copyFonts",
     menu: true,
     label: "共有ライブラリのフォントをコピー",

@@ -3,6 +3,7 @@
 // Replacing (docs/adr/0032): all matches or the chosen ones, open sheets in
 // their editors as one change, the rest on disk, with the same Rust regex.
 // The input is drawn once and only the results are drawn again, so typing is never lost.
+import { addCommands } from "./commands.ts";
 import { api, type Found } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
@@ -228,7 +229,7 @@ export const mountSearch = (ctx: Ctx) => {
     },
   };
   // ⇧⌘F, a command (docs/adr/0023): the search panel with its field focused
-  ctx.commands.push({
+  addCommands(ctx.commands, {
     id: "view.left.search",
     keys: ["Mod-Shift-f"],
     label: "検索",

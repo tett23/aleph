@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  canonical, conflicts, cleanBindings, DEFAULT_LEADER, effectiveBindings, expire, leaderOf, press, readBinding, reservedKey, setBinding, strokeOf, unusableFirst, type Bound,
+  canonical, conflicts, cleanBindings, DEFAULT_LEADER, effectiveBindings, expire, leaderOf, press, readBinding, reservedKey, setBinding, strokeOf, takeAway, unusableFirst, writtenBinding, type Bound,
 } from "./keymap.ts";
 
 const ev = (code: string, mods: Partial<{ meta: boolean; ctrl: boolean; alt: boolean; shift: boolean }> = {}, key = "") => ({
@@ -163,4 +163,18 @@ test("changing the leader key moves every Leader binding", () => {
 
 test("the input method composing stops the waiting and passes the key on", () => {
   assert.deepEqual(press(table, { strokes: ["Mod-;"], at: 0 }, null, 100, T), { pending: null, run: [], take: false, retry: false });
+});
+
+test("a recording that starts with the leader key is written with Leader, even alone (docs/adr/0034)", () => {
+  assert.equal(writtenBinding(["Mod-;", "g", "c"], "Mod-;"), "Leader g c");
+  assert.equal(writtenBinding(["Mod-;"], "Mod-;"), "Leader");
+  assert.equal(writtenBinding(["Mod-k", "Mod-;"], "Mod-;"), "Mod-k Mod-;");
+});
+
+test("replacing takes the binding away from the other command (docs/adr/0034)", () => {
+  const cmds = [
+    { id: "file.save", keys: ["Mod-s"] },
+    { id: "git.commit", keys: ["Mod-Shift-k", "Mod-s"] },
+  ];
+  assert.deepEqual(takeAway({}, cmds, ["git.commit"], ["Mod-s"], "Mod-;"), { "git.commit": ["Mod-Shift-k"] });
 });

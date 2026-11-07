@@ -173,3 +173,13 @@ export const press = (table: Bound[], pending: Pending, stroke: Stroke | null, n
   if (cands.some((b) => b.strokes.length > strokes.length)) return { pending: { strokes, at: now }, run: [], take: true, retry: false };
   return { pending: null, run: exact(table, strokes), take: true, retry: false };
 };
+
+/** A recorded sequence as written in config.json: a first stroke that is the leader key becomes Leader. */
+export const writtenBinding = (strokes: Stroke[], leader: Stroke): string => strokes.map((s, i) => (i === 0 && s === leader ? "Leader" : s)).join(" ");
+
+/** The user's bindings with `strokes` taken away from the other commands (replacing, docs/adr/0034). */
+export const takeAway = (user: Record<string, string[]>, cmds: Cmd[], ids: string[], strokes: Stroke[], leader: Stroke): Record<string, string[]> =>
+  ids.reduce((u, id) => {
+    const keys = u[id] ?? cmds.find((c) => c.id === id)?.keys ?? [];
+    return setBinding(u, cmds, id, keys.filter((b) => readBinding(b, leader)?.join(" ") !== strokes.join(" ")));
+  }, user);

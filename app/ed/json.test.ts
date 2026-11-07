@@ -197,3 +197,9 @@ test("⌘S formats first when the setting is on, and saves either way", async ()
   assert.deepEqual(await run(true, "error"), ["format", "JSON に誤りがあるため整形しません", "save"]);
   assert.deepEqual(await run(false, "changed"), ["save"]);
 });
+
+test("a save that was not asked for (autosave) does not format (docs/adr/0021)", async () => {
+  const steps: string[] = [];
+  await formatThenSave({ formatOnSave: true, explicit: false, format: () => (steps.push("format"), "changed"), save: async () => void steps.push("save"), notify: () => {} });
+  assert.deepEqual(steps, ["save"]);
+});

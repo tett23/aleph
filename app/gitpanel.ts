@@ -1,5 +1,6 @@
 // Saving and Git (docs/adr/0011): saving every few seconds and before a sheet
 // goes away, the daily commit, manual commits, the Git panel and the tree's marks.
+import { addCommands } from "./commands.ts";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -183,7 +184,7 @@ export const mountGit = (ctx: Ctx) => {
   // a mark on files with changes not committed
   ctx.decor.push((p) => (changedPaths.has(p) ? `<span class="dot" title="コミットしていない変更"></span>` : ""));
 
-  ctx.commands.push(
+  addCommands(ctx.commands, 
     { id: "git.commit", menu: true, keys: ["Mod-Shift-k"], label: "コミット", icon: "git-commit-horizontal", when: (s) => !!s.workspace, run: startCommit },
     { id: "git.push", label: "push", icon: "arrow-up-right", when: (s) => !!s.workspace, run: (c) => gitCommand(c, "push") },
     { id: "git.pull", label: "pull", icon: "refresh-cw", when: (s) => !!s.workspace, run: (c) => gitCommand(c, "pull") },

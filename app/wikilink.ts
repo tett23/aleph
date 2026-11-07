@@ -18,7 +18,8 @@ export type Wikilink = {
 /** A sheet the links can point at: its path, and its name (first heading) where it has one. */
 export type Sheet = { path: string; title?: string };
 
-const TEXT_EXT = /\.(md|gm|emet|txt|toml|csv|tsv|svg|mmd|json|jsonc|json5|jsonl)$/;
+// the text kinds, and the images an embed shows (docs/adr/0029)
+const TEXT_EXT = /\.(md|gm|emet|txt|toml|csv|tsv|svg|mmd|json|jsonc|json5|jsonl|png|jpe?g|gif|webp)$/i;
 
 /** The links of one line (not inside a code span). */
 const lineLinks = (line: string, offset: number): Wikilink[] => {
@@ -260,3 +261,9 @@ const relPath = (dir: string, path: string) => {
   while (k < a.length && k < b.length - 1 && a[k] === b[k]) k++;
   return [...Array(a.length - k).fill(".."), ...b.slice(k)].join("/");
 };
+
+const unesc = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+
+/** The preview's wikilinks whose target is not found get the class `missing` (docs/adr/0027). */
+export const markMissing = (html: string, found: (target: string) => boolean): string =>
+  html.replace(/<a class="wikilink" data-wikilink="([^"]*)"/g, (m, t: string) => (!t || found(unesc(t)) ? m : `<a class="wikilink missing" data-wikilink="${t}"`));

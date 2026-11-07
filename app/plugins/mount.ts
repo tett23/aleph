@@ -1,6 +1,7 @@
 // Aleph's plugins in the app (docs/adr/0017): loaded from the plugins folder at
 // start, their commands in the toolbar's menu, their text in the status bar,
 // called after saves; turned on and off in the settings.
+import { addCommands } from "../commands.ts";
 import { api } from "../api.ts";
 import type { Command, Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
@@ -44,7 +45,7 @@ export const mountPlugins = async (ctx: Ctx) => {
       counts.set(name, n);
       return { id: `plugin.${name}.${n}`, menu: true, label: `${c.label}（${name}）`, icon: "puzzle", when: () => true, run: (cc) => c.run(current(cc.store.get())) };
     });
-    ctx.commands.push(...mine);
+    addCommands(ctx.commands, ...mine);
     ctx.refresh(["status"]);
   };
 

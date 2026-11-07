@@ -23,3 +23,9 @@ test("Japanese and surrogate pairs keep their UTF-16 positions", () => {
   assert.ok(fuzzy("霧笛", "霧笛")!.score > fuzzy("霧笛", "霧の笛")!.score);
   assert.deepEqual(fuzzy("𠮷田", "𠮷野の田")?.positions, [0, 4]);
 });
+
+test("a capital starting a word scores as a word start; a gap costs (docs/adr/0022)", () => {
+  const s = (q: string, t: string) => fuzzy(q, t)!.score;
+  assert.ok(s("fb", "fooBar") > s("fb", "foobar"));
+  assert.ok(s("ab", "ab") > s("ab", "a___b"));
+});

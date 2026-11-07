@@ -172,3 +172,6 @@ export const spellDiags = (words: Word[], misspelled: Set<string>, ignore: strin
     .filter((w) => misspelled.has(w.word) && !skip.has(w.word.toLowerCase()))
     .map((w) => ({ from: w.from, to: w.to, severity: "info" as const, message: `英語の綴り：${w.word}`, source: "spelling" }));
 };
+
+/** The words not asked of macOS yet, each once (the answers are kept by word). */
+export const toAsk = (words: string[], known: Map<string, boolean>): string[] => [...new Set(words)].filter((w) => !known.has(w));

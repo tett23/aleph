@@ -1,4 +1,5 @@
 // "gm に変換" for a Markdown sheet (docs/adr/0016).
+import { addCommands } from "./commands.ts";
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
 import { runDiag, showDiag } from "./diag/mount.ts";
@@ -30,4 +31,4 @@ export const convertToGm = async (ctx: Ctx) => {
 };
 
 export const mountMdConvert = (ctx: Ctx) =>
-  ctx.commands.push({ id: "md.convertToGm", menu: true, label: "gm に変換", icon: "arrow-right-left", when: (s) => focused(s)?.kind === "md", run: convertToGm });
+  addCommands(ctx.commands, { id: "md.convertToGm", menu: true, label: "gm に変換", icon: "arrow-right-left", when: (s) => focused(s)?.kind === "md", run: convertToGm });
