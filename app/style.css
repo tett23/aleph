@@ -408,3 +408,26 @@ table.grid tr.dragged td { opacity: 0.45; }
 /* the size comes from the fallback tokenizer's spans, which these lie inside; nesting a second 0.86em would shrink them twice */
 .prose .st-cmd, .prose .st-expr { font-family: var(--mono); }
 .cm-panel.cm-panel-lint { font: 12px var(--ui); }
+
+/* previews (docs/adr/0010) */
+.pview { min-height: 100%; }
+.pnote { font: 11.5px var(--ui); color: var(--del); white-space: pre-wrap; padding: 8px 14px; }
+.phead small { color: var(--faint); }
+.phead small.ng { color: var(--del); }
+.pview .hint { color: var(--faint); font: 12px var(--ui); padding: 24px; text-align: center; }
+.pview pre.error { color: var(--del); font: 12px/1.6 var(--mono); white-space: pre-wrap; padding: 16px; margin: 0; }
+.plain.evaluated .number { margin-right: 0.3em; }
+.plain.evaluated img { max-width: 100%; }
+.plain.evaluated figure { margin: 1em 0; text-align: center; }
+.plain.evaluated table { border-collapse: collapse; margin: 0.8em 0; }
+.plain.evaluated td, .plain.evaluated th { border: 1px solid var(--border); padding: 2px 8px; }
+.plain.md pre { background: var(--bg-3); padding: 8px 12px; border-radius: 5px; overflow: auto; font: var(--fs-code)/1.5 var(--mono); }
+.plain.md code { font-family: var(--mono); font-size: 0.9em; }
+.plain.md blockquote { margin: 0 0 0.8em; padding-left: 12px; border-left: 3px solid var(--border); color: var(--text-2); }
+.plain.md table { border-collapse: collapse; margin: 0 0 0.8em; }
+.plain.md td, .plain.md th { border: 1px solid var(--border); padding: 2px 8px; }
+.main-pane .pbody > .pbody { height: 100%; }
+.pwin { height: 100vh; display: flex; flex-direction: column; background: var(--bg-2); }
+.pwin .phead { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--text-2); font-size: 12px; border-bottom: 1px solid var(--border); flex: none; }
+.pwin .phead .sp { flex: 1; }
+.pwin .pbody { flex: 1; overflow: auto; min-height: 0; }
