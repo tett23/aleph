@@ -33,6 +33,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0016](adr/0016-markdown-to-gm.md) | md から gm への変換（実装済み） |
 | [ADR 0017](adr/0017-aleph-plugins.md) | Aleph のプラグイン（実装済み） |
 | [ADR 0018](adr/0018-drag-image-from-tree.md) | ツリーの画像をエディタにドラッグして図版を差し込む（実装済み） |
+| [ADR 0019](adr/0019-one-editor-for-both-writing-modes.md) | 縦書きと横書きを一つのエディタで書く（一から作る、仮想化、IME、縦書きでも LSP と整形、複数ファイルでも縦書き） |
 
 ## アプリの構成
 
