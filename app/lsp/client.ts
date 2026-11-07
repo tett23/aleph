@@ -32,7 +32,7 @@ const TOKEN_MODIFIERS = ["declaration", "definition", "readonly", "static", "dep
 
 let serial = 0;
 
-export const startClient = (root: string, bin: string | undefined, h: Handlers): Client => {
+export const startClient = (root: string, h: Handlers): Client => {
   const id = `p${++serial}`;
   let seq = 0;
   let state: ClientState = "starting";
@@ -90,7 +90,7 @@ export const startClient = (root: string, bin: string | undefined, h: Handlers):
         h.onExit(client);
       }),
     );
-    await api.lspStart(id, bin, root);
+    await api.lspStart(id, root);
     const init = await request<{ capabilities: { semanticTokensProvider?: { legend: Legend } } }>("initialize", {
       processId: null,
       rootUri: uriOf(root),

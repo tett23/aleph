@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaults, isDark, normalize } from "./config.ts";
+import { adopt, defaults, isDark, normalize } from "./config.ts";
 
 test("an empty or broken config gives the defaults", () => {
   assert.deepEqual(normalize({}), defaults());
@@ -83,4 +83,18 @@ test("Markdown line breaks: newline by default and for unknown values (docs/adr/
   assert.equal(normalize({}).markdownBreaks, "newline");
   assert.equal(normalize({ markdownBreaks: "blank-line" }).markdownBreaks, "blank-line");
   assert.equal(normalize({ markdownBreaks: "x" }).markdownBreaks, "newline");
+});
+
+test("the settings Rust wrote replace only the paths it keeps (docs/adr/0050)", () => {
+  const c = defaults();
+  c.theme = "dark";
+  c.workspaces = ["/w/a"];
+  const written = JSON.stringify({ workspaces: ["/w/a", "/w/b"], libraryDir: "/lib", gitPath: "/g", golemPath: "/go", shemPath: "/s", theme: "light" });
+  adopt(c, written);
+  assert.deepEqual(c.workspaces, ["/w/a", "/w/b"]);
+  assert.equal(c.libraryDir, "/lib");
+  assert.equal(c.gitPath, "/g");
+  assert.equal(c.golemPath, "/go");
+  assert.equal(c.shemPath, "/s");
+  assert.equal(c.theme, "dark", "the rest is the webview's");
 });

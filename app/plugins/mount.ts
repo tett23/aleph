@@ -61,27 +61,43 @@ export const mountPlugins = async (ctx: Ctx) => {
     id: "plugins",
     label: "Aleph のプラグイン",
     group: "オプション",
+    // added and removed through native dialogs Rust opens (docs/adr/0042)
     render: () =>
-      item("プラグインのフォルダ", `${esc(dir)}<br>ここに置いた .js（ES モジュール、activate(aleph) を書き出す）を起動時に読む。API の版は ${API_VERSION}`, `<span class="btn" data-plg="reload">読みなおす</span>`) +
-      `<div class="warn-note">プラグインは Aleph と同じ権限で動き、ファイルを読み書きできます。自分で書いたか、読んで信頼したものだけを置いてください。</div>` +
+      item(
+        "プラグインのフォルダ",
+        `${esc(dir)}<br>.js（ES モジュール、activate(aleph) を書き出す）を「追加…」で選んで入れる。フォルダに置いたものも読みなおすと読む。API の版は ${API_VERSION}`,
+        `<span class="btn" data-plg="install">追加…</span><span class="btn" data-plg="open">フォルダを開く</span><span class="btn" data-plg="reload">読みなおす</span>`,
+      ) +
+      `<div class="warn-note">プラグインは Aleph と同じ権限で動き、ファイルを読み書きできます。自分で書いたか、読んで信頼したものだけを入れてください。</div>` +
       (results.length
         ? results
             .map((r) =>
               item(
                 esc(r.name),
                 r.state === "failed" ? `<span class="ng">読めません：${esc(r.error ?? "")}</span>` : r.state === "disabled" ? "無効" : "読み込み済み",
-                toggle(`plugin:${esc(r.name)}`, !ctx.config.disabledPlugins.includes(r.name)),
+                toggle(`plugin:${esc(r.name)}`, !ctx.config.disabledPlugins.includes(r.name)) + `<span class="btn" data-plg-rm="${esc(r.name)}">外す</span>`,
               ),
             )
             .join("")
-        : item("プラグインはありません", "フォルダに .js を置いて「読みなおす」を押す", "")),
+        : item("プラグインはありません", "「追加…」で .js を選ぶ", "")),
     onClick: async (el, c) => {
-      const t = el.closest<HTMLElement>("[data-plg],[data-toggle]");
+      const t = el.closest<HTMLElement>("[data-plg],[data-plg-rm],[data-toggle]");
       if (!t) return false;
       if (t.dataset.toggle?.startsWith("plugin:")) {
         const name = t.dataset.toggle.slice("plugin:".length);
         c.config.disabledPlugins = c.config.disabledPlugins.includes(name) ? c.config.disabledPlugins.filter((n) => n !== name) : [...c.config.disabledPlugins, name];
         await c.saveConfig();
+      } else if (t.dataset.plgRm !== undefined) {
+        const removed = await api.removePlugin(t.dataset.plgRm).catch((e) => void c.toast(String(e)));
+        if (!removed) return false;
+        c.toast(`${t.dataset.plgRm} を外しました`);
+      } else if (t.dataset.plg === "install") {
+        const name = await api.installPlugin().catch((e) => void c.toast(String(e)));
+        if (!name) return false;
+        c.toast(`${name} を入れました`);
+      } else if (t.dataset.plg === "open") {
+        await api.openPluginsFolder().catch((e) => c.toast(String(e)));
+        return false;
       } else if (t.dataset.plg !== "reload") return false;
       await load();
       return true;

@@ -2,6 +2,7 @@
 //! needs (docs/adr/0003). Each concern is a module with its own tests.
 
 mod fsops;
+mod guard;
 mod lsp;
 mod process;
 mod replace;
@@ -24,6 +25,67 @@ fn config_dir(app: &AppHandle) -> R<PathBuf> {
     Ok(dir)
 }
 
+fn cache_dir(app: &AppHandle) -> R<PathBuf> {
+    let dir = app.path().app_cache_dir().map_err(err)?;
+    std::fs::create_dir_all(&dir).map_err(err)?;
+    Ok(dir)
+}
+
+/// What Rust keeps for the webview's reach (docs/adr/0042, docs/adr/0050):
+/// the settings as last written, and the paths dropped from Finder.
+#[derive(Default)]
+struct Kept {
+    config: std::sync::Mutex<serde_json::Value>,
+    dropped: std::sync::Mutex<Vec<PathBuf>>,
+}
+
+fn read_config(app: &AppHandle) -> serde_json::Value {
+    config_dir(app)
+        .ok()
+        .and_then(|d| std::fs::read_to_string(d.join("config.json")).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+fn kept_config(app: &AppHandle) -> serde_json::Value {
+    app.state::<Kept>()
+        .config
+        .lock()
+        .map(|c| c.clone())
+        .unwrap_or_default()
+}
+
+/// Writes the settings and keeps them; returns the JSON written.
+fn write_config(app: &AppHandle, v: serde_json::Value) -> R<String> {
+    let json = serde_json::to_string_pretty(&v).map_err(err)?;
+    std::fs::write(config_dir(app)?.join("config.json"), &json).map_err(err)?;
+    if let Ok(mut c) = app.state::<Kept>().config.lock() {
+        *c = v;
+    }
+    Ok(json)
+}
+
+fn reach(app: &AppHandle) -> R<guard::Reach> {
+    let dropped = app
+        .state::<Kept>()
+        .dropped
+        .lock()
+        .map(|d| d.clone())
+        .unwrap_or_default();
+    Ok(guard::Reach::new(
+        &kept_config(app),
+        &config_dir(app)?,
+        &cache_dir(app)?,
+        &dropped,
+    ))
+}
+
+fn may(app: &AppHandle, path: &str, access: guard::Access) -> R<()> {
+    reach(app)?.check(Path::new(path), access)
+}
+
+use guard::Access::{Read as RD, Write as WR};
+
 #[tauri::command]
 fn config_load(app: AppHandle) -> R<String> {
     Ok(
@@ -32,45 +94,56 @@ fn config_load(app: AppHandle) -> R<String> {
     )
 }
 
+/// The webview's settings, without adding workspaces or changing paths (docs/adr/0050).
 #[tauri::command]
 fn config_save(app: AppHandle, json: String) -> R<()> {
-    std::fs::write(config_dir(&app)?.join("config.json"), json).map_err(err)
+    let incoming: serde_json::Value = serde_json::from_str(&json).map_err(err)?;
+    write_config(&app, guard::merge(&kept_config(&app), incoming)).map(|_| ())
 }
 
 #[tauri::command]
-fn list_tree(root: String) -> Vec<fsops::Entry> {
-    fsops::tree(Path::new(&root))
+fn list_tree(app: AppHandle, root: String) -> Vec<fsops::Entry> {
+    match may(&app, &root, RD) {
+        Ok(()) => fsops::tree(Path::new(&root)),
+        Err(_) => vec![],
+    }
 }
 
 #[tauri::command]
-fn read_text(path: String) -> R<String> {
+fn read_text(app: AppHandle, path: String) -> R<String> {
+    may(&app, &path, RD)?;
     std::fs::read_to_string(path).map_err(err)
 }
 
 #[tauri::command]
-fn read_bytes(path: String) -> R<tauri::ipc::Response> {
+fn read_bytes(app: AppHandle, path: String) -> R<tauri::ipc::Response> {
+    may(&app, &path, RD)?;
     std::fs::read(path)
         .map(tauri::ipc::Response::new)
         .map_err(err)
 }
 
 #[tauri::command]
-fn write_text(path: String, content: String) -> R<()> {
+fn write_text(app: AppHandle, path: String, content: String) -> R<()> {
+    may(&app, &path, WR)?;
     fsops::write_text(Path::new(&path), &content).map_err(err)
 }
 
 #[tauri::command]
-fn exists(path: String) -> bool {
-    Path::new(&path).exists()
+fn exists(app: AppHandle, path: String) -> bool {
+    may(&app, &path, RD).is_ok() && Path::new(&path).exists()
 }
 
 #[tauri::command]
-fn make_dir(path: String) -> R<()> {
+fn make_dir(app: AppHandle, path: String) -> R<()> {
+    may(&app, &path, WR)?;
     std::fs::create_dir_all(path).map_err(err)
 }
 
 #[tauri::command]
-fn rename_path(from: String, to: String) -> R<()> {
+fn rename_path(app: AppHandle, from: String, to: String) -> R<()> {
+    may(&app, &from, WR)?;
+    may(&app, &to, WR)?;
     std::fs::rename(from, to).map_err(err)
 }
 
@@ -83,17 +156,23 @@ fn trash_dir(app: AppHandle) -> R<String> {
 }
 
 #[tauri::command]
-fn move_path(from: String, to: String) -> R<()> {
+fn move_path(app: AppHandle, from: String, to: String) -> R<()> {
+    may(&app, &from, WR)?;
+    may(&app, &to, WR)?;
     fsops::move_path(Path::new(&from), Path::new(&to)).map_err(err)
 }
 
 #[tauri::command]
-fn remove_path(path: String) -> R<()> {
+fn remove_path(app: AppHandle, path: String) -> R<()> {
+    may(&app, &path, WR)?;
     fsops::remove_path(Path::new(&path)).map_err(err)
 }
 
+/// Copies a file; the source may also be one dropped from Finder (docs/adr/0050).
 #[tauri::command]
-fn copy_file(from: String, to: String) -> R<()> {
+fn copy_file(app: AppHandle, from: String, to: String) -> R<()> {
+    may(&app, &from, RD)?;
+    may(&app, &to, WR)?;
     fsops::copy_file(Path::new(&from), Path::new(&to)).map_err(err)
 }
 
@@ -106,13 +185,14 @@ fn spell_check(words: Vec<String>) -> Vec<String> {
 /// Writes the raw body of the request to the path in its `path` header (percent-encoded):
 /// a pasted image's bytes, without turning them into JSON (docs/adr/0031).
 #[tauri::command]
-fn write_bytes(request: tauri::ipc::Request<'_>) -> R<()> {
+fn write_bytes(app: AppHandle, request: tauri::ipc::Request<'_>) -> R<()> {
     let path = request
         .headers()
         .get("path")
         .and_then(|v| v.to_str().ok())
         .and_then(fsops::percent_decode)
         .ok_or_else(|| "no path".to_string())?;
+    may(&app, &path, WR)?;
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
         return Err("no bytes".to_string());
     };
@@ -120,35 +200,229 @@ fn write_bytes(request: tauri::ipc::Request<'_>) -> R<()> {
 }
 
 #[tauri::command]
-fn list_dir(path: String) -> Vec<String> {
-    fsops::list_dir(Path::new(&path))
+fn list_dir(app: AppHandle, path: String) -> Vec<String> {
+    match may(&app, &path, RD) {
+        Ok(()) => fsops::list_dir(Path::new(&path)),
+        Err(_) => vec![],
+    }
 }
 
 /// A fresh directory in the app's cache, for rendered pages and the like.
 #[tauri::command]
 fn temp_dir(app: AppHandle, name: String) -> R<String> {
-    let d = app.path().app_cache_dir().map_err(err)?.join(name);
+    if !guard::plain_name(&name) {
+        return Err(format!("一時のフォルダの名前として使えません：{name}"));
+    }
+    let d = cache_dir(&app)?.join(name);
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).map_err(err)?;
     Ok(d.to_string_lossy().into())
 }
 
+fn plugins_path(app: &AppHandle) -> R<PathBuf> {
+    let d = config_dir(app)?.join("plugins");
+    std::fs::create_dir_all(&d).map_err(err)?;
+    Ok(d)
+}
+
 /// The folder of Aleph's own plugins (docs/adr/0017), made when missing.
 #[tauri::command]
 fn plugins_dir(app: AppHandle) -> R<String> {
-    let d = config_dir(&app)?.join("plugins");
-    std::fs::create_dir_all(&d).map_err(err)?;
-    Ok(d.to_string_lossy().into())
+    Ok(plugins_path(&app)?.to_string_lossy().into())
+}
+
+// ---- choices the writer makes in native dialogs (docs/adr/0042, docs/adr/0050) ----
+
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+fn confirm(app: &AppHandle, title: &str, message: &str, ok: &str) -> bool {
+    app.dialog()
+        .message(message)
+        .title(title)
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            ok.into(),
+            "やめる".into(),
+        ))
+        .blocking_show()
+}
+
+fn picked(p: Option<tauri_plugin_dialog::FilePath>) -> Option<PathBuf> {
+    p.and_then(|f| f.into_path().ok())
+}
+
+const PLUGIN_WARNING: &str = "プラグインは Aleph と同じ権限で動き、ファイルを読み書きできます。自分で書いたか、読んで信頼したものだけを入れてください。";
+
+/// Asks for a `.js` and copies it into the plugins folder after the writer agrees;
+/// the name copied, or none when the writer stopped.
+#[tauri::command]
+async fn install_plugin(app: AppHandle) -> R<Option<String>> {
+    let Some(src) = picked(
+        app.dialog()
+            .file()
+            .set_title("入れるプラグイン")
+            .add_filter("JavaScript", &["js"])
+            .blocking_pick_file(),
+    ) else {
+        return Ok(None);
+    };
+    let dir = plugins_path(&app)?;
+    let name = src
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if !confirm(
+        &app,
+        "プラグインを入れる",
+        &format!("{name} を入れますか。\n\n{PLUGIN_WARNING}"),
+        "入れる",
+    ) {
+        return Ok(None);
+    }
+    match guard::install_plugin(&src, &dir, false)? {
+        guard::Install::Copied(n) => Ok(Some(n)),
+        guard::Install::Exists(n) => {
+            if !confirm(
+                &app,
+                "プラグインを入れる",
+                &format!("{n} はもう入っています。置き換えますか。"),
+                "置き換える",
+            ) {
+                return Ok(None);
+            }
+            match guard::install_plugin(&src, &dir, true)? {
+                guard::Install::Copied(n) | guard::Install::Exists(n) => Ok(Some(n)),
+            }
+        }
+    }
+}
+
+/// Removes a plugin after the writer agrees; whether it was removed.
+#[tauri::command]
+async fn remove_plugin(app: AppHandle, name: String) -> R<bool> {
+    let dir = plugins_path(&app)?;
+    guard::plugin_file(&dir, &name)?;
+    if !confirm(
+        &app,
+        "プラグインを外す",
+        &format!("{name} を外しますか。プラグインのフォルダから消します。"),
+        "外す",
+    ) {
+        return Ok(false);
+    }
+    guard::remove_plugin(&dir, &name).map(|_| true)
+}
+
+/// Opens the plugins folder in Finder.
+#[tauri::command]
+fn open_plugins_folder(app: AppHandle) -> R<()> {
+    std::process::Command::new("/usr/bin/open")
+        .arg(plugins_path(&app)?)
+        .status()
+        .map(|_| ())
+        .map_err(err)
+}
+
+/// Adds a folder the writer picks as a workspace; the settings written, or none.
+#[tauri::command]
+async fn add_workspace(app: AppHandle) -> R<Option<String>> {
+    let Some(dir) = picked(
+        app.dialog()
+            .file()
+            .set_title("ワークスペースにするフォルダ")
+            .blocking_pick_folder(),
+    ) else {
+        return Ok(None);
+    };
+    write_config(
+        &app,
+        guard::add_workspace(&kept_config(&app), &dir.to_string_lossy()),
+    )
+    .map(Some)
+}
+
+/// Picks (or, with `make`, makes) the shared library's folder.
+#[tauri::command]
+async fn choose_library(app: AppHandle, make: bool) -> R<Option<String>> {
+    let title = if make {
+        "共有ライブラリを作る場所"
+    } else {
+        "共有ライブラリのフォルダ"
+    };
+    let Some(dir) = picked(app.dialog().file().set_title(title).blocking_pick_folder()) else {
+        return Ok(None);
+    };
+    let lib = if make {
+        guard::make_library(&dir).map_err(err)?
+    } else {
+        dir
+    };
+    write_config(
+        &app,
+        guard::set_path(&kept_config(&app), "libraryDir", &lib.to_string_lossy()),
+    )
+    .map(Some)
+}
+
+/// Picks the program to use for git, golem or shem.
+#[tauri::command]
+async fn choose_binary(app: AppHandle, name: String) -> R<Option<String>> {
+    let key = guard::binary_key(&name).ok_or_else(|| format!("unknown program {name}"))?;
+    let Some(p) = picked(
+        app.dialog()
+            .file()
+            .set_title(format!("{name} のバイナリ"))
+            .blocking_pick_file(),
+    ) else {
+        return Ok(None);
+    };
+    write_config(
+        &app,
+        guard::set_path(&kept_config(&app), key, &p.to_string_lossy()),
+    )
+    .map(Some)
+}
+
+/// A program's path typed in the settings: written after the writer agrees,
+/// or at once when emptied (back to searching).
+#[tauri::command]
+async fn set_binary(app: AppHandle, name: String, path: String) -> R<Option<String>> {
+    let key = guard::binary_key(&name).ok_or_else(|| format!("unknown program {name}"))?;
+    let path = path.trim().to_string();
+    if !path.is_empty()
+        && !confirm(
+            &app,
+            "バイナリを変える",
+            &format!("{name} として {path} を使いますか。"),
+            "使う",
+        )
+    {
+        return Ok(None);
+    }
+    write_config(&app, guard::set_path(&kept_config(&app), key, &path)).map(Some)
 }
 
 fn roots(app: &AppHandle) -> process::Roots {
     process::Roots::from_env(app.path().resource_dir().ok().map(|d| d.join("resources")))
 }
 
+/// The program's path from the settings Rust keeps (docs/adr/0042).
+fn configured(app: &AppHandle, name: &str) -> Option<String> {
+    guard::binary_key(name).and_then(|k| {
+        kept_config(app)
+            .get(k)
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    })
+}
+
 /// Runs git, found by the setting, /usr/bin, Homebrew, then PATH.
 #[tauri::command]
-fn git(app: AppHandle, bin: Option<String>, cwd: String, args: Vec<String>) -> R<process::Out> {
+fn git(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
+    guard::allowed("git", &args)?;
+    may(&app, &cwd, RD)?;
     let r = roots(&app);
+    let bin = configured(&app, "git");
     let git = process::find("git", bin.as_deref(), &process::GIT_ORDER, &r).ok_or_else(|| {
         format!(
             "git が見つかりません（{}）",
@@ -165,6 +439,14 @@ mod tests {
         assert!(super::bundled_version("golem").starts_with('v'));
         assert!(super::bundled_version("shem").starts_with('v'));
         assert_eq!(super::bundled_version("none"), "");
+    }
+
+    #[test]
+    fn no_command_takes_the_program_to_run_from_the_webview() {
+        // the programs come from the settings Rust keeps (docs/adr/0042)
+        let src = include_str!("lib.rs");
+        let needle = ["bin: Option", "<String>"].concat();
+        assert!(!src.contains(&needle));
     }
 }
 
@@ -233,12 +515,13 @@ fn save_window(win: &tauri::Window) {
 
 // ---- golem and shem (docs/adr/0008) ----
 
-fn tool_path(app: &AppHandle, name: &str, bin: Option<&str>) -> R<PathBuf> {
+fn tool_path(app: &AppHandle, name: &str) -> R<PathBuf> {
     if name != "golem" && name != "shem" {
         return Err(format!("unknown tool {name}"));
     }
     let r = roots(app);
-    process::find(name, bin, &process::TOOL_ORDER, &r).ok_or_else(|| {
+    let bin = configured(app, name);
+    process::find(name, bin.as_deref(), &process::TOOL_ORDER, &r).ok_or_else(|| {
         match bin.filter(|b| !b.is_empty()) {
             Some(b) => format!("{name} が見つかりません（設定の {b}）"),
             None => format!(
@@ -251,18 +534,10 @@ fn tool_path(app: &AppHandle, name: &str, bin: Option<&str>) -> R<PathBuf> {
 
 /// Runs golem or shem with its arguments, in `cwd` (a project's root).
 #[tauri::command]
-fn tool(
-    app: AppHandle,
-    name: String,
-    bin: Option<String>,
-    cwd: String,
-    args: Vec<String>,
-) -> R<process::Out> {
-    process::run(
-        &tool_path(&app, &name, bin.as_deref())?,
-        Path::new(&cwd),
-        &args,
-    )
+fn tool(app: AppHandle, name: String, cwd: String, args: Vec<String>) -> R<process::Out> {
+    guard::allowed(&name, &args)?;
+    may(&app, &cwd, RD)?;
+    process::run(&tool_path(&app, &name)?, Path::new(&cwd), &args)
 }
 
 // ---- search (docs/adr/0015) ----
@@ -293,7 +568,10 @@ struct ReplaceArgs {
 
 /// Replaces across files (docs/adr/0032), off the main thread.
 #[tauri::command]
-async fn replace_files(args: ReplaceArgs) -> R<Vec<replace::FileResult>> {
+async fn replace_files(app: AppHandle, args: ReplaceArgs) -> R<Vec<replace::FileResult>> {
+    for r in &args.roots {
+        may(&app, r, WR)?;
+    }
     tauri::async_runtime::spawn_blocking(move || {
         let roots: Vec<&Path> = args.roots.iter().map(Path::new).collect();
         let kinds: Vec<&str> = args.kinds.iter().map(String::as_str).collect();
@@ -350,7 +628,10 @@ fn replace_preview(
 
 /// Runs off the main thread: a search over many files takes a while.
 #[tauri::command]
-async fn search_files(args: SearchArgs) -> R<search::Found> {
+async fn search_files(app: AppHandle, args: SearchArgs) -> R<search::Found> {
+    for r in &args.roots {
+        may(&app, r, RD)?;
+    }
     tauri::async_runtime::spawn_blocking(move || {
         let roots: Vec<&Path> = args.roots.iter().map(Path::new).collect();
         let kinds: Vec<&str> = args.kinds.iter().map(String::as_str).collect();
@@ -378,10 +659,10 @@ fn lsp_start(
     app: AppHandle,
     servers: tauri::State<lsp::Servers>,
     id: String,
-    bin: Option<String>,
     cwd: String,
 ) -> R<()> {
-    let program = tool_path(&app, "golem", bin.as_deref())?;
+    may(&app, &cwd, RD)?;
+    let program = tool_path(&app, "golem")?;
     let (a, b) = (app.clone(), app.clone());
     let (ev, exit) = (format!("lsp-{id}"), format!("lsp-{id}-exit"));
     servers.start(
@@ -491,9 +772,9 @@ struct ToolInfo {
 
 /// The binary in use, its `--version`, and the version bundled with this build of Aleph.
 #[tauri::command]
-fn tool_info(app: AppHandle, name: String, bin: Option<String>) -> R<ToolInfo> {
+fn tool_info(app: AppHandle, name: String) -> R<ToolInfo> {
     let bundled = bundled_version(&name);
-    let path = tool_path(&app, &name, bin.as_deref())?;
+    let path = tool_path(&app, &name)?;
     let out = process::run(&path, Path::new("/"), &["--version".into()])?;
     Ok(ToolInfo {
         path: path.display().to_string(),
@@ -519,6 +800,7 @@ pub fn run_app() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(lsp::Servers::default())
+        .manage(Kept::default())
         .menu(menu)
         .on_menu_event(|app, e| {
             if e.id() == "quit" {
@@ -534,10 +816,20 @@ pub fn run_app() {
             }
         })
         .setup(|app| {
+            let config = read_config(app.handle());
+            if let Ok(mut c) = app.state::<Kept>().config.lock() {
+                *c = config;
+            }
             restore_window(app.handle());
             Ok(())
         })
         .on_window_event(|win, ev| {
+            // what the writer drops from Finder may be read while the app runs (docs/adr/0050)
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = ev {
+                if let Ok(mut d) = win.app_handle().state::<Kept>().dropped.lock() {
+                    d.extend(paths.iter().cloned());
+                }
+            }
             if matches!(
                 ev,
                 tauri::WindowEvent::Moved(_)
@@ -576,7 +868,14 @@ pub fn run_app() {
             trash_dir,
             move_path,
             remove_path,
-            plugins_dir
+            plugins_dir,
+            install_plugin,
+            remove_plugin,
+            open_plugins_folder,
+            add_workspace,
+            choose_library,
+            choose_binary,
+            set_binary
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")
