@@ -9,7 +9,9 @@ import { item } from "./ui/settings.ts";
 import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
 import { openPaths } from "./docs.ts";
 import { mountTree, reloadTree } from "./ui/tree.ts";
-import { mountTools } from "./tools.ts";
+import { git, mountTools } from "./tools.ts";
+import { mountEditors } from "./editor/host.ts";
+import { rel } from "./path.ts";
 
 /** The parts of the state worth keeping between launches, per viewer (localStorage may be unavailable). */
 const KEPT = ["left", "showLeft", "right", "showRight", "side", "vertical", "expanded", "workspace"] as const;
@@ -71,6 +73,25 @@ const start = async () => {
     projects: [],
     onRename: [],
     onNewProject: [],
+    editors: new Map(),
+    editorExtensions: [],
+    kindViews: {},
+    verticalEditor: null,
+    save: async (paths, opts) => {
+      // the basic save: write the sheets with changes (docs/adr/0011 adds autosave and the rest)
+      for (const d of store.get().open) {
+        if (paths && !paths.includes(d.path)) continue;
+        const text = ctx.editors.get(d.path)?.text() ?? d.text;
+        if (text === d.saved && !opts?.explicit) continue;
+        await api.writeText(d.path, text);
+        store.dispatch({ type: "saved", path: d.path, text });
+      }
+    },
+    baseText: async (d) => {
+      if (!d.workspace) return null;
+      const out = await git(ctx, d.workspace, ["show", `HEAD:${rel(d.workspace, d.path)}`]).catch(() => null);
+      return out && out.code === 0 ? out.stdout : null;
+    },
     refresh: (what = ["left", "right", "status", "side"]) => draw(store.get(), store.get(), what),
   };
 
@@ -126,6 +147,7 @@ const start = async () => {
 
   mountTree(ctx);
   mountTools(ctx);
+  mountEditors(ctx);
   await reloadTree(ctx);
   store.subscribe((s, prev) => {
     if (s.workspace !== prev.workspace) void reloadTree(ctx).then(() => ctx.refresh(["left"]));
