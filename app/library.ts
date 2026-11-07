@@ -1,7 +1,8 @@
 // The shared library (docs/adr/0014): fonts/, plugins/*.wasm and functions/*.emet
 // in one folder, copied into projects; and images put into a project as assets.
 // File operations come in as `Fs`, so the logic runs in tests over node:fs.
-import { basename, stem } from "./path.ts";
+import { basename, rel, stem } from "./path.ts";
+import { projectOf } from "./workspace.ts";
 
 export type Fs = {
   exists: (p: string) => Promise<boolean>;
@@ -100,6 +101,16 @@ export const freeName = async (fs: Fs, dir: string, name: string): Promise<strin
 
 export const FIGURE_KINDS = /\.(png|jpe?g|svg|pdf)$/i;
 
+/**
+ * An image dragged from the tree onto a chapter of `project` (docs/adr/0018): referenced
+ * by its path from the project's root when it is in that project, copied to images/ when
+ * it is elsewhere; null for a kind @figure does not take.
+ */
+export const figurePlan = (image: string, project: string, projects: string[]): { copy: false; path: string } | { copy: true } | null => {
+  if (!FIGURE_KINDS.test(image)) return null;
+  return projectOf(image, projects) === project ? { copy: false, path: rel(project, image) } : { copy: true };
+};
+
 /** Where and what to insert after 1-based `line` of `text`: a @figure with an indented caption line per image. */
 export const figureInsert = (text: string, line: number, images: string[]): { at: number; insert: string } => {
   let start = 0;
@@ -114,6 +125,8 @@ export const figureInsert = (text: string, line: number, images: string[]): { at
   const at = nl < 0 ? end : nl + 1;
   const pre = (nl < 0 ? "\n" : "") + (content.trim() ? "\n" : "");
   const body = images.map((p) => `@figure ${p} alt="${stem(p).replace(/"/g, "")}"\n  キャプション`).join("\n\n") + "\n";
-  const post = at < text.length ? "\n" : "";
+  // a blank line separates the figure from what follows, unless one is already there
+  const next = text.slice(at, text.indexOf("\n", at) < 0 ? text.length : text.indexOf("\n", at));
+  const post = at < text.length && next.trim() !== "" ? "\n" : "";
   return { at, insert: pre + body + post };
 };

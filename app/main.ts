@@ -21,6 +21,7 @@ import { createVertical } from "./editor/vertical.ts";
 import { mountLsp } from "./lsp/mount.ts";
 import { mountAttach } from "./attach.ts";
 import { mountLibrary } from "./libpanel.ts";
+import { mountImageDrag } from "./imagedrag.ts";
 import { mountDiagnostics } from "./diag/mount.ts";
 import { mountSearch } from "./searchpanel.ts";
 import { mountMdConvert } from "./mdconvert.ts";
@@ -167,6 +168,7 @@ const start = async () => {
   mountPlotFeature(ctx);
   mountAttach(ctx);
   mountLibrary(ctx);
+  mountImageDrag(ctx);
   mountSearch(ctx);
   mountMdConvert(ctx);
   // a file to open, sent by another window (the plot window)

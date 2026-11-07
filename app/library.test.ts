@@ -99,4 +99,17 @@ test("@figure goes after the dropped line: an empty line, a line with text, the 
   assert.equal(fig("一\n\n二\n", 2), '一\n\n@figure images/灯台.png alt="灯台"\n  キャプション\n\n二\n');
   assert.equal(fig("一\n二\n", 1), '一\n\n@figure images/灯台.png alt="灯台"\n  キャプション\n\n二\n');
   assert.equal(fig("一", 1), '一\n\n@figure images/灯台.png alt="灯台"\n  キャプション\n');
+  // a line with text followed by a blank line: no second blank line after the caption
+  assert.equal(fig("一\n\n二\n", 1), '一\n\n@figure images/灯台.png alt="灯台"\n  キャプション\n\n二\n');
+});
+
+test("an image dragged from the tree: referenced in place within the chapter's project, copied otherwise", async () => {
+  const { figurePlan } = await import("./library.ts");
+  const projects = ["/w/novel", "/w/other"];
+  assert.deepEqual(figurePlan("/w/novel/images/灯台.png", "/w/novel", projects), { copy: false, path: "images/灯台.png" });
+  assert.deepEqual(figurePlan("/w/novel/art/map.svg", "/w/novel", projects), { copy: false, path: "art/map.svg" });
+  assert.deepEqual(figurePlan("/w/other/images/a.pdf", "/w/novel", projects), { copy: true });
+  assert.deepEqual(figurePlan("/w/notes/b.jpeg", "/w/novel", projects), { copy: true });
+  assert.equal(figurePlan("/w/novel/images/anim.gif", "/w/novel", projects), null);
+  assert.equal(figurePlan("/w/novel/images/x.webp", "/w/novel", projects), null);
 });
