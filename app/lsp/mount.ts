@@ -4,7 +4,7 @@
 import { api } from "../api.ts";
 import type { Ctx } from "../ctx.ts";
 import type { Diag, EditorPlugin, TextEditor } from "../ed/editor.ts";
-import { rel } from "../path.ts";
+import { argPath, rel } from "../path.ts";
 import { allDocs, focused, type Doc, type State } from "../store.ts";
 import { golem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
@@ -179,7 +179,7 @@ export const format = async (ctx: Ctx, doc: Doc): Promise<boolean | null> => {
   // without the server: golem fmt on the saved file, read back into the editor
   if (!doc.project) return null;
   await ctx.save([doc.path], { explicit: true });
-  const out = await golem(ctx, doc.project, ["fmt", rel(doc.project, doc.path)]).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
+  const out = await golem(ctx, doc.project, ["fmt", argPath(rel(doc.project, doc.path))]).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
   if (out.code !== 0) {
     ctx.toast((out.stderr || out.stdout).trim() || "golem fmt に失敗しました");
     return null;

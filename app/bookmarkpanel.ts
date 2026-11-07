@@ -7,7 +7,7 @@ import { moveBookmark, parseBookmarks, relocate, removeBookmark, renameBookmarks
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
-import { basename, rel } from "./path.ts";
+import { basename, rel, underRoot } from "./path.ts";
 import { allDocs, focused } from "./store.ts";
 import { treeMenus } from "./ui/tree.ts";
 
@@ -33,6 +33,12 @@ export const bookmarkSections: ((ctx: Ctx, ws: string) => Promise<string>)[] = [
 /** Presses inside those sections; return true when taken. */
 export const bookmarkClicks: ((t: HTMLElement, ctx: Ctx) => boolean | Promise<boolean>)[] = [];
 
+/** A bookmark's file, or null when its path leaves the workspace (docs/adr/0048). */
+const absOf = (ws: string, p: string) => {
+  const r = underRoot(ws, p);
+  return r ? `${ws}/${r}` : null;
+};
+
 const nameOf = (ctx: Ctx, abs: string) => ctx.titles.get(abs) ?? basename(abs);
 
 /** Opens a bookmark: the sheet, and for a line, the line found again by its text (its number kept up to date). */
@@ -40,8 +46,9 @@ const go = async (ctx: Ctx, ws: string, i: number) => {
   const list = await loadBookmarks(ws);
   const b = list[i];
   if (!b) return;
-  const abs = `${ws}/${b.path}`;
-  if (!(await api.exists(abs))) return ctx.toast(`${b.path} が見つかりません`);
+  // a path that leaves the workspace is treated as missing (docs/adr/0048)
+  const abs = absOf(ws, b.path);
+  if (!abs || !(await api.exists(abs))) return ctx.toast(`${b.path} が見つかりません`);
   if (b.line === undefined) return ctx.open([abs]);
   const open = allDocs(ctx.store.get()).find((d) => d.path === abs);
   const text = ctx.editors.get(abs)?.text() ?? open?.text ?? (await api.readText(abs).catch(() => ""));
@@ -56,10 +63,10 @@ const draw = async (el: HTMLElement, ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
   if (!ws) return void (el.innerHTML = `<div class="empty">ワークスペースを選んでください。</div>`);
   const list = await loadBookmarks(ws);
-  const exists = await Promise.all(list.map((b) => api.exists(`${ws}/${b.path}`)));
+  const exists = await Promise.all(list.map((b) => { const abs = absOf(ws, b.path); return abs ? api.exists(abs) : false; }));
   const rows = list
     .map((b, i) => {
-      const abs = `${ws}/${b.path}`;
+      const abs = absOf(ws, b.path) ?? `${ws}/${b.path}`;
       const line = b.line !== undefined ? `<small>${b.line} 行　${esc((b.text ?? "").slice(0, 40))}</small>` : `<small>${esc(b.path)}</small>`;
       return `<div class="bm ${exists[i] ? "" : "missing"}" data-bm="${i}"><span class="grip" data-grip title="ドラッグして並べ替える">${icon("grip-vertical", 12)}</span><span class="ttl">${esc(
         nameOf(ctx, abs),

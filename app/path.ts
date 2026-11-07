@@ -21,3 +21,30 @@ export const resolve = (dir: string, p: string) =>
     .split("/")
     .reduce<string[]>((acc, part) => (part === ".." ? acc.slice(0, -1) : part && part !== "." ? [...acc, part] : acc), [])
     .join("/");
+
+/**
+ * A path from a data file (a bookmark, a plot row, an image) made relative to
+ * its root, or null when it is absolute, starts with ~, or climbs out of the
+ * root at any step (docs/adr/0048).
+ */
+export const underRoot = (_root: string, p: string): string | null => {
+  if (p.startsWith("/") || p.startsWith("~")) return null;
+  const out: string[] = [];
+  for (const part of p.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part !== "..") out.push(part);
+    else if (!out.length) return null;
+    else out.pop();
+  }
+  return out.length ? out.join("/") : null;
+};
+
+/** A relative path given to golem or shem, never read as an option (docs/adr/0048). */
+export const argPath = (p: string) => (p.startsWith("/") ? p : `./${p.replace(/^\.\//, "")}`);
+
+/** `p` read from the folder `dir` inside `root`, as an absolute path that stays under the root, or null. */
+export const within = (root: string, dir: string, p: string): string | null => {
+  const from = dir === root ? "" : dir.startsWith(`${root}/`) ? `${dir.slice(root.length + 1)}/` : null;
+  const r = from === null || p.startsWith("/") || p.startsWith("~") ? null : underRoot(root, from + p);
+  return r ? `${root}/${r}` : null;
+};

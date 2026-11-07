@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { basename, dirname, ext, rel, stem } from "./path.ts";
+import { argPath, underRoot, within, basename, dirname, ext, rel, stem } from "./path.ts";
 
 test("path parts", () => {
   assert.equal(basename("/w/p/chapters/01.gm"), "01.gm");
@@ -24,4 +24,29 @@ test("resolving a relative path against a directory", async () => {
   assert.equal(resolve("/w/p", "./a/./b.png"), "/w/p/a/b.png");
   assert.equal(resolve("/w/p", "/abs/x.png"), "/abs/x.png");
   assert.equal(resolve("/w", "../../x"), "/x");
+});
+
+test("underRoot: a path that stays under its root, normalized; climbing out, absolute and ~ are refused (docs/adr/0048)", () => {
+  assert.equal(underRoot("/w", "a/b.md"), "a/b.md");
+  assert.equal(underRoot("/w", "./a/./b.md"), "a/b.md");
+  assert.equal(underRoot("/w", "a/../b.md"), "b.md");
+  assert.equal(underRoot("/w", "a//b.md"), "a/b.md");
+  for (const bad of ["../x.md", "../../../etc/passwd", "../w/a.md", "a/../../w/a.md", "/etc/passwd", "~/x.md", "~", "", ".", "a/.."]) {
+    assert.equal(underRoot("/w", bad), null, bad);
+  }
+});
+
+test("argPath: a relative path never reads as an option (docs/adr/0048)", () => {
+  assert.equal(argPath("-x.gm"), "./-x.gm");
+  assert.equal(argPath("chapters/01.gm"), "./chapters/01.gm");
+  assert.equal(argPath("/w/p/a.pdf"), "/w/p/a.pdf");
+});
+
+test("within: a path read from a folder, kept under the root", () => {
+  assert.equal(within("/w", "/w/notes", "img/a.png"), "/w/notes/img/a.png");
+  assert.equal(within("/w", "/w/notes", "../img/a.png"), "/w/img/a.png");
+  assert.equal(within("/w", "/w", "a.png"), "/w/a.png");
+  assert.equal(within("/w", "/w/notes", "../../a.png"), null);
+  assert.equal(within("/w", "/w/notes", "/w/a.png"), null);
+  assert.equal(within("/w", "/x", "a.png"), null);
 });

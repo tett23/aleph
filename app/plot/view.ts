@@ -6,7 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "../api.ts";
 import { esc } from "../esc.ts";
 import { h, icon } from "../icons.ts";
-import { basename } from "../path.ts";
+import { basename, underRoot } from "../path.ts";
 import { uiState } from "../uistate.ts";
 import { confirmDialog, ask, toast } from "../ui/dom.ts";
 import {
@@ -113,6 +113,11 @@ export const openPlotWindow = (project: string) =>
   new WebviewWindow(`plot-${Date.now()}`, { url: `index.html?view=plot&project=${encodeURIComponent(project)}`, title: `プロット — ${basename(project)}`, width: 1300, height: 800 });
 
 export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFile?: (rel: string) => void; standalone?: boolean } = {}): PlotView => {
+  // a file that leaves the project is not opened (docs/adr/0048)
+  const openFile = (f: string) => {
+    const r = underRoot(project, f.trim());
+    if (r) opts.onOpenFile?.(r);
+  };
   const csvPath = `${project}/plot.csv`;
   const calPath = `${project}/plot-calendar.txt`;
   let rows: PlotRow[] = [];
@@ -265,10 +270,10 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
       calendarFile = next;
       await api.writeText(calPath, next.join("\n") + "\n");
     } else if (d.act === "window") return void openPlotWindow(project);
-    else if (d.open) return opts.onOpenFile?.(d.open);
+    else if (d.open) return openFile(d.open);
     else if (t.classList.contains("bar")) {
       const r = rows[Number(d.row)];
-      if (r?.file.trim()) opts.onOpenFile?.(r.file.trim());
+      if (r?.file.trim()) openFile(r.file);
       return;
     }
     render();

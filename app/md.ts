@@ -2,7 +2,7 @@
 // conversion to .gm (docs/adr/0016): CommonMark's common parts and GFM's
 // strikethrough, task lists, autolinks and tables (docs/adr/0035), no HTML.
 import { esc } from "./esc.ts";
-import { resolve } from "./path.ts";
+import { within } from "./path.ts";
 
 export type Inline =
   | { t: "text"; v: string }
@@ -416,8 +416,8 @@ const unesc = (s: string) => s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string)
 const imageHtml = (src: string, alt: string, base: ImageBase | undefined) => {
   const s = src.trim();
   if (/^[a-z][a-z0-9+.-]*:/i.test(s) || s.startsWith("//")) return `<span class="img-note">${esc(alt)}（外部の画像は読み込みません：${esc(s)}）</span>`;
-  const p = base && !s.startsWith("/") ? resolve(base.dir, s) : null;
-  return p && p.startsWith(`${base!.root}/`) ? `<img data-src="${esc(p)}" alt="${esc(alt)}">` : `<span class="img-note">${esc(alt)}（ワークスペースの外の画像は読み込みません）</span>`;
+  const p = base ? within(base.root, base.dir, s) : null;
+  return p ? `<img data-src="${esc(p)}" alt="${esc(alt)}">` : `<span class="img-note">${esc(alt)}（ワークスペースの外の画像は読み込みません）</span>`;
 };
 
 export const markdownHtml = (src: string, { embed = embedLink, breaks = "blank-line", base }: HtmlOptions = {}): string =>
