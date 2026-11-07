@@ -4,6 +4,7 @@
 mod fsops;
 mod guard;
 mod lsp;
+mod nav;
 mod process;
 mod replace;
 mod search;
@@ -311,6 +312,18 @@ async fn remove_plugin(app: AppHandle, name: String) -> R<bool> {
         return Ok(false);
     }
     guard::remove_plugin(&dir, &name).map(|_| true)
+}
+
+/// Opens an http(s) link from a preview in the default browser (docs/adr/0044).
+#[tauri::command]
+fn open_url(url: String) -> R<()> {
+    let u = nav::web_url(&url)
+        .ok_or_else(|| format!("ブラウザで開けるのは http と https だけです：{url}"))?;
+    std::process::Command::new("/usr/bin/open")
+        .arg(u)
+        .status()
+        .map(|_| ())
+        .map_err(err)
 }
 
 /// Opens the plugins folder in Finder.
@@ -799,6 +812,24 @@ fn bundled_version(name: &str) -> String {
 pub fn run_app() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // windows stay on the app's pages (docs/adr/0044)
+        .plugin(
+            tauri::plugin::Builder::<tauri::Wry>::new("navigation")
+                .on_navigation(|w, url| {
+                    let dev = tauri::is_dev()
+                        .then(|| {
+                            w.app_handle()
+                                .config()
+                                .build
+                                .dev_url
+                                .as_ref()
+                                .map(|u| u.to_string())
+                        })
+                        .flatten();
+                    nav::navigation_allowed(url.as_str(), dev.as_deref())
+                })
+                .build(),
+        )
         .manage(lsp::Servers::default())
         .manage(Kept::default())
         .menu(menu)
@@ -875,7 +906,8 @@ pub fn run_app() {
             add_workspace,
             choose_library,
             choose_binary,
-            set_binary
+            set_binary,
+            open_url
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")
