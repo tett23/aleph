@@ -11,7 +11,7 @@ import { lineMarks } from "./diff";
 import { gmBlocks, mdToGm, plainParagraphs, stats, type Grid } from "./gm";
 import { esc, h, icon } from "./icons";
 import { lspFor } from "./lsp";
-import { dropIntoLibrary, mountDiagnostics, mountLibraryAll, mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
+import { diagSummary, focusDiag, runDiag, dropIntoLibrary, mountDiagnostics, mountLibraryAll, mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
 import { mountPlot } from "./plot";
 import { applyZoom, autoDpi, pageInches, rasterize, setZoom, zoom, zoomControls, renderImage } from "./preview";
 import { buildChapterHtml, buildPages, renderEvaluated, renderMarkdown, renderMermaid, renderPages, renderPdf, renderSvg, type BuildResult } from "./preview";
@@ -528,6 +528,7 @@ const openFile = async (path: string, line?: number, col?: number) => {
     }
   }
   state.diagnostics = { errors: 0, warnings: 0 };
+  if (project && !diagSummary(project, "lint")) scheduleChecks(project, 300);
   mountMain();
   if (line) state.editor?.goto(line, col);
   renderAll();
@@ -720,6 +721,7 @@ const save = async (explicit = false, o?: Open) => {
   renderSide();
   if (d.path.endsWith("/style.toml") || d.path.endsWith("/manifest.toml")) projectChapters.clear();
   if (d.project && d.kind === "gm" && state.side === "plain") refreshHtml(d);
+  if (d.project && ["gm", "emet", "toml"].includes(d.kind)) scheduleChecks(d.project);
   if (d.project && config.rebuildOnSave && (state.side === "pages" || pagesWindows.has(d.project))) {
     clearTimeout(buildTimer);
     buildTimer = window.setTimeout(() => build(d.project!), explicit ? 0 : 800);
@@ -740,6 +742,27 @@ const build = async (project: string, dpi?: number) => {
 };
 
 const pagesWindows = new Set<string>();
+
+// ---- lint and preflight in the background, for the status bar ----
+const checking = new Set<string>();
+let checkTimer = 0;
+const runChecks = async (project: string) => {
+  if (checking.has(project)) return;
+  checking.add(project);
+  scheduleStatus();
+  try {
+    await runDiag(project, "lint");
+    scheduleStatus();
+    await runDiag(project, "preflight");
+  } finally {
+    checking.delete(project);
+    scheduleStatus();
+  }
+};
+const scheduleChecks = (project: string, delay = 2500) => {
+  clearTimeout(checkTimer);
+  checkTimer = window.setTimeout(() => runChecks(project), delay);
+};
 
 /** The dpi the page pane needs now (or the fixed one from the settings). */
 const wantedDpi = async (project: string, width = sideBody.clientWidth || 500) => autoDpi(width, await pageInches(project), zoom());
@@ -926,6 +949,7 @@ const renderSidePane = () => {
   if (!show || !d) return;
   const text = state.editor?.text() ?? d.text;
   if (state.side === "pages" && d.project) {
+    if (!state.pages.has(d.project) && !state.building.has(d.project)) void build(d.project);
     const busy = state.building.has(d.project);
     sideHead.innerHTML = `${icon("book-open", 13)}<span>ページ · ${esc(basename(d.project))}</span><span class="sp"></span><span class="iconbtn" data-build title="組む">${icon("refresh-cw", 14)}</span><span class="iconbtn" data-pagewin title="別ウィンドウ">${icon("external-link", 14)}</span>`;
     sideHead.insertAdjacentHTML("beforeend", zoomControls());
@@ -1020,6 +1044,16 @@ const scheduleStatus = () => {
   statusTimer = window.setTimeout(renderStatus, 250);
 };
 
+/** "● lint" coloured by the worst severity; grey while unknown or running. */
+const chk = (project: string, k: "lint" | "preflight") => {
+  const s = diagSummary(project, k);
+  const running = checking.has(project) && (!s || k === "preflight");
+  const cls = !s ? "" : s.failed ? "ng" : s.errors ? "ng" : s.warnings ? "warn" : s.notices ? "note" : "ok";
+  const n = s ? s.errors + s.warnings + s.notices : 0;
+  const tip = !s ? "まだ実行していません" : s.failed ? "実行できませんでした" : `エラー ${s.errors}、警告 ${s.warnings}、お知らせ ${s.notices}`;
+  return `<span class="chk ${cls} ${running ? "running" : ""}" data-chk="${k}" title="${tip}（押すと一覧）">● ${k}${n ? ` ${n}` : ""}</span>`;
+};
+
 const renderStatus = () => {
   const d = state.doc;
   const c = docCounts();
@@ -1034,6 +1068,7 @@ const renderStatus = () => {
   const extra = registry.status.map((f) => f(ctx.current())).filter(Boolean);
   statusEl.innerHTML = d
     ? `${lsp ? `<span class="${lsp === "ready" ? "ok" : lsp === "failed" ? "ng" : ""}">● LSP${lsp === "failed" ? " を起動できません" : lsp === "starting" ? " 起動中" : ""}</span>` : ""}
+       ${d.project ? (["lint", "preflight"] as const).map((k) => chk(d.project!, k)).join("") : ""}
        ${state.diagnostics.errors + state.diagnostics.warnings ? `<span class="problems ${state.diagnostics.errors ? "ng" : ""}" data-problems title="一覧を開く">${state.diagnostics.errors ? `エラー ${state.diagnostics.errors}` : ""} ${state.diagnostics.warnings ? `警告 ${state.diagnostics.warnings}` : ""}</span>` : ""}
        ${extra.map((x) => `<span>${esc(x)}</span>`).join("")}
        <span>${c.chars.toLocaleString()} 字</span><span>${c.words.toLocaleString()} 語</span><span>原稿用紙 ${c.sheets} 枚</span>
@@ -1043,7 +1078,15 @@ const renderStatus = () => {
 };
 
 statusEl.addEventListener("click", (e) => {
-  if ((e.target as HTMLElement).closest("[data-problems]")) state.editor?.openProblems();
+  const t = e.target as HTMLElement;
+  if (t.closest("[data-problems]")) state.editor?.openProblems();
+  const k = t.closest<HTMLElement>("[data-chk]")?.dataset.chk as "lint" | "preflight" | undefined;
+  if (k && state.doc?.project) {
+    focusDiag(state.doc.project, k);
+    state.left = "diagnostics";
+    state.showLeft = true;
+    renderSide();
+  }
 });
 mainBody.addEventListener("keyup", scheduleStatus);
 mainBody.addEventListener("mouseup", scheduleStatus);

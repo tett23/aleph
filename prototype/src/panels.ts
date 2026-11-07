@@ -293,6 +293,47 @@ type GolemDiag = {
 };
 const diagState = { project: "", kind: "check" as "check" | "lint" | "preflight", running: false, results: new Map<string, { at: string; items: GolemDiag[]; log: string }>() };
 
+export type DiagKind = "check" | "lint" | "preflight";
+const diagKey = (project: string, kind: DiagKind) => `${project}\n${kind}`;
+
+/** Runs golem check, lint or preflight with --format json and keeps the result. */
+export const runDiag = async (project: string, kind: DiagKind) => {
+  const args = kind === "preflight" ? ["preflight", "--format", "json"] : [kind, "--format", "json", "-v"];
+  const out = await api.tool("golem", bin("golem"), project, args).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
+  // check and lint write the JSON to stdout, preflight to stderr: take whichever parses
+  const parse = (t: string): GolemDiag[] | null => {
+    try {
+      const v = JSON.parse(t.trim());
+      return Array.isArray(v) ? v : null;
+    } catch {
+      return null;
+    }
+  };
+  const parsed = parse(out.stdout) ?? parse(out.stderr);
+  const items: GolemDiag[] = parsed ?? [];
+  let log = parsed ? "" : (out.stdout + out.stderr).trim();
+  if (!items.length && out.code !== 0 && !log) log = out.stderr.trim();
+  const order = { error: 0, warning: 1, notice: 2, info: 3 };
+  items.sort((a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9) || (a.span?.file ?? "").localeCompare(b.span?.file ?? "") || (a.span?.line ?? 0) - (b.span?.line ?? 0));
+  const r = { at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }), items, log };
+  diagState.results.set(diagKey(project, kind), r);
+  return r;
+};
+
+/** Counts for the status bar; null before the first run. `failed` when golem printed no diagnostics but failed. */
+export const diagSummary = (project: string, kind: DiagKind) => {
+  const r = diagState.results.get(diagKey(project, kind));
+  if (!r) return null;
+  const n = (k: string) => r.items.filter((d) => d.severity === k).length;
+  return { errors: n("error"), warnings: n("warning"), notices: n("notice"), failed: !!r.log };
+};
+
+/** Points the diagnostics panel at a project and a kind. */
+export const focusDiag = (project: string, kind: DiagKind) => {
+  diagState.project = project;
+  diagState.kind = kind;
+};
+
 export const mountDiagnostics = async (el: HTMLElement, ctx: Ctx) => {
   const projects = await allProjects();
   if (!projects.length) {
@@ -301,7 +342,7 @@ export const mountDiagnostics = async (el: HTMLElement, ctx: Ctx) => {
   }
   const cur = ctx.current()?.project;
   if (!projects.includes(diagState.project)) diagState.project = cur && projects.includes(cur) ? cur : projects[0];
-  const key = () => `${diagState.project}\n${diagState.kind}`;
+  const key = () => diagKey(diagState.project, diagState.kind);
   const sev = { error: ["circle-x", "エラー"], warning: ["triangle-alert", "警告"], notice: ["info", "お知らせ"], info: ["info", "情報"] } as const;
   const render = () => {
     const r = diagState.results.get(key());
@@ -338,24 +379,7 @@ export const mountDiagnostics = async (el: HTMLElement, ctx: Ctx) => {
   const run = async () => {
     diagState.running = true;
     render();
-    const args = diagState.kind === "preflight" ? ["preflight", "--format", "json"] : [diagState.kind, "--format", "json", "-v"];
-    const out = await api.tool("golem", bin("golem"), diagState.project, args).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
-    // check and lint write the JSON to stdout, preflight to stderr: take whichever parses
-    const parse = (t: string): GolemDiag[] | null => {
-      try {
-        const v = JSON.parse(t.trim());
-        return Array.isArray(v) ? v : null;
-      } catch {
-        return null;
-      }
-    };
-    const parsed = parse(out.stdout) ?? parse(out.stderr);
-    let items: GolemDiag[] = parsed ?? [];
-    let log = parsed ? "" : (out.stdout + out.stderr).trim();
-    if (!items.length && out.code !== 0 && !log) log = out.stderr.trim();
-    const order = { error: 0, warning: 1, notice: 2, info: 3 };
-    items.sort((a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9) || (a.span?.file ?? "").localeCompare(b.span?.file ?? "") || (a.span?.line ?? 0) - (b.span?.line ?? 0));
-    diagState.results.set(key(), { at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }), items, log });
+    await runDiag(diagState.project, diagState.kind);
     diagState.running = false;
     render();
   };

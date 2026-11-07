@@ -57,19 +57,43 @@ const gantt = (rows: PlotRow[], subplots: string[], calendar: string[], zoom = 1
   const col = Math.max(70, Math.min(140, Math.floor(1000 / calendar.length)));
   const W = col * calendar.length;
   const lanes = subplots.length ? subplots : ["(なし)"];
-  const laneH = 34;
-  let svg = `<svg class="gantt-svg" width="${(W + 150) * zoom}" height="${(lanes.length * laneH + 34) * zoom}" viewBox="-130 -26 ${W + 150} ${lanes.length * laneH + 34}">`;
-  calendar.forEach((label, k) => {
-    svg += `<line x1="${k * col}" x2="${k * col}" y1="-6" y2="${lanes.length * laneH}" class="tick"/><text x="${k * col + 4}" y="-10" class="tl">${esc(label.length > 12 ? label.slice(0, 11) + "…" : label)}</text>`;
-  });
-  lanes.forEach((lane, li) => {
-    svg += `<text x="-120" y="${li * laneH + 21}" class="lane" fill="${subplotColor(subplots, lane)}">${esc(lane)}</text>`;
-    items
+  const rowH = 30; // one stacked row of bars
+  const gap = 10; // between lanes
+  // in each lane, bars whose times overlap go to separate rows (first fit)
+  const packed = lanes.map((lane) => {
+    const its = items
       .filter((it) => (subplots.length ? namesCell(it.r.subplots).includes(lane) : true))
-      .forEach((it) => {
-        const c = subplotColor(subplots, lane);
-        svg += `<g class="bar" data-row="${it.i}"><rect x="${it.s * col + 2}" y="${li * laneH + 7}" width="${(it.e - it.s) * col - 4}" height="20" rx="3" fill="${c}" fill-opacity=".22" stroke="${c}"/><text x="${it.s * col + 7}" y="${li * laneH + 21}" fill="${c}">${esc(it.r.scene || basename(it.r.file))}</text></g>`;
-      });
+      .sort((a, b) => a.s - b.s || a.e - b.e);
+    const ends: number[] = [];
+    const placed = its.map((it) => {
+      let row = ends.findIndex((end) => end <= it.s);
+      if (row < 0) row = ends.push(0) - 1;
+      ends[row] = it.e;
+      return { it, row };
+    });
+    return { lane, placed, rows: Math.max(1, ends.length) };
+  });
+  const tops: number[] = [];
+  packed.reduce((y, p, i) => ((tops[i] = y), y + p.rows * rowH + gap), 0);
+  const H = packed.reduce((a, p) => a + p.rows * rowH + gap, 0);
+  let svg = `<svg class="gantt-svg" width="${(W + 150) * zoom}" height="${(H + 30) * zoom}" viewBox="-130 -26 ${W + 150} ${H + 30}">`;
+  calendar.forEach((label, k) => {
+    svg += `<line x1="${k * col}" x2="${k * col}" y1="-6" y2="${H}" class="tick"/><text x="${k * col + 4}" y="-10" class="tl">${esc(label.length > 12 ? label.slice(0, 11) + "…" : label)}</text>`;
+  });
+  packed.forEach(({ lane, placed, rows }, li) => {
+    const top = tops[li];
+    const c = subplotColor(subplots, lane);
+    if (li > 0) svg += `<line x1="-130" x2="${W}" y1="${top - gap / 2}" y2="${top - gap / 2}" class="lanesep"/>`;
+    svg += `<text x="-120" y="${top + (rows * rowH) / 2 + 4}" class="lane" fill="${c}">${esc(lane)}</text>`;
+    placed.forEach(({ it, row }) => {
+      const x = it.s * col + 2;
+      const w = (it.e - it.s) * col - 4;
+      const y = top + row * rowH + 4;
+      const label = it.r.scene || basename(it.r.file);
+      // keep the label inside its bar
+      const fit = Math.max(1, Math.floor((w - 10) / 12));
+      svg += `<g class="bar" data-row="${it.i}"><title>${esc(label)}（${esc(it.r.start)}${it.r.end && it.r.end !== it.r.start ? `〜${esc(it.r.end)}` : ""}）</title><rect x="${x}" y="${y}" width="${w}" height="${rowH - 8}" rx="3" fill="${c}" fill-opacity=".18" stroke="${c}"/><text x="${x + 6}" y="${y + 15}" fill="${c}">${esc([...label].length > fit ? [...label].slice(0, Math.max(1, fit - 1)).join("") + "…" : label)}</text></g>`;
+    });
   });
   return svg + "</svg>";
 };
