@@ -39,6 +39,8 @@ export const api = {
   lspStart: (id: string, cwd: string) => invoke<void>("lsp_start", { id, cwd }),
   lspSend: (id: string, message: string) => invoke<void>("lsp_send", { id, message }),
   lspStop: (id: string) => invoke<void>("lsp_stop", { id }),
+  /** Opens an http(s) link in the default browser (docs/adr/0044). */
+  openUrl: (url: string) => invoke<void>("open_url", { url }),
   pluginsDir: () => invoke<string>("plugins_dir"),
   /** Plugins added and removed through native dialogs (docs/adr/0042); null or false when the writer stopped. */
   installPlugin: () => invoke<string | null>("install_plugin"),

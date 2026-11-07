@@ -58,6 +58,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0041](adr/0041-checks-after-replacing.md) | ワークスペース全体の置換のあとに lint と preflight を走らせる（実装済み） |
 | [ADR 0042](adr/0042-ipc-trust-boundary.md) | IPC の信頼の境界、CSP、プラグインの追加と削除（実装済み） |
 | [ADR 0043](adr/0043-golem-html-sanitizer.md) | Golem の HTML を許可リストで組み立て直す（実装済み） |
+| [ADR 0044](adr/0044-navigation-from-the-preview.md) | プレビューからの移動を止め、外部のリンクはブラウザで開く（実装済み） |
 | [ADR 0050](adr/0050-paths-the-writer-chooses.md) | 書き手が選んだパスだけを、範囲と実行ファイルに足す（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
@@ -82,6 +83,7 @@ Rust の側は、画面（webview）からの呼び出しを信じきらない�
 - git、golem、shem の実行ファイルは、Rust の側が設定から決める。画面からは渡せない。サブコマンドは Aleph が使うものに限る（git は `add`、`branch`、`commit`、`diff`、`log`、`pull`、`push`、`rev-parse`、`show`、`status`、golem は `build`、`check`、`fmt`、`lint`、`new`、`preflight`、`lsp`、`--version`、shem は `render`、`--version`）。作業のディレクトリも上の範囲に限る。
 - 設定のうち、`workspaces`、`libraryDir`、`gitPath`、`golemPath`、`shemPath` は Rust の側だけが足し、変える。画面からの保存では、ワークスペースを外すことと、パスを空にすることだけを受け付ける。ワークスペースを足す、共有ライブラリを選ぶか作る、バイナリを選ぶときは、Rust の側がネイティブのダイアログを開く。バイナリのパスを欄に打ったときは、Rust の側がネイティブの確認のダイアログを出し、はいのときだけ使う。
 - 権限は、Aleph が開くウィンドウ（`main`、`plain-*`、`pages-*`、`plot-*`、`imelog-*`）に限って与える。
+- ウィンドウは、アプリのページ（開発のときは開発のサーバー）から外へ移らない（[ADR 0044](adr/0044-navigation-from-the-preview.md)）。プレビューのリンクを押しても、ウィンドウは移らない。`#…` はプレビューの中のその要素へ送り、`http` と `https` は URL を示して確かめてから既定のブラウザで開く。ウィキリンクと埋め込みの見出しは Aleph の中で開き、ほかのリンク（`file:`、相対のパスなど）は何もしない。`target="_blank"` と `window.open` も新しいウィンドウを開かない。
 
 ## 画面の構成
 
