@@ -1,6 +1,7 @@
 // Replacing across the workspace (docs/adr/0032): the pieces of the search
 // panel that need no DOM. The replacing itself is in Rust (replace.rs).
 import { esc } from "./esc.ts";
+import { projectOf } from "./workspace.ts";
 
 /** A hit's line with the match struck out and its replacement in strong, by characters. */
 export const afterHtml = (text: string, start: number, end: number, after: string) => {
@@ -22,3 +23,7 @@ export const spotsOf = (hits: (Spot & { path: string })[], chosen: Set<number>):
   });
   return out;
 };
+
+/** The projects whose lint and preflight run after a replace: those holding a replaced .gm, .emet, .toml or .json (docs/adr/0041). */
+export const projectsTouched = (paths: string[], projects: string[]): string[] =>
+  [...new Set(paths.filter((p) => /\.(gm|emet|toml|json)$/.test(p)).flatMap((p) => projectOf(p, projects) ?? []))];

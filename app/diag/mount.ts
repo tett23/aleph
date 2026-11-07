@@ -94,6 +94,9 @@ export const showDiag = (ctx: Ctx, project: string, kind: Kind) => {
   else ctx.refresh(["left"]);
 };
 
+/** Lint and preflight for some projects now (a replace's files changed on disk, docs/adr/0041); set by the mount. */
+export const diagHooks: { recheck: (projects: string[]) => Promise<void> } = { recheck: async () => {} };
+
 export const mountDiagnostics = (ctx: Ctx) => {
   ctx.left.diagnostics = { icon: "list-checks", title: "診断", render: (el) => drawPanel(el, ctx) };
 
@@ -122,6 +125,14 @@ export const mountDiagnostics = (ctx: Ctx) => {
   };
   const opened = new Set<string>();
   const timers = new Map<string, number>();
+  // after a replace across the workspace (docs/adr/0041): at once, the pending runs after saving dropped
+  diagHooks.recheck = async (projects) => {
+    for (const p of projects) {
+      clearTimeout(timers.get(p));
+      timers.delete(p);
+      await background(p);
+    }
+  };
   ctx.store.subscribe((s, prev) => {
     for (const d of allDocs(s)) {
       if (!d.project) continue;

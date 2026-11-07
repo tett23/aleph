@@ -11,7 +11,8 @@ import { icon } from "./icons.ts";
 import { rel } from "./path.ts";
 import { allDocs, focused } from "./store.ts";
 import { diffText } from "./ed/ime.ts";
-import { afterHtml, confirmText, spotsOf } from "./replace.ts";
+import { afterHtml, confirmText, projectsTouched, spotsOf } from "./replace.ts";
+import { diagHooks } from "./diag/mount.ts";
 import { git } from "./tools.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree } from "./ui/tree.ts";
@@ -150,6 +151,8 @@ const replaceRun = async (ctx: Ctx, all: boolean, rerun: () => Promise<Found | s
   await reloadTree(ctx);
   ctx.refresh(["left"]);
   await rerun();
+  // the files changed on disk get their lint and preflight too (docs/adr/0041)
+  await diagHooks.recheck(projectsTouched([...touched], ctx.projects));
 };
 
 export const mountSearch = (ctx: Ctx) => {
