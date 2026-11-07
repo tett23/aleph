@@ -29,6 +29,8 @@ const save = async (ctx: Ctx, ws: string, list: Bookmark[]) => {
 
 /** A section drawn under the bookmarks (the recent sheets of docs/adr/0026). */
 export const bookmarkSections: ((ctx: Ctx, ws: string) => Promise<string>)[] = [];
+/** Presses inside those sections; return true when taken. */
+export const bookmarkClicks: ((t: HTMLElement, ctx: Ctx) => boolean | Promise<boolean>)[] = [];
 
 const nameOf = (ctx: Ctx, abs: string) => ctx.titles.get(abs) ?? basename(abs);
 
@@ -113,6 +115,7 @@ export const mountBookmarks = (ctx: Ctx) => {
       el.onclick = async (e) => {
         const ws = ctx.store.get().workspace;
         const t = e.target as HTMLElement;
+        for (const f of bookmarkClicks) if (await f(t, ctx)) return;
         const row = t.closest<HTMLElement>("[data-bm]");
         if (!ws || !row || t.closest("[data-grip]")) return;
         const i = Number(row.dataset.bm);

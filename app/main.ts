@@ -21,6 +21,7 @@ import { mountEditors } from "./editor/host.ts";
 import { mountJson } from "./jsonfeature.ts";
 import { mountCommands } from "./palette.ts";
 import { mountBookmarks } from "./bookmarkpanel.ts";
+import { mountRecent, reopenLast } from "./recentpanel.ts";
 import { mountLsp } from "./lsp/mount.ts";
 import { mountAttach } from "./attach.ts";
 import { mountLibrary } from "./libpanel.ts";
@@ -176,6 +177,7 @@ const start = async () => {
   mountSearch(ctx);
   mountMdConvert(ctx);
   mountBookmarks(ctx);
+  mountRecent(ctx);
   // last: the built-in commands, the settings sections as commands, and the window's keys (docs/adr/0023)
   mountCommands(ctx);
   // a file to open, sent by another window (the plot window)
@@ -193,6 +195,8 @@ const start = async () => {
   });
   store.subscribe((s, prev) => draw(s, prev));
   draw(store.get(), null);
+  // the sheet open when Aleph was last closed (docs/adr/0026)
+  void reopenLast(ctx);
   // plugins load last: a slow or failing one does not hold up the window
   void mountPlugins(ctx);
 };
