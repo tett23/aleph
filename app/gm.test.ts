@@ -105,3 +105,13 @@ test("page breaks: a heading that does not fit moves to the next page", () => {
   const src = `${"あ".repeat(70)}\n\n# 見出し\n`;
   assert.deepEqual(estimatePageBreaks(src, { chars: 10, lines: 8, vertical: false }), [{ line: 2, page: 2 }]);
 });
+
+test("page breaks follow the paragraph separator: the line style makes each line a paragraph", () => {
+  // two source lines of 15 characters, 10 characters a line, 3 lines a page:
+  // blank-line style: one paragraph of 30 characters, 3 lines, no break;
+  // line style: two paragraphs of 2 lines each, the second breaks onto page 2
+  const src = `${"あ".repeat(15)}\n${"い".repeat(15)}\n`;
+  const grid = { chars: 10, lines: 3, vertical: false };
+  assert.deepEqual(estimatePageBreaks(src, grid, "blank-line"), []);
+  assert.deepEqual(estimatePageBreaks(src, grid, "line"), [{ line: 1, page: 2 }]);
+});

@@ -78,3 +78,25 @@ test("the planned characters of a sheet: the sum of its rows' targets", () => {
   assert.equal(targetFor(p.rows, "/w/p", "/w/p/chapters/01.gm"), 1300);
   assert.equal(targetFor(p.rows, "/w/p", "/w/p/chapters/02.gm"), null);
 });
+
+test("cells beyond the header are dropped, and the table reads back the same", async () => {
+  const p = parsePlot("scene,start\n霧笛,冬,余り,もう一つ\n");
+  assert.equal(p.rows[0].scene, "霧笛");
+  assert.equal(p.rows[0].start, "冬");
+  assert.deepEqual(p.extras, []);
+  assert.ok(!Object.values(p.rows[0]).includes("余り"));
+  assert.deepEqual(parsePlot(writePlot(p.rows, p.extras)), p);
+});
+
+test("bars on the calendar: the end is included; a scene without an end takes one step and stacks against one at the same start", async () => {
+  const { barsOf } = await import("./data.ts");
+  const cal = ["初雪", "冬至", "春"];
+  const rows = [row("初雪", "冬至"), row("冬至"), row("冬至", "春"), row("どこにもない")];
+  assert.deepEqual(barsOf(rows, [0, 1, 2, 3], cal), [
+    { i: 0, s: 0, e: 2 },
+    { i: 1, s: 1, e: 2 },
+    { i: 2, s: 1, e: 3 },
+  ]);
+  const st = stackLanes(barsOf(rows, [1, 2], cal));
+  assert.deepEqual(st.rows, [0, 1]);
+});

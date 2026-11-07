@@ -78,6 +78,19 @@ export const calendarOf = (rows: PlotRow[], file: string[]): string[] => {
   return seen.every((l) => valueOf(l) !== null) ? [...seen].sort((x, y) => valueOf(x)! - valueOf(y)!) : seen;
 };
 
+/**
+ * The bars of rows on the calendar, as steps [s, e): the end is included, a row
+ * without an end takes one step, rows whose start is not on the calendar have none.
+ */
+export const barsOf = (rows: PlotRow[], indices: number[], calendar: string[]): { i: number; s: number; e: number }[] =>
+  indices.flatMap((i) => {
+    const r = rows[i];
+    const s = calendar.indexOf(r.start.trim());
+    if (s < 0) return [];
+    const e = r.end.trim() ? calendar.indexOf(r.end.trim()) : s;
+    return [{ i, s, e: Math.max(s, e) + 1 }];
+  });
+
 /** Bars [s, e) of one lane, in order: each goes to the first row free at its start (bars are taken by their start). */
 export const stackLanes = (bars: { s: number; e: number }[]): { rows: number[]; count: number } => {
   const order = bars.map((b, i) => ({ ...b, i })).sort((a, b) => a.s - b.s || a.e - b.e || a.i - b.i);

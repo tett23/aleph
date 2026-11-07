@@ -33,6 +33,8 @@ pub struct Roots {
     pub home: Option<PathBuf>,
     pub resources: Option<PathBuf>,
     pub homebrew: PathBuf,
+    /// /usr/bin, where macOS keeps git.
+    pub usr_bin: PathBuf,
     pub path: Option<String>,
 }
 
@@ -42,6 +44,7 @@ impl Roots {
             home: std::env::var_os("HOME").map(PathBuf::from),
             resources,
             homebrew: PathBuf::from("/opt/homebrew"),
+            usr_bin: PathBuf::from("/usr/bin"),
             path: std::env::var("PATH").ok(),
         }
     }
@@ -88,7 +91,7 @@ fn candidates(name: &str, place: Place, roots: &Roots) -> Vec<PathBuf> {
             .map(|h| h.join(".local/bin").join(name))
             .collect(),
         Place::Homebrew => vec![roots.homebrew.join("bin").join(name)],
-        Place::UsrBin => vec![PathBuf::from("/usr/bin").join(name)],
+        Place::UsrBin => vec![roots.usr_bin.join(name)],
         Place::Path => roots
             .path
             .as_deref()
@@ -141,6 +144,7 @@ mod tests {
             home: Some(d.join("home")),
             resources: Some(d.join("res")),
             homebrew: d.join("brew"),
+            usr_bin: d.join("usr/bin"),
             path: Some(format!(
                 "{}:{}",
                 d.join("p1").display(),
@@ -219,6 +223,32 @@ mod tests {
         let found = find("git", None, &GIT_ORDER, &r);
         assert_ne!(found, Some(d.join("res/git")));
         assert_ne!(found, Some(d.join("home/.local/bin/git")));
+    }
+
+    #[test]
+    fn with_an_empty_path_git_and_golem_are_found_in_the_fixed_places() {
+        // a GUI app on macOS gets no login PATH (docs/adr/0003)
+        let d = testdir::fresh("nopath");
+        let r = Roots {
+            path: Some(String::new()),
+            ..roots(&d)
+        };
+        fake(&d.join("usr/bin/git"), "system");
+        fake(&d.join("brew/bin/git"), "brew");
+        fake(&d.join("brew/bin/golem"), "brew");
+        assert_eq!(
+            find("git", None, &GIT_ORDER, &r),
+            Some(d.join("usr/bin/git"))
+        );
+        assert_eq!(
+            find("golem", None, &TOOL_ORDER, &r),
+            Some(d.join("brew/bin/golem"))
+        );
+        std::fs::remove_file(d.join("usr/bin/git")).unwrap();
+        assert_eq!(
+            find("git", None, &GIT_ORDER, &r),
+            Some(d.join("brew/bin/git"))
+        );
     }
 
     #[test]

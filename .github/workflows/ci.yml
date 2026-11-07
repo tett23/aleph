@@ -55,8 +55,7 @@ jobs:
 
   # The app: the TypeScript side (type check, node --test, Vite build) and the
   # Rust side (rustfmt, clippy, cargo test), on macOS, the platform Aleph
-  # targets first (docs/adr/0002, docs/adr/0003). Until the implementation
-  # (src-tauri/ at the root) exists, the throwaway prototype/ is checked.
+  # targets first (docs/adr/0002, docs/adr/0003).
   app:
     runs-on: macos-15
     steps:
@@ -67,7 +66,6 @@ jobs:
         id: app
         run: |
           if [ -f src-tauri/Cargo.toml ]; then dir=.
-          elif [ -f prototype/src-tauri/Cargo.toml ]; then dir=prototype
           else dir=; fi
           echo "dir=$dir" >> "$GITHUB_OUTPUT"
           echo "checking: ${dir:-nothing}"

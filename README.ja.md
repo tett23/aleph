@@ -14,7 +14,7 @@ README.ja.md はその機械翻訳です。
 Aleph は [Tauri](https://tauri.app/) で作るデスクトップアプリケーションです。
 Golem の原稿を書き、それがどう組まれるかを見て、作品のプロットを管理するためのものです。
 
-次の形式を編集できるようにします。
+次の形式を編集できます。
 
 - Markdown（`.md`）
 - Golem の文書（`.gm`）と Emet（`.emet`）
@@ -27,13 +27,35 @@ Golem の原稿を書き、それがどう組まれるかを見て、作品の�
 
 ## 状態
 
-本実装はまだ始めていません。
-捨てる前提のプロトタイプが [prototype/](prototype/) にあり、動かし方はその README にあります。
-プロトタイプからわかった設計は、[docs/adr/](docs/adr/) の ADR（Architecture Decision Record）で採択しました。
-どれもまだ実装していません。
-仕様は [docs/specifications.md](docs/specifications.md) にあります。
+最初の版を実装しました。エディタ（横書きと縦書き）、golem lsp、本文とページのプレビュー、保存と Git、目標とノート、プロットとガントチャート、共有ライブラリ、診断と検索、Markdown からの変換、プラグインがあります。
+決定はそれぞれ [docs/adr/](docs/adr/) の ADR（Architecture Decision Record）にあり、今の振る舞いは [docs/specifications.md](docs/specifications.md) にあります。
+まず Apple Silicon の macOS を対象にしています。
+
+## 動かし方
+
+Node.js（最新の LTS）、Rust、[Golem](https://github.com/tett23/golem) と [shem](https://github.com/tett23/shem) を入れます（または `scripts/bundle-tools.sh` で同梱したものを Aleph に使わせます）。
+
+```sh
+npm ci
+npx tauri dev
+```
+
+golem と shem を中に入れてアプリを作るには、次のようにします。
+
+```sh
+sh scripts/bundle-tools.sh
+npx tauri build
+```
 
 ## 開発
+
+CI が実行する検査は次のとおりです。
+
+```sh
+npx tsc --noEmit
+npm test
+(cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+```
 
 [adr-guard](https://github.com/tett23/adr-guard) v0.10.0 以降を入れ、clone ごとに git の hook を有効にします。
 

@@ -7,7 +7,7 @@ import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
 import { rel } from "./path.ts";
 import { focused } from "./store.ts";
-import { TEXT_KINDS } from "./workspace.ts";
+import { TEXT_KINDS, workspaceOf } from "./workspace.ts";
 
 type Scope = "project" | "workspace" | "all";
 const LIMIT = 2000;
@@ -35,7 +35,7 @@ const drawResults = (box: HTMLElement, ctx: Ctx, found: Found | string | null) =
   if (typeof found === "string") return void (box.innerHTML = `<div class="muted">${esc(found)}</div>`);
   const ws = ctx.store.get().workspaces;
   const label = (p: string) => {
-    const w = ws.find((x) => p.startsWith(x + "/"));
+    const w = workspaceOf(p, ws);
     return w ? rel(w, p) : p;
   };
   const files = [...new Set(found.hits.map((h) => h.path))];
@@ -87,7 +87,7 @@ export const mountSearch = (ctx: Ctx) => {
           const roots = rootsOf(ctx, opts.scope);
           if (!roots.length) return drawResults(box, ctx, opts.scope === "project" ? "Golem のプロジェクトのシートを開いてください" : "ワークスペースがありません");
           const found = await api
-            .search({ roots, pattern: opts.query, regex: opts.regex, case_sensitive: opts.caseSensitive, kinds: TEXT_KINDS, limit: LIMIT })
+            .search({ roots, pattern: opts.query, regex: opts.regex, case_sensitive: opts.caseSensitive, kinds: [...TEXT_KINDS, "mermaid"], limit: LIMIT })
             .catch((e: unknown) => `正規表現として読めません：${String(e)}`);
           if (n === seq) drawResults(box, ctx, found);
         }, 200);

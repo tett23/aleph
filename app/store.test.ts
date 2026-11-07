@@ -113,3 +113,12 @@ test("the store notifies only on change", () => {
   store.dispatch({ type: "side", side: "plain" });
   assert.equal(calls, 1);
 });
+
+test("selecting sets the rows; the anchor stays unless one is given", () => {
+  const a = run([{ type: "select", paths: ["/w/a.gm"], anchor: "/w/a.gm" }]);
+  assert.deepEqual([a.selected, a.anchor], [["/w/a.gm"], "/w/a.gm"]);
+  const b = run([{ type: "select", paths: ["/w/a.gm", "/w/b.gm"] }], a);
+  assert.deepEqual([b.selected, b.anchor], [["/w/a.gm", "/w/b.gm"], "/w/a.gm"]);
+  const c = run([{ type: "select", paths: [], anchor: null }], b);
+  assert.deepEqual([c.selected, c.anchor], [[], null]);
+});

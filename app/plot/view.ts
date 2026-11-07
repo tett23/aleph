@@ -10,6 +10,7 @@ import { basename } from "../path.ts";
 import { confirmDialog, ask, toast } from "../ui/dom.ts";
 import {
   PLOT_COLUMNS,
+  barsOf,
   calendarOf,
   freeColumnName,
   insertRow,
@@ -45,14 +46,7 @@ const colorOf = (names: string[], s: string) => PALETTE[Math.max(0, names.indexO
 const ellipsis = (s: string, fit: number) => ([...s].length > fit ? [...s].slice(0, Math.max(1, fit - 1)).join("") + "…" : s);
 
 const ganttSvg = (rows: PlotRow[], indices: number[], subplots: string[], calendar: string[], zoom: number) => {
-  const items = indices
-    .map((i) => {
-      const r = rows[i];
-      const s = calendar.indexOf(r.start.trim());
-      const e = r.end.trim() ? calendar.indexOf(r.end.trim()) : s;
-      return { r, i, s, e: Math.max(s, e) + 1 }; // the end is included
-    })
-    .filter((x) => x.s >= 0);
+  const items = barsOf(rows, indices, calendar).map((b) => ({ ...b, r: rows[b.i] }));
   if (!items.length)
     return `<div class="hint">「開始」と「終了」に物語の中の時を書くと、ガントチャートになります。「帝国暦 302 年の春」のような任意の文字列でかまいません。並びは「暦」で決めます。</div>`;
   const col = Math.max(70, Math.min(140, Math.floor(1000 / calendar.length)));

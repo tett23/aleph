@@ -8,6 +8,7 @@ import { focused, type Doc } from "../store.ts";
 import { canVertical } from "../toolbar.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { createEditor, type Editor } from "./cm.ts";
+import { loadManifest, separatorOf } from "../separator.ts";
 
 /** The characters per line for a sheet: the setting, or style.toml's; code is wide. */
 export const charsOf = (doc: Doc, override: number | null) => (["gm", "md", "txt"].includes(doc.kind) ? (override ?? doc.grid.chars) : 110);
@@ -29,6 +30,7 @@ const editorFor = (el: HTMLElement, doc: Doc, ctx: Ctx, index: number): Editor =
     onSave: () => void ctx.save([doc.path], { explicit: true }),
     onFocus: () => ctx.store.dispatch({ type: "focus", index }),
     extensions: ctx.editorExtensions.flatMap((f) => f(doc, ctx)),
+    separator: () => separatorOf(doc.project, doc.path, ctx.editors.get(doc.path)?.text() ?? doc.text),
   });
 };
 
@@ -39,6 +41,9 @@ export const mountEditors = (ctx: Ctx) => {
     const many = s.open.length > 1;
     const host = h(`<div class="${many ? "multi" : "single"}"></div>`);
     el.append(host);
+    // the manifest decides the paragraph separator of the page break estimates
+    for (const p of new Set(s.open.flatMap((d) => (d.project ? [d.project] : []))))
+      void loadManifest(p).then(() => s.open.forEach((d) => d.project === p && ctx.editors.get(d.path)?.refreshMarks()));
     s.open.forEach((doc, i) => {
       const sec = many
         ? h(`<section class="msec"><div class="mhead">${esc(ctx.titles.get(doc.path) ?? stem(doc.path))}<small>${esc(doc.workspace ? rel(doc.workspace, doc.path) : doc.path)}</small></div><div class="mhost"></div></section>`)

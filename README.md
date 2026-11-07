@@ -14,7 +14,7 @@ README.ja.md is a machine translation of it.
 Aleph is a desktop application built with [Tauri](https://tauri.app/).
 It is for writing the manuscripts of Golem, seeing how they are typeset, and managing the plot of a work.
 
-It will edit these formats:
+It edits these formats:
 
 - Markdown (`.md`)
 - Golem documents (`.gm`) and Emet (`.emet`)
@@ -27,12 +27,35 @@ It will edit these formats:
 
 ## Status
 
-The implementation has not started.
-A throwaway prototype is in [prototype/](prototype/); its README tells how to run it.
-The design learned from the prototype is accepted in ADRs (Architecture Decision Records) under [docs/adr/](docs/adr/), none of them implemented yet.
-The specification is in [docs/specifications.md](docs/specifications.md).
+The first version is implemented: the editors (horizontal and vertical), golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, the conversion from Markdown, and plugins.
+Each decision is an ADR (Architecture Decision Record) under [docs/adr/](docs/adr/), and the current behaviour is in [docs/specifications.md](docs/specifications.md).
+It targets macOS on Apple Silicon first.
+
+## Running
+
+Install Node.js (the latest LTS), Rust, and [Golem](https://github.com/tett23/golem) and [shem](https://github.com/tett23/shem) (or let Aleph use the copies bundled by `scripts/bundle-tools.sh`).
+
+```sh
+npm ci
+npx tauri dev
+```
+
+To build the app with golem and shem inside it:
+
+```sh
+sh scripts/bundle-tools.sh
+npx tauri build
+```
 
 ## Development
+
+The checks CI runs:
+
+```sh
+npx tsc --noEmit
+npm test
+(cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
+```
 
 Install [adr-guard](https://github.com/tett23/adr-guard) v0.10.0 or later, and enable the git hooks in each clone.
 

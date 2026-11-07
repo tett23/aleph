@@ -216,9 +216,9 @@ const formatNow = async (ctx: Ctx, doc: Doc) => {
   if (r !== null) ctx.toast(r ? "整形しました" : "変更はありません");
 };
 
-/** ⌘S: format first (when the setting is on), then save. */
+/** ⌘S: format first (when the setting is on, with the same notices as ⌥⇧F), then save. */
 const formatAndSave = async (ctx: Ctx, doc: Doc) => {
-  if (ctx.config.formatOnSave && (await format(ctx, doc))) ctx.toast("整形しました");
+  if (ctx.config.formatOnSave) await formatNow(ctx, doc);
   await ctx.save([doc.path], { explicit: true });
 };
 
