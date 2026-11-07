@@ -4,6 +4,7 @@
 mod fsops;
 mod lsp;
 mod process;
+mod replace;
 mod search;
 mod spell;
 mod window;
@@ -242,6 +243,77 @@ struct SearchArgs {
     limit: usize,
 }
 
+#[derive(serde::Deserialize)]
+struct ReplaceArgs {
+    roots: Vec<String>,
+    pattern: String,
+    regex: bool,
+    case_sensitive: bool,
+    kinds: Vec<String>,
+    with: String,
+    /// The chosen matches by path; none for every match.
+    only: Option<std::collections::HashMap<String, Vec<replace::Spot>>>,
+    /// The open sheets, replaced in their editors instead.
+    leave: Vec<String>,
+}
+
+/// Replaces across files (docs/adr/0032), off the main thread.
+#[tauri::command]
+async fn replace_files(args: ReplaceArgs) -> R<Vec<replace::FileResult>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let roots: Vec<&Path> = args.roots.iter().map(Path::new).collect();
+        let kinds: Vec<&str> = args.kinds.iter().map(String::as_str).collect();
+        replace::replace_files(
+            &roots,
+            &search::Query {
+                pattern: &args.pattern,
+                regex: args.regex,
+                case_sensitive: args.case_sensitive,
+                kinds: &kinds,
+                limit: usize::MAX,
+            },
+            &args.with,
+            args.only.as_ref(),
+            &args.leave,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// An open sheet's text with its matches replaced by the same rules as the files.
+#[tauri::command]
+fn replace_text(
+    text: String,
+    pattern: String,
+    regex: bool,
+    case_sensitive: bool,
+    with: String,
+    only: Option<Vec<replace::Spot>>,
+) -> R<replace::Replaced> {
+    let re = replace::build(&pattern, regex, case_sensitive)?;
+    Ok(replace::replace_text(
+        &text,
+        &re,
+        regex,
+        &with,
+        only.as_deref(),
+    ))
+}
+
+/// What each matched text becomes (the search panel's lines after the replacement).
+#[tauri::command]
+fn replace_preview(
+    matched: Vec<String>,
+    pattern: String,
+    regex: bool,
+    case_sensitive: bool,
+    with: String,
+) -> R<Vec<String>> {
+    let re = replace::build(&pattern, regex, case_sensitive)?;
+    Ok(replace::preview(&matched, &re, regex, &with))
+}
+
 /// Runs off the main thread: a search over many files takes a while.
 #[tauri::command]
 async fn search_files(args: SearchArgs) -> R<search::Found> {
@@ -463,6 +535,9 @@ pub fn run_app() {
             lsp_stop,
             quit,
             search_files,
+            replace_files,
+            replace_text,
+            replace_preview,
             plugins_dir
         ])
         .build(tauri::generate_context!())

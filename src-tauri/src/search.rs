@@ -49,6 +49,25 @@ fn char_index(s: &str, byte: usize) -> usize {
     s[..byte].chars().count()
 }
 
+/// The files under a root that the search reads: .gitignore followed, the given kinds, in order.
+pub fn files_of(root: &Path, kinds: &[&str]) -> Vec<std::path::PathBuf> {
+    let mut files: Vec<_> = WalkBuilder::new(root)
+        .require_git(false)
+        .hidden(true)
+        .build()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_some_and(|t| t.is_file()))
+        .map(|e| e.into_path())
+        .filter(|p| {
+            p.extension()
+                .and_then(|x| x.to_str())
+                .is_some_and(|x| kinds.contains(&x.to_lowercase().as_str()))
+        })
+        .collect();
+    files.sort();
+    files
+}
+
 pub fn search(roots: &[&Path], q: &Query) -> Result<Found, String> {
     let pattern = if q.regex {
         q.pattern.to_string()
@@ -61,22 +80,7 @@ pub fn search(roots: &[&Path], q: &Query) -> Result<Found, String> {
         .map_err(|e| e.to_string())?;
     let mut hits = Vec::new();
     for root in roots {
-        let walk = WalkBuilder::new(root)
-            .require_git(false)
-            .hidden(true)
-            .build();
-        let mut files: Vec<_> = walk
-            .filter_map(Result::ok)
-            .filter(|e| e.file_type().is_some_and(|t| t.is_file()))
-            .map(|e| e.into_path())
-            .filter(|p| {
-                p.extension()
-                    .and_then(|x| x.to_str())
-                    .is_some_and(|x| q.kinds.contains(&x.to_lowercase().as_str()))
-            })
-            .collect();
-        files.sort();
-        for path in files {
+        for path in files_of(root, q.kinds) {
             let Ok(text) = std::fs::read_to_string(&path) else {
                 continue;
             };

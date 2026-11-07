@@ -6,6 +6,7 @@ export type Out = { code: number; stdout: string; stderr: string };
 
 export type Hit = { path: string; line: number; column: number; text: string; start: number; end: number };
 export type Found = { hits: Hit[]; truncated: boolean };
+export type Spot = { line: number; column: number; matched: string };
 export type SearchArgs = { roots: string[]; pattern: string; regex: boolean; case_sensitive: boolean; kinds: string[]; limit: number };
 
 export type ToolInfo = { path: string; version: string; bundled: string };
@@ -33,5 +34,11 @@ export const api = {
   lspStop: (id: string) => invoke<void>("lsp_stop", { id }),
   pluginsDir: () => invoke<string>("plugins_dir"),
   search: (args: SearchArgs) => invoke<Found>("search_files", { args }),
+  /** Replacing across files (docs/adr/0032); the open sheets in `leave` are replaced in their editors. */
+  replaceFiles: (args: Omit<SearchArgs, "limit"> & { with: string; only: Record<string, Spot[]> | null; leave: string[] }) =>
+    invoke<{ path: string; replaced: number; skipped: number }[]>("replace_files", { args }),
+  replaceText: (a: { text: string; pattern: string; regex: boolean; caseSensitive: boolean; with: string; only: Spot[] | null }) =>
+    invoke<{ text: string; replaced: number; skipped: number }>("replace_text", a),
+  replacePreview: (a: { matched: string[]; pattern: string; regex: boolean; caseSensitive: boolean; with: string }) => invoke<string[]>("replace_preview", a),
   git: (bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("git", { bin, cwd, args }),
 };
