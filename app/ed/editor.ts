@@ -9,11 +9,12 @@ import { createCore, type Core, type Tx } from "./core.ts";
 import { matchKey } from "./keys.ts";
 import { createHighlighter, languageOf } from "./lang.ts";
 import { createCompletionList, createDiagPanel, createSearchPanel, panelHost, popup, type SearchUi } from "./panels.ts";
-import { findAll, nearest, replacementOf, type Match } from "./search.ts";
+import { findAll, nearest, replacementOf, selectionMatches, type Match } from "./search.ts";
 import type { Range } from "./spans.ts";
-import { createView, type Severity, type View } from "./view.ts";
+import { clampDiagnostics, diagLines, type Diag } from "./diag.ts";
+import { createView, type View } from "./view.ts";
 
-export type Diag = { from: number; to: number; severity: Severity; message: string; source?: string };
+export type { Diag };
 export type CompletionItem = { label: string; detail?: string; apply: string };
 
 /** What a plugin (the LSP) adds to an editor. */
@@ -80,7 +81,6 @@ export type EditorOptions = {
   separator?: () => "blank-line" | "line";
 };
 
-const SEV_RANK: Record<Severity, number> = { error: 4, warning: 3, info: 2, hint: 1 };
 const HOVER_DELAY = 350;
 
 export const createEditor = (o: EditorOptions): Editor => {
@@ -89,7 +89,6 @@ export const createEditor = (o: EditorOptions): Editor => {
   let grid = o.grid;
   let baseText: string | null | undefined;
   let marksTimer = 0;
-  let diags: Diag[] = [];
   let search: { ui: SearchUi; matches: Match[] } | null = null;
   let diagPanel: ReturnType<typeof createDiagPanel> | null = null;
   let completion: { list: ReturnType<typeof createCompletionList>; from: number } | null = null;
@@ -132,11 +131,10 @@ export const createEditor = (o: EditorOptions): Editor => {
 
   /** Other occurrences of a short selection, as CodeMirror's highlightSelectionMatches did. */
   const updateSelMatches = () => {
-    const t = core.selectedText();
-    const key = t && t.length <= 200 && !t.includes("\n") && t.trim() ? `${t}@${core.range().from}` : "";
+    const key = `${core.selectedText()}@${core.range().from}`;
     if (key === selMatchKey) return;
     selMatchKey = key;
-    const ranges = key ? findAll(core.text(), { search: t, caseSensitive: true }).filter((m) => m.from !== core.range().from).map((m) => ({ ...m, cls: "ed-selmatch" })) : [];
+    const ranges = selectionMatches(core.text(), core.range()).map((m) => ({ ...m, cls: "ed-selmatch" }));
     if (!ranges.length && !core.layer("selmatch").length) return;
     core.setLayer("selmatch", ranges);
     view.layersChanged();
@@ -336,16 +334,7 @@ export const createEditor = (o: EditorOptions): Editor => {
 
   const currentDiags = (): Diag[] => core.layer("diag").map((r) => ({ ...(r as Range & Diag), from: r.from, to: r.to }));
 
-  const updateDiagLines = () => {
-    const doc = core.doc();
-    const m = new Map<number, Severity>();
-    for (const d of currentDiags()) {
-      const n = doc.lineAt(d.from).number;
-      const have = m.get(n);
-      if (!have || SEV_RANK[d.severity] > SEV_RANK[have]) m.set(n, d.severity);
-    }
-    view.setDiagLines(m);
-  };
+  const updateDiagLines = () => view.setDiagLines(diagLines(core.doc(), currentDiags()));
 
   const closeDiagPanel = () => {
     diagPanel?.close();
@@ -368,17 +357,7 @@ export const createEditor = (o: EditorOptions): Editor => {
       view.whenIdle(() => view.layersChanged());
     },
     setDiagnostics: (list) => {
-      diags = list;
-      const len = core.doc().length;
-      core.setLayer(
-        "diag",
-        diags.map((d) => {
-          // a diagnostic at a point underlines the character after it
-          const from = Math.min(d.from, len);
-          const to = Math.max(from, Math.min(d.to, len));
-          return { ...d, from, to: to === from && from < len && core.doc().slice(from, from + 1) !== "\n" ? from + 1 : to, cls: `diag diag-${d.severity}` };
-        }),
-      );
+      core.setLayer("diag", clampDiagnostics(core.doc(), list));
       view.whenIdle(() => {
         updateDiagLines();
         view.layersChanged();

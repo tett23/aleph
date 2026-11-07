@@ -120,3 +120,27 @@ test("combining characters and surrogate pairs in the commit", () => {
   assert.equal(applyCommit(doc, r.commit), "aが🌊");
   assert.equal(r.caret, 5);
 });
+
+test("arrow keys and other keys while composing belong to the input method (moving between segments)", () => {
+  const ime = createIme();
+  ime.start(textOf("灯台"), { from: 2, to: 2 });
+  for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Backspace", " "]) assert.equal(ime.swallowKey({ key, isComposing: true, keyCode: 229 }), true, key);
+});
+
+test("a commit with a combining mark keeps the base and the mark together", () => {
+  const doc = textOf("海");
+  const r = run(doc, { from: 1, to: 1 }, [{ type: "compositionend", data: "か\u3099", dom: "海か\u3099" }]).out[0] as { commit: { from: number; to: number; insert: string }; caret: number };
+  assert.equal(applyCommit(doc, r.commit), "海か\u3099");
+  assert.equal(r.caret, 3);
+  // a mark added to a character already there is a change of the mark alone
+  assert.deepEqual(diffText("かい", "か\u3099い"), { from: 1, to: 1, insert: "\u3099" });
+});
+
+test("the difference is found for each kind of commit", () => {
+  assert.deepEqual(diffText("灯台と", "灯台火と"), { from: 2, to: 2, insert: "火" });
+  assert.deepEqual(diffText("灯台", "霧灯台"), { from: 0, to: 0, insert: "霧" });
+  assert.deepEqual(diffText("灯台の\n冬", "霧笛の\n冬"), { from: 0, to: 2, insert: "霧笛" });
+  assert.deepEqual(diffText("灯台の\n冬の海", "灯台がの海"), { from: 2, to: 5, insert: "が" });
+  assert.deepEqual(diffText("𠮷野", "𠮷田"), { from: 2, to: 3, insert: "田" });
+  assert.deepEqual(diffText("a𠮷b", "a𩸽b"), { from: 1, to: 3, insert: "𩸽" });
+});

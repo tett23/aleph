@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { findAll, nearest, replacementOf } from "./search.ts";
+import { findAll, nearest, replacementOf, selectionMatches } from "./search.ts";
 
 test("plain search ignores case unless asked, and finds every occurrence", () => {
   assert.deepEqual(findAll("Abc abc ABC", { search: "abc" }), [
@@ -54,4 +54,14 @@ test("the next match from the caret, wrapping around; and the previous one", () 
 test("a regexp replacement fills in groups; a plain one is taken as it is", () => {
   assert.equal(replacementOf("2026-11", { search: "(\\d+)-(\\d+)", regexp: true }, "$2/$1"), "11/2026");
   assert.equal(replacementOf("abc", { search: "abc" }, "$1"), "$1");
+});
+
+test("other occurrences of a short selection are marked; long, multi-line or blank selections are not", () => {
+  assert.deepEqual(selectionMatches("霧笛と霧笛と霧", { from: 0, to: 2 }), [{ from: 3, to: 5 }]);
+  assert.deepEqual(selectionMatches("abcabc", { from: 0, to: 0 }), []);
+  assert.deepEqual(selectionMatches("a\nba\nb", { from: 0, to: 3 }), []);
+  assert.deepEqual(selectionMatches("  x  ", { from: 0, to: 2 }), []);
+  assert.deepEqual(selectionMatches("x".repeat(402), { from: 0, to: 201 }), []);
+  // case matters
+  assert.deepEqual(selectionMatches("Ab ab", { from: 3, to: 5 }), []);
 });

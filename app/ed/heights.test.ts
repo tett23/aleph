@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHeights, estimateSize, renderRange } from "./heights.ts";
+import { blockViewport, createHeights, estimateSize, renderRange, scrollTarget } from "./heights.ts";
 
 test("an unmeasured line is estimated from its characters and the characters per line", () => {
   assert.equal(estimateSize(0, 38, 28), 28);
@@ -44,4 +44,24 @@ test("the lines to draw: the view and a margin, plus lines that must be drawn", 
   assert.deepEqual(renderRange(h, 200, 100, 50, [3, 90]), [{ from: 3, to: 3 }, { from: 15, to: 34 }, { from: 90, to: 90 }]);
   // a must-draw line inside the range adds nothing
   assert.deepEqual(renderRange(h, 0, 100, 0, [5]), [{ from: 0, to: 9 }]);
+});
+
+const rect = (left: number, top: number, width: number, height: number) => ({ left, top, right: left + width, bottom: top + height, width, height });
+
+test("the viewport along the block axis: down from the top in horizontal, left from the right edge in vertical", () => {
+  // the lines start 300px above the pane's top: 300px of them are scrolled past
+  assert.deepEqual(blockViewport(false, rect(0, 100, 800, 600), rect(50, -200, 700, 5000)), { start: 300, size: 600 });
+  // vertical: the lines start 400px right of the pane's right edge
+  assert.deepEqual(blockViewport(true, rect(100, 0, 900, 700), rect(-3000, 20, 4400, 600)), { start: 400, size: 900 });
+  // an editor below the pane in a shared pane: a negative start
+  assert.deepEqual(blockViewport(false, rect(0, 0, 800, 600), rect(0, 900, 800, 400)), { start: -900, size: 600 });
+});
+
+test("where to scroll to show a line: centred, or just enough to bring it in", () => {
+  const vp = { start: 1000, size: 500 };
+  assert.equal(scrollTarget(2000, 30, vp, true), 1800);
+  assert.equal(scrollTarget(2000, 30, vp, false), 2000 + 30 - 500 + 24);
+  assert.equal(scrollTarget(500, 30, vp, false), 500 - 24);
+  // already in view: stays
+  assert.equal(scrollTarget(1200, 30, vp, false), 1000);
 });

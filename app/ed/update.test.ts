@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { changeSet } from "./change.ts";
 import { textOf } from "./text.ts";
-import { changedLines, linesOfRanges, mapRanges } from "./update.ts";
+import { changedLines, linesOfRanges, mapRanges, movedLine, mustLines } from "./update.ts";
 
 const doc = textOf("one\ntwo\nthree");
 
@@ -59,4 +59,19 @@ test("ranges are given to each line in the line's own offsets, cut at line ends"
   assert.deepEqual(per.get(1), [{ from: 1, to: 2, cls: "a" }, { from: 2, to: 3, cls: "b" }]);
   assert.deepEqual(per.get(2), [{ from: 0, to: 2, cls: "b" }]);
   assert.deepEqual(per.get(3), [{ from: 5, to: 5, cls: "p" }]);
+});
+
+test("the lines always drawn: both ends of the selection and the lines being composed (0-based)", () => {
+  const d = textOf("a\nb\nc\nd\ne");
+  assert.deepEqual(mustLines(d, { anchor: 0, head: 8 }, null), [0, 4]);
+  assert.deepEqual(mustLines(d, { anchor: 2, head: 2 }, [2, 3]), [1, 1, 1, 2]);
+});
+
+test("where a drawn line goes after a change: before it stays, inside it is drawn anew, after it moves", () => {
+  const ch = { from: 3, removed: 2, added: 4 };
+  assert.equal(movedLine(2, ch), 2);
+  assert.equal(movedLine(3, ch), null);
+  assert.equal(movedLine(4, ch), null);
+  assert.equal(movedLine(5, ch), 7);
+  assert.equal(movedLine(9, { from: 3, removed: 3, added: 1 }), 7);
 });

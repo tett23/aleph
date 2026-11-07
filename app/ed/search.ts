@@ -42,3 +42,10 @@ export const replacementOf = (matched: string, q: Query, replace: string): strin
   if (!re) return replace;
   return matched.replace(new RegExp(re.source, re.flags.replace("g", "")), replace);
 };
+
+/** Other occurrences of a short selection (as CodeMirror's highlightSelectionMatches marks them): none for long, multi-line or blank ones. */
+export const selectionMatches = (text: string, range: { from: number; to: number }): Match[] => {
+  const t = text.slice(range.from, range.to);
+  if (!t || t.length > 200 || t.includes("\n") || !t.trim()) return [];
+  return findAll(text, { search: t, caseSensitive: true }).filter((m) => m.from !== range.from);
+};

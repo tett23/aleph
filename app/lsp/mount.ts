@@ -9,7 +9,7 @@ import { focused, type Doc, type State } from "../store.ts";
 import { golem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { startClient, type Client, type LspDiagnostic } from "./client.ts";
-import { decodeSemanticTokens, editsToChanges, offsetOf, tokenRanges, uriOf, type TextEdit, type TokenRange } from "./protocol.ts";
+import { completionStart, decodeSemanticTokens, editsToChanges, offsetOf, tokenRanges, uriOf, type TextEdit, type TokenRange } from "./protocol.ts";
 
 export const LSP_KINDS = ["gm", "emet"];
 const CHANGE_DELAY = 250;
@@ -250,12 +250,10 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
     complete: async (pos, explicit) => {
       const c = readyClient(path);
       if (!c || !editor) return null;
-      const doc = editor.core.doc();
-      const line = doc.lineAt(pos);
-      const word = /[\w.-]*$/.exec(line.text.slice(0, pos - line.from))![0];
-      const from = pos - word.length;
-      const before = doc.slice(Math.max(0, from - 1), from);
-      if (!explicit && before !== "[" && before !== " ") return null;
+      const line = editor.core.doc().lineAt(pos);
+      const start = completionStart(line.text.slice(0, pos - line.from), explicit);
+      if (start === null) return null;
+      const from = line.from + start;
       flush(path);
       const r = await c
         .request<{ items: Item[] } | Item[] | null>("textDocument/completion", { textDocument: { uri: uriOf(path) }, position: positionAt(editor, pos) })

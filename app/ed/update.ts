@@ -53,3 +53,14 @@ export const linesOfRanges = (doc: Text, ranges: Range[]): Map<number, Range[]> 
   }
   return out;
 };
+
+/** Lines (0-based) that are drawn even out of view: both ends of the selection, and the lines being composed (1-based range). */
+export const mustLines = (doc: Text, sel: { anchor: number; head: number }, composing: [number, number] | null): number[] => {
+  const out = [doc.lineAt(sel.anchor).number - 1, doc.lineAt(sel.head).number - 1];
+  if (composing) for (let n = composing[0]; n <= composing[1]; n++) out.push(n - 1);
+  return out;
+};
+
+/** The number of a line after a change: the same before it, null inside it (drawn anew), shifted after it. */
+export const movedLine = (n: number, ch: LineChange): number | null =>
+  n < ch.from ? n : n < ch.from + ch.removed ? null : n + ch.added - ch.removed;

@@ -59,3 +59,22 @@ export const domToOffset = <N>(w: Walk<N>, line: N, node: N, offset: number): nu
   visit(line, false);
   return count;
 };
+
+/** The text of a drawn line as the DOM has it: skipped elements left out, a block inside it (put there by the browser) read as a line break. */
+export const lineText = <N>(w: Walk<N>, line: N, isBlock: (n: N) => boolean): string => {
+  const visit = (n: N, top: boolean): string => {
+    if (w.skip(n)) return "";
+    if (w.isText(n)) return w.text(n);
+    const inner = w.children(n).map((c) => visit(c, false)).join("");
+    return !top && isBlock(n) ? "\n" + inner : inner;
+  };
+  return visit(line, true);
+};
+
+/** The walk over the editor's real DOM: gutters and elements that cannot be edited (marks, page breaks) are skipped. */
+export const domWalk: Walk<Node> = {
+  isText: (n) => n.nodeType === 3,
+  text: (n) => n.nodeValue ?? "",
+  children: (n) => [...n.childNodes],
+  skip: (n) => n instanceof HTMLElement && (n.contentEditable === "false" || n.classList.contains("ed-gut")),
+};

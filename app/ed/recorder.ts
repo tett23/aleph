@@ -6,22 +6,18 @@ import { api } from "../api.ts";
 import { esc } from "../esc.ts";
 import { onPress } from "../ui/dom.ts";
 import type { Recorded, RecordedEvent } from "./control.ts";
+import { domWalk, lineText } from "./dompos.ts";
 import { createEditor } from "./editor.ts";
 
 const LOG_FILE = "/tmp/aleph-ime-log.json";
 const SAMPLE = "灯台の灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。";
 
 /** The text the DOM shows in the editor's lines, gutters and marks left out. */
-const domText = (content: HTMLElement): string => {
-  const lines: string[] = [];
-  const text = (n: Node): string => {
-    if (n instanceof HTMLElement && (n.contentEditable === "false" || n.classList.contains("ed-gut"))) return "";
-    if (n.nodeType === 3) return n.nodeValue ?? "";
-    return [...n.childNodes].map(text).join("");
-  };
-  for (const c of content.children) if (!c.classList.contains("ed-gap") && !c.classList.contains("page-break")) lines.push(text(c));
-  return lines.join("\n");
-};
+const domText = (content: HTMLElement): string =>
+  [...content.children]
+    .filter((c) => !c.classList.contains("ed-gap") && !c.classList.contains("page-break"))
+    .map((c) => lineText(domWalk, c as Node, (n) => n instanceof HTMLElement && n.tagName === "DIV"))
+    .join("\n");
 
 export const startRecorder = (root: HTMLElement) => {
   document.title = "IME の記録";
