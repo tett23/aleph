@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>Aleph — 執筆</title><link rel="stylesheet" href="base.css">
+<style>
+.goalring { display: inline-block; }
+.sheet { padding-top: 26px; }
+.column { max-width: 660px; }
+</style></head>
+<body><div class="app">
+  <div class="lights"><i></i><i></i><i></i></div>
+  <div class="ribbon">
+    <span class="b on"><i data-i="files"></i></span><span class="b"><i data-i="search"></i></span><span class="b"><i data-i="git-branch"></i></span><span class="b"><i data-i="table-2"></i></span>
+    <span class="grow"></span><span class="b"><i data-i="settings"></i></span>
+  </div>
+  <div class="side2">
+    <div class="wsbar"><span class="name"><i data-i="chevrons-up-down" class="s"></i>novels</span><span class="br"><i data-i="git-branch" class="s"></i>main</span></div>
+    <div class="acts"><span><i data-i="square-pen"></i></span><span><i data-i="folder-plus"></i></span><span><i data-i="book-plus"></i></span><span class="sp"></span><span><i data-i="arrow-up-down"></i></span><span><i data-i="chevrons-down-up"></i></span></div>
+    <div class="t2">
+      <div class="r proj"><i data-i="chevron-down" class="s"></i><i data-i="book-open"></i><span class="ttl">灯台守の冬</span><span class="c">5,230 字</span></div>
+      <div class="r in1 on"><i data-i="file-text" class="s"></i><span class="ttl">霧笛</span><span class="fn">01</span><span class="c"><span class="dot"></span><svg width="13" height="13" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="var(--bg-3)" stroke-width="3"/><circle cx="9" cy="9" r="7" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="25 44" transform="rotate(-90 9 9)"/></svg></span></div>
+      <div class="r in1"><i data-i="file-text" class="s"></i><span class="ttl">灯の交代</span><span class="fn">02</span><span class="c"><span class="dot"></span><svg width="13" height="13" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="var(--bg-3)" stroke-width="3"/><circle cx="9" cy="9" r="7" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="18 44" transform="rotate(-90 9 9)"/></svg></span></div>
+      <div class="r in1"><i data-i="file-text" class="s"></i><span class="ttl">春</span><span class="fn">03</span><span class="c"><svg width="13" height="13" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="var(--bg-3)" stroke-width="3"/><circle cx="9" cy="9" r="7" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="2 44" transform="rotate(-90 9 9)"/></svg></span></div>
+      <div class="r in1"><i data-i="chevron-right" class="s"></i><i data-i="folder" class="s"></i><span class="ttl">figures</span></div>
+      <div class="r in1"><i data-i="chevron-right" class="s"></i><i data-i="folder" class="s"></i><span class="ttl">functions</span></div>
+      <div class="r in1"><i data-i="table-2" class="s"></i><span class="ttl">プロット</span></div>
+      <div class="r in1"><i data-i="settings-2" class="s"></i><span class="ttl">manifest</span><span class="fn">toml</span></div>
+      <div class="r in1"><i data-i="settings-2" class="s"></i><span class="ttl">style</span><span class="fn">toml</span></div>
+      <div class="r proj"><i data-i="chevron-right" class="s"></i><i data-i="book-open"></i><span class="ttl">短編集・潮騒</span><span class="c">21,400 字</span></div>
+      <div class="r"><i data-i="chevron-down" class="s"></i><i data-i="folder" class="s"></i><span class="ttl">notes</span></div>
+      <div class="r in1"><i data-i="file-text" class="s"></i><span class="ttl">あとがきの下書き</span><span class="fn">md</span></div>
+      <div class="r in1"><i data-i="workflow" class="s"></i><span class="ttl">人物相関</span><span class="fn">mmd</span></div>
+    </div>
+  </div>
+  <div class="center">
+    <div class="toolbar">
+      <i data-i="panel-left"></i>
+      <span class="title">霧笛 <small>01.gm</small></span>
+      <span class="tb">
+        <span class="seg"><span class="on">原稿</span><span>本文</span><span>ページ</span></span>
+        <span class="seg"><span>縦</span><span class="on">横</span></span>
+        <i data-i="columns-2"></i><i data-i="paperclip"></i>
+      </span>
+    </div>
+    <div class="sheet"><div class="column">
+      <div class="row"><span class="ln">1</span><span class="cm">@import functions/book.emet as book</span></div>
+      <div class="row"><span class="ln">2</span></div>
+      <div class="row"><span class="ln">3</span><span class="mk"># </span><span class="hd">霧笛</span></div>
+      <div class="row"><span class="ln">4</span></div>
+      <div class="row"><span class="ln a">5</span>　岬の灯台に冬が来ると、父は毎晩、灯の油を量った。</div>
+      <div class="row"><span class="ln a">6</span>　油の減り方で、その夜の霧の深さがわかるのだと言った。</div>
+      <div class="row"><span class="ln m">7</span>　<span class="cm">[ruby: </span>霧笛<span class="cm">|むてき]</span>は三度鳴り、遠くの船が一度だけ応えた。</div>
+      <div class="row"><span class="ln">8</span>　残りの油は<span class="ex">[= book.liters(12)]</span>リットル。春まではもたない。</div>
+      <div class="brk">改ページ　2 → 3</div>
+      <div class="row"><span class="ln">9</span>　手紙は、港の郵便局から週に一度、<span class="err">[book.stamp 赤]</span>の消印で届いた。</div>
+      <div class="row"><span class="ln">10</span><span class="co">%% 母の話はここで入れる？ %%</span></div>
+      <div class="row"><span class="ln">11</span></div>
+      <div class="row"><span class="ln a">12</span><span class="cm">@need-lines 4</span></div>
+      <div class="row"><span class="ln">13</span><span class="mk">## </span><span class="hd">灯の交代</span></div>
+      <div class="row"><span class="ln">14</span></div>
+      <div class="row"><span class="ln">15</span>　夜半、私は父と替わって灯室にのぼった。レンズの磨き残しを布で</div>
+      <div class="row"><span class="ln"></span>拭うと、光は少しだけ遠くまで届くような気がした。</div>
+      <div class="row"><span class="ln">16</span></div>
+      <div class="row"><span class="ln">17</span>　階段の途中で、父は「お前の番だ」とだけ言った。</div>
+    </div></div>
+  </div>
+  <div class="right">
+    <div class="rhead"><span class="b on"><i data-i="paperclip"></i></span><span class="b"><i data-i="list"></i></span><span class="b"><i data-i="git-commit-horizontal"></i></span></div>
+    <div class="sec">
+      <h5>目標</h5>
+      <div class="goal">
+        <svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="var(--bg-3)" stroke-width="5"/><circle cx="22" cy="22" r="18" fill="none" stroke="var(--accent)" stroke-width="5" stroke-dasharray="64.5 113.1" transform="rotate(-90 22 22)"/></svg>
+        <div class="t"><b>3,412</b> / 6,000 字<br>残り 2,588 字 · 原稿用紙 10.4 枚</div>
+      </div>
+    </div>
+    <div class="sec">
+      <h5>キーワード</h5>
+      <div class="kw"><span class="q" style="--c:#7c93b3">視点：私</span><span class="q" style="--c:#7c93b3">父</span><span class="q" style="--c:#8aa37f">岬の灯台</span><span class="q" style="--c:#b39a6b">本筋</span><span class="q" style="--c:#a28bb0">手紙</span></div>
+    </div>
+    <div class="sec">
+      <h5>書くこと <span style="text-transform:none;font-weight:400">プロット 1–2</span></h5>
+      <div class="todo">
+        <div class="done"><span class="box"></span>父が油を量る習慣</div>
+        <div><span class="box"></span>母がいない理由をほのめかす</div>
+        <div><span class="box"></span>手紙の差出人は伏せる</div>
+      </div>
+      <div style="font-size:12px;color:var(--text-2);margin-top:8px">フレーバー：霧笛の回数、赤い消印</div>
+    </div>
+    <div class="sec" style="border:none">
+      <h5>ノート <i data-i="plus" class="s"></i></h5>
+      <div class="note q">視点は「私」。父の台詞は最小限にする。章の終わりで日誌に初めて名前を書く。</div>
+      <div class="note q" style="font-family:var(--body)">「灯は、消えるときがいちばん明るい」</div>
+    </div>
+  </div>
+  <div class="status"><span class="g">● LSP</span><span>1 件の警告</span><span>3,412 字</span><span>1,204 語</span><span>原稿用紙 10.4 枚</span><span>38 字 × 16 行</span></div>
+</div><script src="icons.js"></script></body></html>

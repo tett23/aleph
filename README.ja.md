@@ -1,8 +1,8 @@
-# aleph
+# Aleph
 
 [![CI](https://github.com/tett23/aleph/actions/workflows/ci.yml/badge.svg)](https://github.com/tett23/aleph/actions/workflows/ci.yml)
 
-aleph は、組版システム [Golem](https://github.com/tett23/golem) のための、開発中のエディタとプレビューの環境です。
+Aleph は、組版システム [Golem](https://github.com/tett23/golem) のための、開発中のエディタとプレビューの環境です。
 
 [English README](README.md)
 
@@ -11,8 +11,8 @@ README.ja.md はその機械翻訳です。
 
 ## 概要
 
-aleph は [Tauri](https://tauri.app/) で作るデスクトップアプリケーションです。
-Golem の原稿を書き、それがどう組まれるかを見るためのものです。
+Aleph は [Tauri](https://tauri.app/) で作るデスクトップアプリケーションです。
+Golem の原稿を書き、それがどう組まれるかを見て、作品のプロットを管理するためのものです。
 
 次の形式を編集できるようにします。
 
@@ -23,11 +23,14 @@ Golem の原稿を書き、それがどう組まれるかを見るためのも�
 - SVG（`.svg`）
 - PDF（`.pdf`）
 - Mermaid
+- 画像（PNG、JPEG、GIF、WebP）、見るだけ
 
 ## 状態
 
-まだ何も実装していません。
-設計は [docs/adr/](docs/adr/) の ADR（Architecture Decision Record）で決めているところです。
+本実装はまだ始めていません。
+捨てる前提のプロトタイプが [prototype/](prototype/) にあり、動かし方はその README にあります。
+プロトタイプからわかった設計は、[docs/adr/](docs/adr/) の ADR（Architecture Decision Record）で採択しました。
+どれもまだ実装していません。
 仕様は [docs/specifications.md](docs/specifications.md) にあります。
 
 ## 開発
