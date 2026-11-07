@@ -48,6 +48,32 @@ pub fn write_text(path: &Path, content: &str) -> std::io::Result<()> {
     std::fs::write(path, content)
 }
 
+/// Writes bytes (a pasted image, docs/adr/0031), making the parent directories.
+pub fn write_bytes(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, bytes)
+}
+
+/// A percent-encoded UTF-8 string decoded (the path sent in a header); None when broken.
+pub fn percent_decode(s: &str) -> Option<String> {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' {
+            let hex = std::str::from_utf8(b.get(i + 1..i + 3)?).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
 pub fn copy_file(from: &Path, to: &Path) -> std::io::Result<()> {
     if let Some(parent) = to.parent() {
         std::fs::create_dir_all(parent)?;
@@ -140,5 +166,24 @@ mod tests {
         let v = list_dir(&d);
         assert!(v[0].ends_with("/a") && v[1].ends_with("/b"));
         assert!(list_dir(&d.join("none")).is_empty());
+    }
+
+    #[test]
+    fn write_bytes_makes_parent_directories_and_writes_the_bytes() {
+        let d = testdir::fresh("bytes");
+        let p = d.join("images/a.png");
+        write_bytes(&p, &[0x89, b'P', b'N', b'G']).unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), vec![0x89, b'P', b'N', b'G']);
+    }
+
+    #[test]
+    fn percent_decoding_reads_utf8_and_refuses_broken_input() {
+        assert_eq!(
+            percent_decode("/w/%E7%94%BB%E5%83%8F/a%20b.png").as_deref(),
+            Some("/w/画像/a b.png")
+        );
+        assert_eq!(percent_decode("plain"), Some("plain".to_string()));
+        assert_eq!(percent_decode("%E7%9"), None);
+        assert_eq!(percent_decode("%FF"), None);
     }
 }

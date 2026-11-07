@@ -24,6 +24,8 @@ export const api = {
   makeDir: (path: string) => invoke<void>("make_dir", { path }),
   rename: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
   copyFile: (from: string, to: string) => invoke<void>("copy_file", { from, to }),
+  /** Writes bytes as they are (a pasted image, docs/adr/0031); the path goes in a header. */
+  writeBytes: (path: string, bytes: Uint8Array) => invoke<void>("write_bytes", bytes, { headers: { path: encodeURIComponent(path) } }),
   listDir: (path: string) => invoke<string[]>("list_dir", { path }),
   tempDir: (name: string) => invoke<string>("temp_dir", { name }),
   tool: (name: Tool, bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("tool", { name, bin, cwd, args }),
