@@ -100,3 +100,9 @@ test("bars on the calendar: the end is included; a scene without an end takes on
   const st = stackLanes(barsOf(rows, [1, 2], cal));
   assert.deepEqual(st.rows, [0, 1]);
 });
+
+test("calendar without a file: years and full dates sort together as dates; numbers mixed with dates keep the table's order", () => {
+  assert.deepEqual(calendarOf([row("2030"), row("2026-01-15"), row("2027-03")], []), ["2026-01-15", "2027-03", "2030"]);
+  assert.deepEqual(calendarOf([row("5"), row("2026-01-15"), row("1")], []), ["5", "2026-01-15", "1"]);
+  assert.deepEqual(calendarOf([row("2030"), row("12"), row("3")], []), ["3", "12", "2030"]);
+});

@@ -30,3 +30,16 @@ test("manuscript sheets: each paragraph's lines rounded up, divided by the lines
   assert.equal(stats(["あ".repeat(400)], 20, 20).sheets, 1);
   assert.equal(stats([], 20, 20).sheets, 0);
 });
+
+test("Markdown counts: characters, words and sheets of its text", () => {
+  const s = countText("md", "# 題\n\n**強く** `x` と [リンク](u)\n", { cols: 20, rows: 20 });
+  assert.equal(s.chars, 1 + [..."強くxとリンク"].length);
+  assert.ok(s.words >= 3);
+  assert.equal(s.sheets, 0.1);
+});
+
+test("manuscript lines count characters without spaces, as the character count does", () => {
+  // 20 characters and 10 full-width spaces: one line of 20, not two
+  assert.equal(stats(["あ　".repeat(10) + "い".repeat(10)], 20, 20).sheets, Math.round((1 / 20) * 10) / 10);
+  assert.equal(stats(["あ".repeat(20) + "　".repeat(10)], 20, 1).sheets, 1);
+});

@@ -94,7 +94,7 @@ const drawProject = async (el: HTMLElement, ctx: Ctx) => {
   if (!ctx.config.libraryDir) return void (el.innerHTML = noLibrary);
   const project = focused(ctx.store.get())?.project;
   if (!project) return void (el.innerHTML = `<div class="sec"><div class="muted">Golem のプロジェクトのシートを開くと、そのプロジェクトでの状態が出ます。</div>${dropzone}</div>`);
-  const rows = (await states(ctx, [project])).filter((x) => x.f.kind !== "font" || x.at[0].state !== "absent");
+  const rows = await states(ctx, [project]);
   const sec = (k: "font" | "plugin" | "function") =>
     `<div class="sec"><h5>${LABEL[k][0]}</h5>${
       rows

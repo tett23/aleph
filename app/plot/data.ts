@@ -58,13 +58,16 @@ export const namesCell = split(/\n|;|；|、|,/);
 /** must, flavor, fragments. */
 export const linesCell = split(/\n|;|；/);
 
-/** A number or a date (YYYY, YYYY-MM, YYYY-MM-DD) as a value to sort by; null for other labels. */
-const valueOf = (s: string): number | null => {
-  const t = s.trim();
-  if (/^-?\d+(\.\d+)?$/.test(t)) return Number(t);
-  if (!/^\d{4}(-\d{2}(-\d{2})?)?$/.test(t)) return null;
-  const d = Date.parse(/^\d{4}$/.test(t) ? `${t}-01-01` : /^\d{4}-\d{2}$/.test(t) ? `${t}-01` : t);
-  return Number.isNaN(d) ? null : d;
+const DATE = /^\d{4}(-\d{2}(-\d{2})?)?$/;
+const NUMBER = /^-?\d+(\.\d+)?$/;
+const dateValue = (t: string) => Date.parse(/^\d{4}$/.test(t) ? `${t}-01-01` : /^\d{4}-\d{2}$/.test(t) ? `${t}-01` : t);
+
+/** The labels in their values' order when all are dates (a bare year counts as one) or all numbers; null otherwise. */
+const byValue = (labels: string[]): string[] | null => {
+  const ts = labels.map((l) => l.trim());
+  if (ts.every((t) => DATE.test(t) && !Number.isNaN(dateValue(t)))) return [...labels].sort((x, y) => dateValue(x.trim()) - dateValue(y.trim()));
+  if (ts.every((t) => NUMBER.test(t))) return [...labels].sort((x, y) => Number(x) - Number(y));
+  return null;
 };
 
 /**
@@ -75,7 +78,7 @@ const valueOf = (s: string): number | null => {
 export const calendarOf = (rows: PlotRow[], file: string[]): string[] => {
   const seen = [...new Set(rows.flatMap((r) => [r.start.trim(), r.end.trim()]).filter(Boolean))];
   if (file.length) return [...file, ...seen.filter((l) => !file.includes(l))];
-  return seen.every((l) => valueOf(l) !== null) ? [...seen].sort((x, y) => valueOf(x)! - valueOf(y)!) : seen;
+  return byValue(seen) ?? seen;
 };
 
 /**
