@@ -105,3 +105,38 @@ export const addChapter = (src: string, rel: string): string => {
   const body = inner.replace(/\s*,?\s*$/, "");
   return src.slice(0, span.open + 1) + body + ", " + item + src.slice(span.close);
 };
+
+export type Separator = "blank-line" | "line";
+
+const sep = (v: string | undefined): Separator | null => (v === "line" || v === "blank-line" ? v : null);
+
+/**
+ * How paragraphs of a file are separated (Golem's paragraph-separator): the
+ * file's own `@manifest`, then its item in `chapters`, then `[source]`, then blank-line.
+ */
+export const paragraphSeparator = (manifest: string, rel: string, fileText: string): Separator => {
+  const own = /^[ \t]*@manifest\b[^\n]*\bparagraph-separator\s*=\s*"?([a-z-]+)"?/m.exec(fileText.split("\n").slice(0, 20).join("\n"))?.[1];
+  if (sep(own)) return sep(own)!;
+  const span = chaptersSpan(manifest);
+  if (span) {
+    const toks = lex(manifest.slice(0, span.close), span.open + 1);
+    let table: Record<string, string> | null = null;
+    for (let i = 0; i < toks.length; i++) {
+      const tk = toks[i];
+      if (tk.t === "ch" && tk.v === "{") table = {};
+      else if (tk.t === "ch" && tk.v === "}" && table) {
+        if (table.file === rel && sep(table["paragraph-separator"])) return sep(table["paragraph-separator"])!;
+        table = null;
+      } else if (table && tk.t === "word" && toks[i + 1]?.t === "ch" && toks[i + 1].v === "=" && toks[i + 2]?.t === "str") table[tk.v] = toks[i + 2].v;
+    }
+  }
+  const lines = manifest.split("\n");
+  const start = lines.findIndex((l) => l.trim() === "[source]");
+  if (start >= 0)
+    for (const l of lines.slice(start + 1)) {
+      if (/^\s*\[/.test(l)) break;
+      const v = sep(/^\s*paragraph-separator\s*=\s*"([^"]*)"/.exec(l)?.[1]);
+      if (v) return v;
+    }
+  return "blank-line";
+};

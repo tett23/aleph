@@ -18,6 +18,7 @@ import { git, mountTools } from "./tools.ts";
 import { mountEditors } from "./editor/host.ts";
 import { createVertical } from "./editor/vertical.ts";
 import { mountLsp } from "./lsp/mount.ts";
+import { mountAttach } from "./attach.ts";
 import { currentBranch, mountGit } from "./gitpanel.ts";
 import { rel } from "./path.ts";
 
@@ -151,6 +152,7 @@ const start = async () => {
   mountPreview(ctx);
   mountGit(ctx);
   mountPlotFeature(ctx);
+  mountAttach(ctx);
   // a file to open, sent by another window (the plot window)
   void listen<{ path: string }>("aleph:open", (e) => void ctx.open([e.payload.path]));
   ctx.verticalEditor = createVertical;

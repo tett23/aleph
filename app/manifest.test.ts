@@ -46,3 +46,13 @@ test("no chapters key adds one at the top", () => {
 test("a path with a quote is escaped", () => {
   assert.equal(addChapter(`chapters = []`, `a"b.gm`), `chapters = ["a\\"b.gm"]`);
 });
+
+test("the paragraph separator of a file: @manifest, then the chapter's item, then [source], then blank-line", async () => {
+  const { paragraphSeparator } = await import("./manifest.ts");
+  const m = `chapters = [\n  "chapters/01.gm",\n  { file = "chapters/02.gm", paragraph-separator = "blank-line" },\n]\n\n[source]\nparagraph-separator = "line"\n`;
+  assert.equal(paragraphSeparator(m, "chapters/01.gm", "本文"), "line");
+  assert.equal(paragraphSeparator(m, "chapters/02.gm", "本文"), "blank-line");
+  assert.equal(paragraphSeparator(m, "chapters/01.gm", "@manifest paragraph-separator=blank-line\n本文"), "blank-line");
+  assert.equal(paragraphSeparator(`chapters = ["a.gm"]\n`, "a.gm", ""), "blank-line");
+  assert.equal(paragraphSeparator(`chapters = ["a.gm"]\n[other]\nparagraph-separator = "line"\n`, "a.gm", ""), "blank-line");
+});
