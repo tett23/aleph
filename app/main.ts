@@ -23,6 +23,7 @@ import { mountLibrary } from "./libpanel.ts";
 import { mountDiagnostics } from "./diag/mount.ts";
 import { mountSearch } from "./searchpanel.ts";
 import { mountMdConvert } from "./mdconvert.ts";
+import { mountPlugins } from "./plugins/mount.ts";
 import { currentBranch, mountGit } from "./gitpanel.ts";
 import { rel } from "./path.ts";
 
@@ -177,6 +178,8 @@ const start = async () => {
   });
   store.subscribe((s, prev) => draw(s, prev));
   draw(store.get(), null);
+  // plugins load last: a slow or failing one does not hold up the window
+  void mountPlugins(ctx);
 };
 
 const view = new URLSearchParams(location.search).get("view");

@@ -29,6 +29,7 @@ export const api = {
   lspStart: (id: string, bin: string | undefined, cwd: string) => invoke<void>("lsp_start", { id, bin, cwd }),
   lspSend: (id: string, message: string) => invoke<void>("lsp_send", { id, message }),
   lspStop: (id: string) => invoke<void>("lsp_stop", { id }),
+  pluginsDir: () => invoke<string>("plugins_dir"),
   search: (args: SearchArgs) => invoke<Found>("search_files", { args }),
   git: (bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("git", { bin, cwd, args }),
 };
