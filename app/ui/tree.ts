@@ -8,7 +8,7 @@ import { icon } from "../icons.ts";
 import { addChapter, manifestChapters } from "../manifest.ts";
 import { basename, dirname, stem } from "../path.ts";
 import { allDocs, focused } from "../store.ts";
-import { collectProjects, flatten, kindOf, selectChapters, titleOf, treeRows, type Row } from "../workspace.ts";
+import { flatten, kindOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
 import { golem } from "../tools.ts";
 import { ask, menu, toast, type MenuItem } from "./dom.ts";
 import { item } from "./settings.ts";
@@ -45,9 +45,9 @@ export const treeReloaded: ((ctx: Ctx) => void | Promise<void>)[] = [];
 export const reloadTree = async (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
   entries = ws ? await api.listTree(ws).catch(() => []) : [];
-  const projects = new Set(collectProjects(entries));
+  const projects = new Set(ws ? projectsIn(ws, entries) : []);
   // projects of every workspace, for the cross-project panels
-  for (const w of ctx.store.get().workspaces) if (w !== ws) collectProjects(await api.listTree(w).catch(() => [])).forEach((p) => projects.add(p));
+  for (const w of ctx.store.get().workspaces) if (w !== ws) projectsIn(w, await api.listTree(w).catch(() => [])).forEach((p) => projects.add(p));
   ctx.projects = [...projects];
   chapters.clear();
   await Promise.all(
@@ -86,7 +86,12 @@ const row = (r: Row, ctx: Ctx) => {
   )}<span class="ttl">${esc(title)}</span><span class="fn">${esc(fn)}</span><span class="c">${ctx.decor.map((f) => f(p, ctx)).join("")}</span></div>`;
 };
 
-const rowsNow = (ctx: Ctx) => treeRows(entries, new Set(ctx.store.get().expanded), (p) => chapters.get(p) ?? []);
+const rowsNow = (ctx: Ctx) => {
+  const ws = ctx.store.get().workspace;
+  const expanded = new Set(ctx.store.get().expanded);
+  const of = (p: string) => chapters.get(p) ?? [];
+  return ws ? workspaceRows(ws, entries, expanded, of) : treeRows(entries, expanded, of);
+};
 
 const draw = (el: HTMLElement, ctx: Ctx) => {
   const s = ctx.store.get();

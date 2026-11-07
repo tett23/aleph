@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Entry } from "./api.ts";
-import { OPEN_KINDS, TEXT_KINDS, collectProjects, kindOf, projectOf, readGrid, titleOf, treeRows, workspaceOf } from "./workspace.ts";
+import { OPEN_KINDS, TEXT_KINDS, collectProjects, projectsIn, workspaceRows, kindOf, projectOf, readGrid, titleOf, treeRows, workspaceOf } from "./workspace.ts";
 
 const f = (path: string): Entry => ({ path, name: path.slice(path.lastIndexOf("/") + 1), dir: false, children: [] });
 const d = (path: string, children: Entry[]): Entry => ({ path, name: path.slice(path.lastIndexOf("/") + 1), dir: true, children });
@@ -94,4 +94,27 @@ test("JSON, JSONC, JSON5 and JSON Lines open as text, are shown in the tree and 
     assert.equal(OPEN_KINDS.includes(k), true, k);
   }
   assert.equal(kindOf("/w/A.JSON"), "json");
+});
+
+// a workspace whose root is itself a Golem project (the manifest at the top)
+const rootTree: Entry[] = [
+  d("/r/chapters", [f("/r/chapters/01.gm")]),
+  d("/r/inner", [f("/r/inner/manifest.toml")]),
+  f("/r/manifest.toml"),
+  f("/r/style.toml"),
+];
+
+test("a workspace whose root holds manifest.toml is the project, and nothing inside it is", () => {
+  assert.deepEqual(projectsIn("/r", rootTree), ["/r"]);
+  assert.deepEqual(projectsIn("/w", tree), ["/w/novel", "/w/group/short"]);
+});
+
+test("the tree of a root project: its row first, then its chapters in order", () => {
+  const rows = workspaceRows("/r", rootTree, new Set(), () => ["/r/chapters/01.gm"]);
+  assert.equal(rows[0].t, "dir");
+  assert.equal(rows[0].entry.path, "/r");
+  assert.equal(rows[1].entry.path, "/r/chapters/01.gm");
+  assert.equal(rows[1].project, "/r");
+  assert.ok(rows.slice(1).every((r) => r.depth === 1));
+  assert.deepEqual(workspaceRows("/w", tree, new Set(), () => []), treeRows(tree, new Set(), () => []));
 });
