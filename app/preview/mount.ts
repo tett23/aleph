@@ -6,6 +6,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { api } from "../api.ts";
 import type { Ctx } from "../ctx.ts";
 import type { Editor } from "../editor/cm.ts";
+import { stubEditor } from "../editor/stub.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { basename, dirname, stem } from "../path.ts";
@@ -262,18 +263,6 @@ const openWindow = async (ctx: Ctx, view: "plain" | "pages", project: string) =>
 
 // ---- PDF and images in place of the editor ----
 
-const stub = (destroy: () => void): Editor => ({
-  view: null,
-  text: () => "",
-  setWidth: () => {},
-  setInvisibles: () => {},
-  setGrid: () => {},
-  refreshMarks: () => {},
-  goto: () => {},
-  setText: () => {},
-  destroy,
-});
-
 /** A PDF: shem first (the subset Golem writes), the WebView's viewer otherwise. */
 const pdfView = (el: HTMLElement, doc: Doc, ctx: Ctx): Editor => {
   const pane = document.createElement("div");
@@ -289,7 +278,7 @@ const pdfView = (el: HTMLElement, doc: Doc, ctx: Ctx): Editor => {
     pane.querySelector(".pview")!.innerHTML = `<div class="hint">shem で描けない PDF です。WebView で表示します。</div><iframe src="${url}"></iframe>`;
     pane.querySelector<HTMLElement>(".pview")!.className = "pview media";
   })();
-  return stub(() => pane.remove());
+  return stubEditor(() => pane.remove());
 };
 
 const imageView = (el: HTMLElement, doc: Doc): Editor => {
@@ -297,7 +286,7 @@ const imageView = (el: HTMLElement, doc: Doc): Editor => {
   pane.className = "pbody";
   el.append(pane);
   void renderImage(pane, doc.path);
-  return stub(() => pane.remove());
+  return stubEditor(() => pane.remove());
 };
 
 export const mountPreview = (ctx: Ctx) => {
