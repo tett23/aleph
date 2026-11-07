@@ -165,10 +165,11 @@ export const mountTree = (ctx: Ctx) => {
             const ws = s.workspace;
             const name = ws && (await ask("新しいプロジェクトの名前（golem new）"));
             if (!ws || !name) return;
-            // with a shared library, the fonts come from it (docs/adr/0014); without one, golem fetches them
-            const out = await golem(ctx, ws, ["new", name, ...(ctx.config.libraryDir ? ["--no-fonts"] : [])]);
+            // fonts come from the shared library, never from golem's download (docs/adr/0004, docs/adr/0014)
+            const out = await golem(ctx, ws, ["new", name, "--no-fonts"]);
             if (out.code !== 0) return toast((out.stderr || out.stdout).trim());
             for (const f of ctx.onNewProject) await f(`${ws}/${name}`, ctx);
+            if (!ctx.config.libraryDir) toast("共有ライブラリがないので、フォントは入っていません。設定の「共有ライブラリ」でフォルダを決めると、開いたときにコピーします");
             await reloadTree(ctx);
             ctx.store.dispatch({ type: "expand", path: `${ws}/${name}`, on: true });
             return ctx.open([`${ws}/${name}/chapters/01.gm`]);

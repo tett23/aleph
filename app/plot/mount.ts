@@ -8,6 +8,7 @@ import type { Ctx } from "../ctx.ts";
 import { stubEditor } from "../editor/stub.ts";
 import { dirname } from "../path.ts";
 import { applyTheme } from "../theme.ts";
+import { setUiState, windowUiState } from "../uistate.ts";
 import { parsePlot, type PlotRow } from "./data.ts";
 import { mountPlot, type PlotView } from "./view.ts";
 
@@ -51,7 +52,9 @@ export const mountPlotFeature = (ctx: Ctx) => {
 
 /** The plot's own window (index.html?view=plot&project=…). */
 export const startPlotWindow = async (project: string) => {
-  applyTheme(normalize(JSON.parse(await api.configLoad().catch(() => "{}"))));
+  const config = normalize(JSON.parse(await api.configLoad().catch(() => "{}")));
+  applyTheme(config);
+  setUiState(windowUiState(config.ui, (part) => void emit("aleph:ui", part)));
   const app = document.getElementById("app")!;
   app.innerHTML = `<div class="pwin plotwin"><div class="pbody"></div></div>`;
   const v = mountPlot(app.querySelector<HTMLElement>(".pbody")!, project, {

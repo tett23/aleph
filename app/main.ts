@@ -3,6 +3,7 @@ import "./style.css";
 import { api } from "./api.ts";
 import { normalize, type Config } from "./config.ts";
 import { applyTheme } from "./theme.ts";
+import { createUiState, setUiState, uiState } from "./uistate.ts";
 import { mountPreview } from "./preview/mount.ts";
 import { startPreviewWindow } from "./preview/window.ts";
 import { mountPlotFeature, startPlotWindow } from "./plot/mount.ts";
@@ -27,27 +28,32 @@ import { mountPlugins } from "./plugins/mount.ts";
 import { currentBranch, mountGit } from "./gitpanel.ts";
 import { rel } from "./path.ts";
 
-/** The parts of the state worth keeping between launches, per viewer (localStorage may be unavailable). */
+/** The parts of the state kept between launches, in config.json's `ui` (docs/adr/0004). */
 const KEPT = ["left", "showLeft", "right", "showRight", "side", "vertical", "expanded", "workspace"] as const;
-const keep = (s: State) => {
-  try {
-    localStorage.setItem("ui", JSON.stringify(Object.fromEntries(KEPT.map((k) => [k, s[k]]))));
-  } catch {
-    /* not kept */
-  }
-};
-const kept = (): Partial<State> => {
-  try {
-    return JSON.parse(localStorage.getItem("ui") ?? "{}");
-  } catch {
-    return {};
-  }
-};
+const keep = (s: State) => uiState().merge(Object.fromEntries(KEPT.map((k) => [k, s[k]])));
+const kept = (ui: Record<string, unknown>): Partial<State> => Object.fromEntries(KEPT.filter((k) => k in ui).map((k) => [k, ui[k]]));
 
 const start = async () => {
   const config = normalize(JSON.parse(await api.configLoad().catch(() => "{}")));
   applyTheme(config);
-  const store = createStore({ ...initialState(), ...kept() });
+  // the kept state is written a moment after it changes, and only when it changed
+  let uiTimer = 0;
+  let uiLast = JSON.stringify(config.ui);
+  setUiState(
+    createUiState(config.ui, (ui) => {
+      config.ui = ui;
+      clearTimeout(uiTimer);
+      uiTimer = window.setTimeout(() => {
+        const now = JSON.stringify(ui);
+        if (now === uiLast) return;
+        uiLast = now;
+        void api.configSave(JSON.stringify(config, null, 2));
+      }, 500);
+    }),
+  );
+  // the preview and plot windows send their part (their zooms)
+  void listen<Record<string, unknown>>("aleph:ui", (e) => uiState().merge(e.payload));
+  const store = createStore({ ...initialState(), ...kept(config.ui) });
   store.dispatch({ type: "workspaces", workspaces: config.workspaces });
 
   const titles = new Map<string, string>();

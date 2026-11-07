@@ -5,6 +5,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { api } from "../api.ts";
 import { normalize } from "../config.ts";
 import { applyTheme } from "../theme.ts";
+import { setUiState, windowUiState } from "../uistate.ts";
 import { autoDpi, pageInches } from "./pages.ts";
 import { fileUrl, loadZoom, onWheelZoom, renderHint, renderPageImages, renderPlain, saveZoom, zoomByClick, zoomControls, type PlainSection } from "./render.ts";
 import type { Pages } from "./mount.ts";
@@ -12,6 +13,7 @@ import type { Pages } from "./mount.ts";
 export const startPreviewWindow = async (view: "pages" | "plain", project: string) => {
   const config = normalize(JSON.parse(await api.configLoad().catch(() => "{}")));
   applyTheme(config);
+  setUiState(windowUiState(config.ui, (part) => void emit("aleph:ui", part)));
   const app = document.getElementById("app")!;
   app.innerHTML = `<div class="pwin"><div class="phead" data-tauri-drag-region></div><div class="pbody"></div></div>`;
   const head = app.querySelector<HTMLElement>(".phead")!;
