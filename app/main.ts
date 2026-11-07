@@ -20,6 +20,7 @@ import { startRecorder } from "./ed/recorder.ts";
 import { mountEditors } from "./editor/host.ts";
 import { mountJson } from "./jsonfeature.ts";
 import { mountCommands } from "./palette.ts";
+import { cleanKeyBindings, mountKeybind } from "./keybind.ts";
 import { mountBookmarks } from "./bookmarkpanel.ts";
 import { mountQuickOpen } from "./quickopenmount.ts";
 import { mountRecent, reopenLast } from "./recentpanel.ts";
@@ -181,7 +182,9 @@ const start = async () => {
   mountRecent(ctx);
   mountQuickOpen(ctx);
   // last: the built-in commands, the settings sections as commands, and the window's keys (docs/adr/0023)
+  mountKeybind(ctx);
   mountCommands(ctx);
+  cleanKeyBindings(ctx);
   // a file to open, sent by another window (the plot window)
   void listen<{ path: string }>("aleph:open", (e) => void ctx.open([e.payload.path]));
   await reloadTree(ctx);

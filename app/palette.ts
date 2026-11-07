@@ -1,11 +1,12 @@
 // The ⌘P box and the commands (docs/adr/0022, docs/adr/0023): one input with a
 // list; a leading ">" lists commands, anything else the sheets (when a sheet
 // finder is plugged in). Also the built-in commands and the window's keys.
-import { addCommand, commandForKey, keyLabel, pushRecent, rankCommands, splitQuery, type Command } from "./commands.ts";
+import { addCommand, pushRecent, rankCommands, splitQuery, type Command } from "./commands.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { fuzzy } from "./fuzzy.ts";
 import { icon } from "./icons.ts";
+import { hintOf } from "./keybind.ts";
 import { openWindow } from "./preview/mount.ts";
 import { focused, type LeftPanel, type RightPanel, type SidePane } from "./store.ts";
 import { previewsFor, verticalOn, canVertical } from "./toolbar.ts";
@@ -40,7 +41,7 @@ const commandItems = (ctx: Ctx, q: string): PaletteItem[] =>
     label: c.label,
     detail: c.id,
     icon: c.icon,
-    hint: c.keys?.[0] ? keyLabel(c.keys[0]) : undefined,
+    hint: hintOf(ctx, c),
     marks: q ? fuzzy(q, c.label)?.positions : undefined,
     run: () => void runCommand(ctx, c),
   }));
@@ -262,14 +263,5 @@ export const mountCommands = (ctx: Ctx) => {
     menu: true,
     when: () => hasEdit(),
     run: (c) => focusedEdit(c)?.openDiagnostics(),
-  });
-
-  // the window's keys: a command bound to the key (the editor takes its own first, docs/adr/0023)
-  window.addEventListener("keydown", (e) => {
-    if (e.defaultPrevented || e.isComposing) return;
-    const c = commandForKey(ctx.commands, e, ctx.store.get(), false);
-    if (!c) return;
-    e.preventDefault();
-    void runCommand(ctx, c);
   });
 };

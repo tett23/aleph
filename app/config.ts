@@ -1,5 +1,6 @@
 // The app's settings, kept in config.json in the app's config directory (docs/adr/0004).
 // The pure part (defaults and clamping) is tested with node --test.
+import { clampTimeout, DEFAULT_LEADER, DEFAULT_TIMEOUT, leaderOf } from "./keymap.ts";
 
 export type Theme = "auto" | "light" | "dark";
 
@@ -23,6 +24,11 @@ export type Config = {
   autoCommit: boolean;
   lastAutoCommit: Record<string, string>;
   disabledPlugins: string[];
+  /** The user's key bindings by command id, only those that differ from the defaults (docs/adr/0034). */
+  keyBindings: Record<string, string[]>;
+  leaderKey: string;
+  /** How long to wait for the next stroke of a sequence, in milliseconds. */
+  keySequenceTimeout: number;
   /** The screen's state kept between launches (panels, preview, zooms), written by the main window. */
   ui: Record<string, unknown>;
 };
@@ -47,6 +53,9 @@ export const defaults = (): Config => ({
   autoCommit: true,
   lastAutoCommit: {},
   disabledPlugins: [],
+  keyBindings: {},
+  leaderKey: DEFAULT_LEADER,
+  keySequenceTimeout: DEFAULT_TIMEOUT,
   ui: {},
 });
 
@@ -84,6 +93,15 @@ export const normalize = (raw: unknown): Config => {
         ? Object.fromEntries(Object.entries(r.lastAutoCommit).filter((e): e is [string, string] => typeof e[1] === "string"))
         : d.lastAutoCommit,
     disabledPlugins: Array.isArray(r.disabledPlugins) ? r.disabledPlugins.filter((p): p is string => typeof p === "string") : d.disabledPlugins,
+    // unknown ids and bindings that cannot be used are dropped once the commands are registered (keybind.ts)
+    keyBindings:
+      r.keyBindings && typeof r.keyBindings === "object" && !Array.isArray(r.keyBindings)
+        ? Object.fromEntries(
+            Object.entries(r.keyBindings).flatMap(([id, v]) => (Array.isArray(v) ? [[id, v.filter((b): b is string => typeof b === "string")]] : [])),
+          )
+        : d.keyBindings,
+    leaderKey: leaderOf(r.leaderKey),
+    keySequenceTimeout: clampTimeout(r.keySequenceTimeout),
     ui: r.ui && typeof r.ui === "object" && !Array.isArray(r.ui) ? (r.ui as Record<string, unknown>) : d.ui,
   };
 };

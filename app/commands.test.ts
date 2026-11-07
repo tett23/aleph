@@ -1,18 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addCommand, commandForKey, keyLabel, menuCommands, pushRecent, rankCommands, splitQuery, validId, type Command } from "./commands.ts";
+import { addCommand, keyedCommands, keyLabel, menuCommands, pushRecent, rankCommands, splitQuery, validId, type Command } from "./commands.ts";
 
 const st = { workspace: "/w" } as never;
 const cmd = (id: string, extra: Partial<Command> = {}): Command => ({ id, label: id, when: () => true, run: () => {}, ...extra });
-const key = (k: string, code: string, mods: Partial<Record<"metaKey" | "ctrlKey" | "altKey" | "shiftKey", boolean>> = {}) => ({
-  key: k,
-  code,
-  metaKey: false,
-  ctrlKey: false,
-  altKey: false,
-  shiftKey: false,
-  ...mods,
-});
 
 test("ids are <area>.<action> in lower camel case; plugin ids may carry a hyphen", () => {
   for (const id of ["file.save", "view.left.search", "settings.editor", "plugin.word-count.1", "md.convertToGm"]) assert.equal(validId(id), true, id);
@@ -39,18 +30,19 @@ test("keys are shown with macOS symbols in macOS order", () => {
   assert.equal(keyLabel("Mod-,", true), "⌘,");
   assert.equal(keyLabel("Tab", true), "Tab");
   assert.equal(keyLabel("Mod-k Mod-s", true), "⌘K ⌘S");
+  // a bare key after the first stroke is the character typed
+  assert.equal(keyLabel("Mod-; g c", true), "⌘; g c");
+  assert.equal(keyLabel("Mod-Minus", true), "⌘-");
 });
 
-test("a key finds an available command; editor commands only while the editor has focus", () => {
+test("the commands keys may run: available ones; editor commands only while the editor has focus", () => {
   const list = [
     cmd("git.commit", { keys: ["Mod-Shift-k"] }),
     cmd("editor.undo", { keys: ["Mod-z"], scope: "editor" }),
     cmd("view.off", { keys: ["Mod-j"], when: () => false }),
   ];
-  assert.equal(commandForKey(list, key("K", "KeyK", { metaKey: true, shiftKey: true }), st, false, true)?.id, "git.commit");
-  assert.equal(commandForKey(list, key("z", "KeyZ", { metaKey: true }), st, false, true), null);
-  assert.equal(commandForKey(list, key("z", "KeyZ", { metaKey: true }), st, true, true)?.id, "editor.undo");
-  assert.equal(commandForKey(list, key("j", "KeyJ", { metaKey: true }), st, false, true), null);
+  assert.deepEqual(keyedCommands(list, st, false).map((c) => c.id), ["git.commit"]);
+  assert.deepEqual(keyedCommands(list, st, true).map((c) => c.id), ["git.commit", "editor.undo"]);
 });
 
 test("a leading '>' asks for commands; the space after it is skipped", () => {

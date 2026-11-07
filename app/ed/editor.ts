@@ -81,6 +81,12 @@ export type EditorOptions = {
   /** After the caret moves (for the status bar). */
   onCaret?: () => void;
   plugins?: EditorPlugin[];
+  /**
+   * The app's key bindings (docs/adr/0034), asked before the editor's own
+   * table; when given, the table is matched only for Escape (the editor's
+   * commands are reached by id through `command`).
+   */
+  keys?: (e: KeyboardEvent) => boolean;
   /** How the file's paragraphs are separated, for the page break estimates. */
   separator?: () => "blank-line" | "line";
 };
@@ -175,6 +181,10 @@ export const createEditor = (o: EditorOptions): Editor => {
 
   const onKey = (e: KeyboardEvent): boolean => {
     if (completion && completion.list.key(e)) return true;
+    if (o.keys) {
+      if (o.keys(e)) return true;
+      return KEYS.some((k) => k.key === "Escape" && matchKey(k.key, e) && k.run());
+    }
     for (const p of plugins) for (const k of p.keys ?? []) if (matchKey(k.key, e) && k.run()) return true;
     for (const k of KEYS) if (matchKey(k.key, e) && k.run()) return true;
     return false;
