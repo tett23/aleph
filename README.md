@@ -32,10 +32,10 @@ The specification is in [docs/specifications.md](docs/specifications.md).
 
 ## Development
 
-Install [adr-guard](https://github.com/tett23/adr-guard) v0.9.1 or later, and enable the git hooks in each clone.
+Install [adr-guard](https://github.com/tett23/adr-guard) v0.10.0 or later, and enable the git hooks in each clone.
 
 ```sh
-cargo install --git https://github.com/tett23/adr-guard --tag v0.9.1
+cargo install --git https://github.com/tett23/adr-guard --tag v0.10.0
 git config core.hooksPath .githooks
 ```
 

@@ -32,10 +32,10 @@ Golem の原稿を書き、それがどう組まれるかを見るためのも�
 
 ## 開発
 
-[adr-guard](https://github.com/tett23/adr-guard) v0.9.1 以降を入れ、clone ごとに git の hook を有効にします。
+[adr-guard](https://github.com/tett23/adr-guard) v0.10.0 以降を入れ、clone ごとに git の hook を有効にします。
 
 ```sh
-cargo install --git https://github.com/tett23/adr-guard --tag v0.9.1
+cargo install --git https://github.com/tett23/adr-guard --tag v0.10.0
 git config core.hooksPath .githooks
 ```
 

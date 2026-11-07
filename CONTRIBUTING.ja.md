@@ -7,11 +7,11 @@ CONTRIBUTING.ja.md はその機械翻訳です。
 
 ## 開発環境
 
-[adr-guard](https://github.com/tett23/adr-guard) v0.9.1 以降を入れ、clone したあとに git の hook を有効にします。
+[adr-guard](https://github.com/tett23/adr-guard) v0.10.0 以降を入れ、clone したあとに git の hook を有効にします。
 この設定はリポジトリに保存されないので、clone ごとに実行します。
 
 ```sh
-cargo install --git https://github.com/tett23/adr-guard --tag v0.9.1
+cargo install --git https://github.com/tett23/adr-guard --tag v0.10.0
 git config core.hooksPath .githooks
 ```
 
@@ -33,10 +33,12 @@ git config core.hooksPath .githooks
 - ADR は `docs/adr/` に置き、`0001-scope-and-formats.md` のように連番と読める kebab-case の名前を付けます。
 - ADR は、`ステータス:` で始まるステータスの行をちょうど一つ持ちます。
 - コミット済みの ADR は、ステータスの行とリンクを除いて変えません。adr-guard が pre-commit hook と CI でこれを強制します。決定を変えるときは、古い ADR を置きかえる新しい ADR を書きます。
+- 同じディレクトリの二つの ADR が同じ番号を持つことはありません。CI が `adr-guard check-numbers` でこれを検査し、`adr-guard renumber` で重複を直せます。
 - ADR を破棄するときは、ステータスを `破棄` にし、理由を docs/specifications.md に書きます。
 - ADR からソースコードを参照するときは、コミットのハッシュを含む GitHub の URL で書きます。`main` は rebase しないので、この URL は変わりません。
 - ADR は、決定に使った文献を末尾に挙げます。
 - ADR や文書を書いたあとは、`adr-guard links --fix` を実行して ADR の参照にリンクを付けます。
+- ほかのリポジトリの ADR を参照するときは、`[tett23/adr-guard ADR 0019: ...](https://github.com/tett23/adr-guard/blob/main/docs/adr/...)` のように、リポジトリの名前と番号をまとめて GitHub へのリンクのテキストに入れます。adr-guard は `ADR NNNN` の直前の語を修飾子として読み、対象の無い修飾子付きの参照を報告します。
 
 ## 言語
 
