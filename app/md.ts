@@ -2,6 +2,7 @@
 // conversion to .gm (docs/adr/0016): CommonMark's common parts and GFM's
 // strikethrough, task lists, autolinks and tables (docs/adr/0035), no HTML.
 import { esc } from "./esc.ts";
+import { resolve } from "./path.ts";
 
 export type Inline =
   | { t: "text"; v: string }
@@ -404,9 +405,22 @@ const aligns = (row: string) =>
 
 const alignAttr = (a: string | null | undefined) => (a ? ` style="text-align:${a}"` : "");
 
-export type HtmlOptions = { embed?: (target: string, heading: string | null) => string; breaks?: Breaks };
+/** Where a sheet is and the workspace its images must stay in (docs/adr/0047). */
+export type ImageBase = { dir: string; root: string };
 
-export const markdownHtml = (src: string, { embed = embedLink, breaks = "blank-line" }: HtmlOptions = {}): string =>
+export type HtmlOptions = { embed?: (target: string, heading: string | null) => string; breaks?: Breaks; base?: ImageBase };
+
+const unesc = (s: string) => s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" })[e]!);
+
+/** An image the preview reads from the workspace, or a note in its place; remote images are never loaded. */
+const imageHtml = (src: string, alt: string, base: ImageBase | undefined) => {
+  const s = src.trim();
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s) || s.startsWith("//")) return `<span class="img-note">${esc(alt)}（外部の画像は読み込みません：${esc(s)}）</span>`;
+  const p = base && !s.startsWith("/") ? resolve(base.dir, s) : null;
+  return p && p.startsWith(`${base!.root}/`) ? `<img data-src="${esc(p)}" alt="${esc(alt)}">` : `<span class="img-note">${esc(alt)}（ワークスペースの外の画像は読み込みません）</span>`;
+};
+
+export const markdownHtml = (src: string, { embed = embedLink, breaks = "blank-line", base }: HtmlOptions = {}): string =>
   parseMarkdown(src)
     .map((b) => {
       switch (b.t) {
@@ -435,4 +449,6 @@ export const markdownHtml = (src: string, { embed = embedLink, breaks = "blank-l
           return embed(b.target, b.heading);
       }
     })
-    .join("\n");
+    .join("\n")
+    // the images this function wrote (inline and alone on a line), and only those
+    .replace(/<img src="([^"]*)" alt="([^"]*)">/g, (_, s: string, a: string) => imageHtml(unesc(s), unesc(a), base));

@@ -46,6 +46,8 @@ export type EmbedIo = {
   breaks?: Breaks;
   /** A sheet's name (its first heading), or null; without it the written target titles the frame (docs/adr/0039). */
   name?: (path: string) => string | null;
+  /** The workspace the sheets' images must stay in (docs/adr/0047); without it, images are not read. */
+  root?: string | null;
 };
 
 const note = (s: string) => `<div class="embed-note">${esc(s)}</div>`;
@@ -81,6 +83,7 @@ export const expandEmbeds = (src: string, path: string, io: EmbedIo): string => 
   const draw = (text: string, at: string, stack: string[]): string =>
     markdownHtml(text, {
       breaks: io.breaks,
+      base: io.root ? { dir: at.slice(0, at.lastIndexOf("/")), root: io.root } : undefined,
       embed: (target, heading) => {
       const to = target ? io.resolve(target, at) : at;
       const title = titleOf(io, target, heading, to);
