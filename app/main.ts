@@ -19,6 +19,7 @@ import { git, mountTools } from "./tools.ts";
 import { startRecorder } from "./ed/recorder.ts";
 import { mountEditors } from "./editor/host.ts";
 import { mountJson } from "./jsonfeature.ts";
+import { mountCommands } from "./palette.ts";
 import { mountLsp } from "./lsp/mount.ts";
 import { mountAttach } from "./attach.ts";
 import { mountLibrary } from "./libpanel.ts";
@@ -77,6 +78,7 @@ const start = async () => {
     statusActions: {},
     settings: [],
     commands: [],
+    findSheets: null,
     view: {},
     open: (paths, at) => openPaths(ctx, paths, at),
     openers: [],
@@ -172,6 +174,8 @@ const start = async () => {
   mountImageDrag(ctx);
   mountSearch(ctx);
   mountMdConvert(ctx);
+  // last: the built-in commands, the settings sections as commands, and the window's keys (docs/adr/0023)
+  mountCommands(ctx);
   // a file to open, sent by another window (the plot window)
   void listen<{ path: string }>("aleph:open", (e) => void ctx.open([e.payload.path]));
   await reloadTree(ctx);

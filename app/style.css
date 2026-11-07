@@ -517,3 +517,15 @@ body.dragging-image, body.dragging-image * { user-select: none; cursor: copy !im
 .rec-ed { flex: 1; min-height: 0; position: relative; }
 .rec-log { flex: 0 0 34%; margin: 0; overflow: auto; border-top: 1px solid var(--border); padding: 8px 12px; font: 11px/1.5 var(--mono); background: var(--bg-2); white-space: pre-wrap; }
 .rec-dom { padding: 4px 12px; font: 11px var(--mono); color: var(--text-2); border-bottom: 1px solid var(--border); white-space: pre-wrap; }
+
+/* the ⌘P box (docs/adr/0022, docs/adr/0023) */
+.palette { position: fixed; z-index: 60; top: 56px; left: 50%; transform: translateX(-50%); width: min(600px, 90vw); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); padding: 6px; font: 13px var(--ui); color: var(--text); }
+.palette .field { width: 100%; box-sizing: border-box; font-size: 14px; padding: 6px 8px; }
+.palette ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 50vh; overflow: auto; }
+.palette li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; cursor: default; white-space: nowrap; }
+.palette li[aria-selected] { background: var(--sel); }
+.palette li .pl { overflow: hidden; text-overflow: ellipsis; }
+.palette li .pl b { font-weight: 700; }
+.palette li small { color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
+.palette li kbd, .menu kbd { margin-left: auto; color: var(--faint); font: 11.5px var(--ui); }
+.palette li.empty { color: var(--faint); }

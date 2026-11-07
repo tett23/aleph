@@ -97,6 +97,8 @@ export const mountEditors = (ctx: Ctx) => {
 
   // the screen that records input events for the editor's tests (docs/adr/0019)
   ctx.commands.push({
+    id: "dev.recordIme",
+    menu: true,
     label: "IME のイベントを記録（開発用）",
     icon: "type",
     when: () => true,

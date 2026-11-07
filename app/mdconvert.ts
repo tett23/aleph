@@ -30,4 +30,4 @@ export const convertToGm = async (ctx: Ctx) => {
 };
 
 export const mountMdConvert = (ctx: Ctx) =>
-  ctx.commands.push({ label: "gm に変換", icon: "arrow-right-left", when: (s) => focused(s)?.kind === "md", run: convertToGm });
+  ctx.commands.push({ id: "md.convertToGm", menu: true, label: "gm に変換", icon: "arrow-right-left", when: (s) => focused(s)?.kind === "md", run: convertToGm });

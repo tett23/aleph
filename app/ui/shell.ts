@@ -6,6 +6,8 @@ import { icon } from "../icons.ts";
 import { basename, rel, stem } from "../path.ts";
 import { dirty, focused, type LeftPanel, type RightPanel, type State } from "../store.ts";
 import { canVertical, effectiveSide, previewLabel, previewsFor } from "../toolbar.ts";
+import { keyLabel, menuCommands } from "../commands.ts";
+import { runCommand } from "../palette.ts";
 import { menu, onPress } from "./dom.ts";
 import { openSettings } from "./settings.ts";
 
@@ -100,7 +102,7 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
     if (t.dataset.tb === "more")
       menu(
         t,
-        ctx.commands.filter((c) => c.when(s)).map((c) => ({ label: c.label, icon: icon(c.icon, 14), run: () => void c.run(ctx) })),
+        menuCommands(ctx.commands, s).map((c) => ({ label: c.label, icon: c.icon ? icon(c.icon, 14) : "", hint: c.keys?.[0] ? keyLabel(c.keys[0]) : undefined, run: () => void runCommand(ctx, c) })),
       );
   });
 
@@ -142,7 +144,7 @@ export const renderToolbar = (root: HTMLElement, s: State, ctx: Ctx, titles: Map
     ${s.open.length && s.open.every((x) => canVertical(x.kind)) ? `<span class="seg"><span data-vert="1" class="${s.vertical ? "on" : ""}">縦</span><span data-vert="0" class="${s.vertical ? "" : "on"}">横</span></span>` : ""}
     <span class="title" data-tauri-drag-region>${titleHtml(s, titles)}</span>
     ${sides.length ? `<span class="seg">${sides.map((k) => `<span data-side="${k}" class="${side === k ? "on" : ""}">${previewLabel(d!.kind, k)}</span>`).join("")}</span>` : ""}
-    ${ctx.commands.some((c) => c.when(s)) ? `<span class="iconbtn" data-tb="more" title="ほかの操作">${icon("more-horizontal")}</span>` : ""}
+    ${menuCommands(ctx.commands, s).length ? `<span class="iconbtn" data-tb="more" title="ほかの操作">${icon("more-horizontal")}</span>` : ""}
     <span class="iconbtn ${s.showRight ? "on" : ""}" data-tb="right" title="右のパネル">${icon("panel-right")}</span>`;
 };
 

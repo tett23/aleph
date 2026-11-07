@@ -112,12 +112,17 @@ export const mountSearch = (ctx: Ctx) => {
       run();
     },
   };
-  window.addEventListener("keydown", (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
-      e.preventDefault();
-      const s = ctx.store.get();
-      if (s.left !== "search" || !s.showLeft) ctx.store.dispatch({ type: "left", panel: "search" });
+  // ⇧⌘F, a command (docs/adr/0023): the search panel with its field focused
+  ctx.commands.push({
+    id: "view.left.search",
+    keys: ["Mod-Shift-f"],
+    label: "検索",
+    icon: "search",
+    when: () => true,
+    run: (c) => {
+      const s = c.store.get();
+      if (s.left !== "search" || !s.showLeft) c.store.dispatch({ type: "left", panel: "search" });
       setTimeout(() => document.querySelector<HTMLInputElement>(".search [data-q]")?.focus(), 50);
-    }
+    },
   });
 };
