@@ -1,6 +1,6 @@
 # ADR 0006: 横書きのエディタ
 
-ステータス: 採択
+ステータス: 採択→CodeMirror で作る部分と、複数の章を開いたあいだは横書きとする部分は[ADR 0019](0019-one-editor-for-both-writing-modes.md)
 
 ## 文脈
 
