@@ -10,7 +10,7 @@
   --faint: #a8a8a8;
   --accent: #a8873f;
   --accent-bg: rgba(168, 135, 63, 0.12);
-  --sel: rgba(0, 0, 0, 0.06);
+  --sel: rgba(0, 0, 0, 0.09);
   --hover: rgba(0, 0, 0, 0.04);
   --add: #3e9f62;
   --mod: #d39b35;
@@ -19,7 +19,7 @@
   --expr: #3d8a8a;
   --ui: -apple-system, "Hiragino Sans", "Helvetica Neue", sans-serif;
   --body: "Hiragino Mincho ProN", "Yu Mincho", serif;
-  --mono: "SF Mono", Menlo, monospace;
+  --mono: "SF Mono", Menlo, "Hiragino Sans", monospace;
   --paper: #fffefb;
   color-scheme: light;
 }
@@ -34,7 +34,7 @@ body.theme-dark {
   --faint: #6b6b6b;
   --accent: #c9a862;
   --accent-bg: rgba(201, 168, 98, 0.14);
-  --sel: rgba(255, 255, 255, 0.07);
+  --sel: rgba(255, 255, 255, 0.1);
   --hover: rgba(255, 255, 255, 0.04);
   --cmd: #c9a862;
   --expr: #6cc0c0;
@@ -124,12 +124,13 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .welcome { margin: auto; text-align: center; color: var(--text-2); line-height: 2; }
 .welcome img { width: 96px; margin-bottom: 8px; }
 /* CodeMirror */
-.cm-editor { height: 100%; font: 16px/var(--lh) var(--body); color: var(--text); }
+.cm-editor { --fs: 16px; --elh: var(--lh); height: 100%; font: var(--fs)/var(--elh) var(--body); color: var(--text); }
+.cm-editor.code { --fs: 13px; --elh: 1.65; font-family: var(--mono); }
 .cm-editor.cm-focused { outline: none; }
-.cm-scroller { font-family: var(--body) !important; line-height: var(--lh) !important; padding: 24px 0 40vh; }
+.cm-scroller { font-family: inherit !important; line-height: var(--elh) !important; padding: 24px 0 40vh; }
 .cm-content { margin: 0 auto 0 0; padding-right: 24px; caret-color: var(--text); }
 .cm-gutters { background: var(--bg) !important; border: none !important; color: var(--faint); font: 11px var(--ui); padding-left: max(0px, calc((100% - 760px) / 2)); }
-.cm-lineNumbers .cm-gutterElement { padding: 0 12px 0 2px !important; min-width: 28px; font: 11px var(--ui); line-height: calc(16px * var(--lh)); display: flex; align-items: flex-start; justify-content: flex-end; }
+.cm-lineNumbers .cm-gutterElement { padding: 0 12px 0 2px !important; min-width: 28px; font: 11px var(--ui); line-height: calc(var(--fs) * var(--elh)); display: flex; align-items: flex-start; justify-content: flex-end; }
 .cm-change-gutter .cm-gutterElement { width: 9px; display: flex; align-items: stretch; padding: 6px 0; }
 .chg { width: 3px; border-radius: 1px; }
 .chg-add { background: var(--add); }
@@ -148,8 +149,17 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .cm-diagnostic { font: 12px var(--ui); }
 .cm-panels { background: var(--bg-2) !important; color: var(--text); border-color: var(--border) !important; }
 /* vertical editor */
-.vwrap { flex: 1; overflow: auto; display: flex; justify-content: flex-end; padding: 30px 30px 30px 0; }
-.vedit { writing-mode: vertical-rl; font: 17px/var(--lh) var(--body); border: none; outline: none; resize: none; background: transparent; color: var(--text); min-width: 100%; padding: 0; }
+/* the scroll origin is the right edge (direction: rtl), like a vertical book */
+.vwrap { --vfs: 17px; --vtop: 46px; height: 100%; overflow: auto; direction: rtl; padding: 24px 30px; }
+.vstack { position: relative; direction: ltr; height: calc(var(--vchars) * var(--vfs) + var(--vtop) + 6px); }
+.vedit, .vmirror { position: absolute; top: 0; right: 0; height: 100%; writing-mode: vertical-rl; font: var(--vfs)/var(--lh) var(--body); padding: var(--vtop) 0 0; margin: 0; border: none; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; letter-spacing: 0; box-sizing: border-box; }
+.vedit { outline: none; resize: none; background: transparent; color: var(--text); overflow: hidden; z-index: 1; }
+.vmirror { color: transparent; pointer-events: none; user-select: none; -webkit-user-select: none; width: 100%; }
+.vl { position: relative; }
+.vl::before { content: attr(data-n); position: absolute; top: -22px; right: 0; width: calc(var(--vfs) * var(--lh)); text-align: center; writing-mode: horizontal-tb; font: 10.5px var(--ui); color: var(--faint); }
+.vl[data-m]::after { content: ""; position: absolute; top: -38px; right: calc(var(--vfs) * var(--lh) / 2 - 8px); width: 16px; height: 3px; border-radius: 1px; background: var(--add); }
+.vl[data-m="mod"]::after { background: var(--mod); }
+.vl[data-m="del"]::after { background: var(--del); width: 8px; right: calc(var(--vfs) * var(--lh) / 2 - 4px); }
 /* previews */
 .plain { padding: 30px 34px; font: 15px/var(--lh) var(--body); max-width: 42em; }
 .plain.vertical { writing-mode: vertical-rl; max-width: none; height: 100%; overflow: visible; padding: 30px 26px; }

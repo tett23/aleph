@@ -33,8 +33,8 @@ import { lspFor, uriOf, type LspDiagnostic } from "./lsp";
 const highlight = HighlightStyle.define([
   { tag: t.heading, fontWeight: "600" },
   { tag: t.processingInstruction, color: "var(--faint)", fontWeight: "400" },
-  { tag: t.keyword, color: "var(--cmd)" },
-  { tag: t.string, color: "var(--expr)" },
+  { tag: t.keyword, color: "var(--cmd)", fontFamily: "var(--mono)", fontSize: "0.86em" },
+  { tag: t.string, color: "var(--expr)", fontFamily: "var(--mono)", fontSize: "0.86em" },
   { tag: t.comment, color: "var(--faint)" },
   { tag: t.escape, color: "var(--faint)" },
   { tag: t.meta, color: "var(--faint)" },
@@ -179,6 +179,9 @@ const invisiblesPlugin = ViewPlugin.fromClass(
 );
 const invisibles = (on: boolean): Extension => (on ? [invisiblesPlugin] : []);
 
+/** Kinds written in the body font; the rest use the code font. */
+export const PROSE = ["gm", "md", "txt"];
+
 export type EditorOptions = {
   parent: HTMLElement;
   path: string;
@@ -274,6 +277,7 @@ export const createEditor = (o: EditorOptions): Editor => {
         drawSelection(),
         highlightSelectionMatches(),
         EditorView.lineWrapping,
+        EditorView.editorAttributes.of({ class: PROSE.includes(o.kind) ? "prose" : "code" }),
         languageOf(o.kind),
         syntaxHighlighting(highlight),
         width.of(widthTheme(o.chars)),

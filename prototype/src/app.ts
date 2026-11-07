@@ -5,7 +5,8 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { api, basename, dirname, rel, stem, type Entry } from "./api";
 import { config, saveConfig } from "./config";
 import { parseDelimited, writeDelimited } from "./csv";
-import { createEditor, notifySaved, type Editor } from "./editor";
+import { createEditor, notifySaved, PROSE, type Editor } from "./editor";
+import { lineMarks } from "./diff";
 import { gmBlocks, mdToGm, plainParagraphs, stats, type Grid } from "./gm";
 import { esc, h, icon } from "./icons";
 import { lspFor } from "./lsp";
@@ -108,7 +109,14 @@ const currentWs = () => {
   return state.workspace;
 };
 
-const charsOf = (d: Doc) => config.charsOverride ?? d.grid.chars;
+/** A fresh element inside a scrolling body: renderers set their own class on it, not on the body. */
+const inner = (body: HTMLElement) => {
+  const d = document.createElement("div");
+  body.replaceChildren(d);
+  return d;
+};
+
+const charsOf = (d: Doc) => (PROSE.includes(d.kind) ? (config.charsOverride ?? d.grid.chars) : 110);
 
 // ---------------- tree ----------------
 const ring = (pct: number) => {
@@ -461,7 +469,7 @@ const mountMain = () => {
   const d = state.doc!;
   mainBody.innerHTML = "";
   if (d.kind === "pdf") {
-    renderPdf(mainBody, d.path, dirname(d.path));
+    renderPdf(inner(mainBody), d.path, dirname(d.path));
     return;
   }
   if (d.kind === "csv" || d.kind === "tsv") return mountTable(d);
@@ -486,12 +494,42 @@ const mountMain = () => {
   state.editor.view.focus();
 };
 
+/** The vertical editor: a textarea over a mirror with the same line breaks, which
+ * shows the line numbers above each line and the change marks above them. */
 const mountVertical = (d: Doc) => {
-  const wrap = h(`<div class="vwrap"><textarea class="vedit" spellcheck="false"></textarea></div>`);
+  const wrap = h(`<div class="vwrap"><div class="vstack"><div class="vmirror" aria-hidden="true"></div><textarea class="vedit" spellcheck="false"></textarea></div></div>`);
   const ta = wrap.querySelector("textarea")!;
+  const mirror = wrap.querySelector<HTMLElement>(".vmirror")!;
+  const stack = wrap.querySelector<HTMLElement>(".vstack")!;
   ta.value = d.text;
-  ta.style.height = `${charsOf(d) * 17 + 4}px`;
-  ta.addEventListener("input", () => onEdit(ta.value));
+  let base: string | null | undefined;
+  const setHeight = (c: number) => wrap.style.setProperty("--vchars", String(c));
+  setHeight(charsOf(d));
+  const layout = async () => {
+    if (base === undefined) {
+      base = null;
+      if (d.workspace) {
+        const out = await api.git(d.workspace, ["show", `HEAD:${rel(d.workspace, d.path)}`]).catch(() => null);
+        base = out && out.code === 0 ? out.stdout : null;
+      }
+    }
+    const marks = lineMarks(base, ta.value);
+    mirror.innerHTML = ta.value
+      .split("\n")
+      .map((l, i) => `<div class="vl" data-n="${i + 1}" ${marks.get(i) ? `data-m="${marks.get(i)}"` : ""}>${esc(l) || "\u200b"}</div>`)
+      .join("");
+    // grow sideways with the text instead of scrolling inside the textarea
+    ta.style.width = "0px";
+    const w = Math.max(ta.scrollWidth, wrap.clientWidth - 40);
+    ta.style.width = `${w}px`;
+    stack.style.width = `${w}px`;
+  };
+  let t = 0;
+  ta.addEventListener("input", () => {
+    onEdit(ta.value);
+    clearTimeout(t);
+    t = window.setTimeout(layout, 120);
+  });
   ta.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "s") {
       e.preventDefault();
@@ -499,16 +537,26 @@ const mountVertical = (d: Doc) => {
     }
   });
   mainBody.append(wrap);
+  layout();
   ta.setSelectionRange(0, 0); // start at the beginning, the right edge
-  // a pseudo editor so that the rest of the app can read the text
+  wrap.scrollLeft = 0;
   state.editor = {
     view: null as never,
     text: () => ta.value,
-    setWidth: (c) => (ta.style.height = `${c * 17 + 4}px`),
+    setWidth: (c) => (setHeight(c), layout()),
     setInvisibles: () => {},
     setGrid: () => {},
-    refreshMarks: () => {},
-    goto: () => ta.focus(),
+    refreshMarks: (reset) => {
+      if (reset) base = undefined;
+      layout();
+    },
+    goto: (line) => {
+      const lines = ta.value.split("\n");
+      const pos = lines.slice(0, Math.max(0, line - 1)).reduce((a, l) => a + l.length + 1, 0);
+      ta.focus();
+      ta.setSelectionRange(pos, pos);
+      mirror.children[line - 1]?.scrollIntoView({ inline: "center", block: "nearest" });
+    },
     destroy: () => wrap.remove(),
   };
   ta.focus();
@@ -763,17 +811,17 @@ const renderSidePane = () => {
   if (state.side === "pages" && d.project) {
     const busy = state.building.has(d.project);
     sideHead.innerHTML = `${icon("book-open", 13)}<span>ページ · ${esc(basename(d.project))}</span><span class="sp"></span><span class="iconbtn" data-build title="組む">${icon("refresh-cw", 14)}</span><span class="iconbtn" data-pagewin title="別ウィンドウ">${icon("external-link", 14)}</span>`;
-    renderPages(sideBody, state.pages.get(d.project) ?? null, busy);
+    renderPages(inner(sideBody), state.pages.get(d.project) ?? null, busy);
   } else {
     sideHead.innerHTML = `${icon("eye", 13)}<span>${d.kind === "gm" ? "本文 · 命令と式を反映" : "プレビュー"}</span><span class="sp"></span>${d.kind === "gm" ? `<span class="iconbtn" data-plainwin title="別ウィンドウ">${icon("external-link", 14)}</span>` : ""}`;
     if (d.kind === "gm") {
       const h = state.html.get(d.path);
       if (!h && d.project) refreshHtml(d);
-      renderEvaluated(sideBody, h?.html ?? null, text, state.vertical, h?.note ?? (d.project ? "組んでいます…" : ""));
+      renderEvaluated(inner(sideBody), h?.html ?? null, text, state.vertical, h?.note ?? (d.project ? "組んでいます…" : ""));
     }
-    else if (d.kind === "md") renderMarkdown(sideBody, text, state.vertical);
-    else if (d.kind === "svg") renderSvg(sideBody, text);
-    else if (d.kind === "mmd") renderMermaid(sideBody, text);
+    else if (d.kind === "md") renderMarkdown(inner(sideBody), text, state.vertical);
+    else if (d.kind === "svg") renderSvg(inner(sideBody), text);
+    else if (d.kind === "mmd") renderMermaid(inner(sideBody), text);
   }
 };
 

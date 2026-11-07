@@ -2,14 +2,22 @@
 // md -> gm, page break estimates and counts. All approximations.
 import { StreamLanguage, type StringStream } from "@codemirror/language";
 
-type GmState = { depth: number; comment: boolean; fence: boolean };
+// The bracket stack: "expr" inside [= ...], "head" in a command's name and
+// arguments, "prose" in a prose slot (after ':' or '|').
+type Ctx = "expr" | "head" | "prose";
+type GmState = { stack: Ctx[]; comment: boolean; fence: boolean; blockLine: boolean; heading: boolean };
 
-/** A tokenizer for .gm: headings, block commands, inline commands, expressions, comments. */
+/** A tokenizer for .gm. Commands and expressions get "keyword"/"string" (set in code font);
+ * prose slots stay prose. */
 export const gmLanguage = StreamLanguage.define<GmState>({
   name: "gm",
-  startState: () => ({ depth: 0, comment: false, fence: false }),
-  copyState: (s) => ({ ...s }),
+  startState: () => ({ stack: [], comment: false, fence: false, blockLine: false, heading: false }),
+  copyState: (s) => ({ ...s, stack: [...s.stack] }),
   token(stream: StringStream, state: GmState) {
+    if (stream.sol()) {
+      state.blockLine = false;
+      state.heading = false;
+    }
     if (stream.sol() && stream.match(/^```/)) {
       state.fence = !state.fence;
       stream.skipToEnd();
@@ -20,9 +28,8 @@ export const gmLanguage = StreamLanguage.define<GmState>({
       return "monospace";
     }
     if (state.comment) {
-      if (stream.match(/^.*?%%/)) {
-        state.comment = false;
-      } else stream.skipToEnd();
+      if (stream.match(/^.*?%%/)) state.comment = false;
+      else stream.skipToEnd();
       return "comment";
     }
     if (stream.match("%%")) {
@@ -32,33 +39,50 @@ export const gmLanguage = StreamLanguage.define<GmState>({
       }
       return "comment";
     }
-    if (stream.sol() && stream.match(/^#{1,6}(?= )/)) {
-      return "heading processingInstruction";
-    }
-    if (stream.sol() && stream.match(/^#{1,6} .*/)) return "heading";
-    if (stream.sol() && stream.match(/^\s*@[a-z][\w.-]*/)) {
-      return "keyword";
-    }
-    if (stream.match(/^\[=/)) {
-      state.depth++;
+    const top = state.stack[state.stack.length - 1];
+    if (top === "expr") {
+      if (stream.eat("[")) state.stack.push("expr");
+      else if (stream.eat("]")) state.stack.pop();
+      else stream.match(/^[^[\]]+/);
       return "string";
     }
-    if (stream.match(/^\[[a-z][\w-]*(\.[\w-]+)?:?/)) {
-      state.depth++;
+    if (top === "head") {
+      if (stream.match(/^\[=/)) return state.stack.push("expr"), "string";
+      if (stream.match(/^\[[a-z][\w-]*(\.[\w-]+)?/)) return state.stack.push("head"), "keyword";
+      if (stream.eat("]")) return state.stack.pop(), "keyword";
+      if (stream.eat(":")) {
+        state.stack[state.stack.length - 1] = "prose";
+        return "keyword";
+      }
+      if (stream.match(/^"(?:[^"\\]|\\.)*"/)) return "keyword";
+      stream.match(/^[^[\]:"]+/) || stream.next();
       return "keyword";
     }
-    if (state.depth > 0 && stream.eat("]")) {
-      state.depth--;
+    // prose (top level or a prose slot)
+    if (stream.sol() && !state.stack.length && stream.match(/^#{1,6}(?= )/)) {
+      state.heading = true;
+      return "heading processingInstruction";
+    }
+    if (stream.sol() && !state.stack.length && stream.match(/^\s*@[a-z][\w.-]*/)) {
+      state.blockLine = true;
       return "keyword";
     }
-    if (state.depth > 0 && stream.eat("|")) return "keyword";
+    if (state.blockLine && !state.stack.length) {
+      // the arguments of a block command, up to an inline command
+      if (stream.match(/^[^[%]+/)) return "keyword";
+    }
+    if (stream.match(/^\[=/)) return state.stack.push("expr"), "string";
+    if (stream.match(/^\[[a-z][\w-]*(\.[\w-]+)?/)) return state.stack.push("head"), "keyword";
+    if (state.stack.length && stream.eat("]")) return state.stack.pop(), "keyword";
+    if (state.stack.length && stream.eat("|")) return "keyword";
     if (stream.match(/^\\./)) return "escape";
     stream.next();
-    while (!stream.eol() && !/[[\]%|\\@]/.test(stream.peek() ?? "")) stream.next();
-    return null;
+    while (!stream.eol() && !/[[\]%|\\]/.test(stream.peek() ?? "")) stream.next();
+    return state.heading ? "heading" : null;
   },
   blankLine(state) {
     state.comment = false;
+    state.stack = [];
   },
 });
 

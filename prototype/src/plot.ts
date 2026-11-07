@@ -1,7 +1,7 @@
 // The plot: a table in plot.csv, previewed as a Gantt chart by subplot.
 import { emit } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { basename } from "./api";
+import { api, basename } from "./api";
 import { esc, h, icon } from "./icons";
 import { PLOT_COLUMNS, loadPlot, namesCell, savePlot, type PlotKey, type PlotRow } from "./project";
 
@@ -25,55 +25,82 @@ const PALETTE = ["#d99a0b", "#4f8fd6", "#5aa469", "#c46ad0", "#e06c4f", "#3fa7a0
 
 export const subplotColor = (names: string[], s: string) => PALETTE[Math.max(0, names.indexOf(s)) % PALETTE.length];
 
-/** A point in story time: a number, or a date (YYYY, YYYY-MM, YYYY-MM-DD). */
-const timeOf = (s: string): number | null => {
+/** A number or an ISO-like date, when a label is one; for sorting only. */
+const valueOf = (s: string): number | null => {
   const t = s.trim();
-  if (!t) return null;
   if (/^-?\d+(\.\d+)?$/.test(t)) return Number(t);
+  if (!/^\d{4}(-\d{2}(-\d{2})?)?$/.test(t)) return null;
   const d = Date.parse(/^\d{4}$/.test(t) ? `${t}-01-01` : /^\d{4}-\d{2}$/.test(t) ? `${t}-01` : t);
-  return Number.isNaN(d) ? null : d / 86_400_000;
+  return Number.isNaN(d) ? null : d;
 };
 
-const isDateish = (rows: PlotRow[]) => rows.some((r) => /^\d{4}-\d{2}/.test(r.start));
+/** The story's calendar: the labels in order. The calendar file wins; otherwise
+ * numbers and dates sort by value, and any other labels keep the table's order. */
+export const calendarOf = (rows: PlotRow[], file: string[]): string[] => {
+  const used = rows.flatMap((r) => [r.start.trim(), r.end.trim()]).filter(Boolean);
+  const seen = [...new Set(used)];
+  if (file.length) return [...file, ...seen.filter((l) => !file.includes(l))];
+  return seen.every((l) => valueOf(l) !== null) ? [...seen].sort((x, y) => valueOf(x)! - valueOf(y)!) : seen;
+};
 
-const gantt = (rows: PlotRow[], subplots: string[]) => {
+const gantt = (rows: PlotRow[], subplots: string[], calendar: string[]) => {
   const items = rows
-    .map((r, i) => ({ r, i, s: timeOf(r.start), e: timeOf(r.end) ?? timeOf(r.start) }))
-    .filter((x) => x.s !== null) as { r: PlotRow; i: number; s: number; e: number }[];
+    .map((r, i) => {
+      const s = calendar.indexOf(r.start.trim());
+      const e = r.end.trim() ? calendar.indexOf(r.end.trim()) : s;
+      return { r, i, s, e: Math.max(s, e) + 1 }; // the end label is included
+    })
+    .filter((x) => x.s >= 0);
   if (!items.length)
-    return `<div class="hint">「開始」と「終了」の列に、物語内の時間（数か 2026-12-01 のような日付）を書くとガントチャートになります。</div>`;
-  const min = Math.min(...items.map((x) => x.s));
-  const max = Math.max(...items.map((x) => Math.max(x.e, x.s + 1)));
-  const W = 1000;
-  const x = (v: number) => ((v - min) / (max - min || 1)) * W;
+    return `<div class="hint">「開始」と「終了」の列に、物語の中の時を書くとガントチャートになります。「帝国暦302年・春」のような任意の文字列でかまいません。並び順は「暦」で決めます。</div>`;
+  const col = Math.max(70, Math.min(140, Math.floor(1000 / calendar.length)));
+  const W = col * calendar.length;
   const lanes = subplots.length ? subplots : ["(なし)"];
   const laneH = 34;
-  const ticks = 10;
-  const dates = isDateish(rows);
-  const label = (v: number) => (dates ? new Date(v * 86_400_000).toISOString().slice(0, dates ? 7 : 4) : String(Math.round(v * 10) / 10));
-  // drawn at its own size; the panel scrolls sideways when it is narrower
   let svg = `<svg class="gantt-svg" width="${W + 150}" height="${lanes.length * laneH + 34}" viewBox="-130 -26 ${W + 150} ${lanes.length * laneH + 34}">`;
-  for (let k = 0; k <= ticks; k++) {
-    const v = min + ((max - min) * k) / ticks;
-    svg += `<line x1="${x(v)}" x2="${x(v)}" y1="-6" y2="${lanes.length * laneH}" class="tick"/><text x="${x(v) + 3}" y="-10" class="tl">${esc(label(v))}</text>`;
-  }
+  calendar.forEach((label, k) => {
+    svg += `<line x1="${k * col}" x2="${k * col}" y1="-6" y2="${lanes.length * laneH}" class="tick"/><text x="${k * col + 4}" y="-10" class="tl">${esc(label.length > 12 ? label.slice(0, 11) + "…" : label)}</text>`;
+  });
   lanes.forEach((lane, li) => {
     svg += `<text x="-120" y="${li * laneH + 21}" class="lane" fill="${subplotColor(subplots, lane)}">${esc(lane)}</text>`;
     items
       .filter((it) => (subplots.length ? namesCell(it.r.subplots).includes(lane) : true))
       .forEach((it) => {
         const c = subplotColor(subplots, lane);
-        const w = Math.max(6, x(it.e) - x(it.s));
-        svg += `<g class="bar" data-row="${it.i}"><rect x="${x(it.s)}" y="${li * laneH + 7}" width="${w}" height="20" rx="3" fill="${c}" fill-opacity=".22" stroke="${c}"/><text x="${x(it.s) + 5}" y="${li * laneH + 21}" fill="${c}">${esc(it.r.scene || basename(it.r.file))}</text></g>`;
+        svg += `<g class="bar" data-row="${it.i}"><rect x="${it.s * col + 2}" y="${li * laneH + 7}" width="${(it.e - it.s) * col - 4}" height="20" rx="3" fill="${c}" fill-opacity=".22" stroke="${c}"/><text x="${it.s * col + 7}" y="${li * laneH + 21}" fill="${c}">${esc(it.r.scene || basename(it.r.file))}</text></g>`;
       });
   });
   return svg + "</svg>";
 };
 
+/** Edits the order of the calendar: one label per line. */
+const editCalendar = (labels: string[]): Promise<string[] | null> =>
+  new Promise((resolve) => {
+    const dim = h(`<div class="dim"><div class="modal" style="width:440px;height:auto;flex-direction:column;padding:18px 20px;gap:10px">
+      <div style="font-weight:600">暦</div>
+      <div class="muted" style="font-size:12px;line-height:1.7">物語の中の時を、早い順に 1 行に 1 つ書きます。表の「開始」と「終了」に書いた文字列をそのまま使います。plot-calendar.txt に保存します。</div>
+      <textarea class="field" style="width:100%;height:280px;font:13px/1.7 var(--body)">${esc(labels.join("\n"))}</textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><span class="btn" data-x>やめる</span><span class="btn pri" data-ok>保存</span></div>
+    </div></div>`);
+    const ta = dim.querySelector("textarea")!;
+    dim.addEventListener("click", (e) => {
+      const t = e.target as HTMLElement;
+      if (t === dim || t.closest("[data-x]")) (dim.remove(), resolve(null));
+      if (t.closest("[data-ok]")) {
+        dim.remove();
+        resolve(ta.value.split("\n").map((l) => l.trim()).filter(Boolean));
+      }
+    });
+    document.body.append(dim);
+    ta.focus();
+  });
+
 export type PlotView = { reload: () => Promise<void>; el: HTMLElement };
 
 export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFile?: (rel: string) => void; standalone?: boolean } = {}): PlotView => {
   let rows: PlotRow[] = [];
+  let calendarFile: string[] = [];
+  const calPath = `${project}/plot-calendar.txt`;
   let mode: "table" | "gantt" | "both" = "both";
   let filter: string | null = null;
   let timer = 0;
@@ -103,6 +130,7 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
         <span class="sp"></span>
         <span class="muted">${rows.length} シーン · 予定 ${total.toLocaleString()} 字</span>
         <span class="f" data-act="add">${icon("plus", 14)}シーン</span>
+        ${mode !== "table" ? `<span class="f" data-act="calendar" title="ガントの時の並び">${icon("calendar-cog", 14)}暦</span>` : ""}
         ${opts.standalone ? "" : `<span class="f" data-act="window" title="別ウィンドウ">${icon("external-link", 14)}</span>`}
       </div>
       ${
@@ -123,7 +151,7 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
           .join("")}</tbody></table></div>`
           : ""
       }
-      ${mode !== "table" ? `<div class="gantt">${gantt(filter ? rows.filter((r) => namesCell(r.subplots).includes(filter!)) : rows, filter ? [filter] : subs)}</div>` : ""}`;
+      ${mode !== "table" ? `<div class="gantt">${gantt(filter ? rows.filter((r) => namesCell(r.subplots).includes(filter!)) : rows, filter ? [filter] : subs, calendarOf(rows, calendarFile))}</div>` : ""}`;
   };
 
   el.addEventListener("input", (e) => {
@@ -152,6 +180,11 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
     } else if (t.dataset.act === "del") {
       rows.splice(Number(t.closest("tr")!.dataset.row), 1);
       save();
+    } else if (t.dataset.act === "calendar") {
+      const next = await editCalendar(calendarOf(rows, calendarFile));
+      if (next === null) return;
+      calendarFile = next;
+      await api.writeText(calPath, next.join("\n") + "\n");
     } else if (t.dataset.act === "window") {
       new WebviewWindow(`plot-${Date.now()}`, {
         url: `index.html?view=plot&project=${encodeURIComponent(project)}`,
@@ -171,6 +204,9 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
 
   const reload = async () => {
     rows = await loadPlot(project);
+    calendarFile = (await api.exists(calPath))
+      ? (await api.readText(calPath)).split("\n").map((l) => l.trim()).filter(Boolean)
+      : [];
     render();
   };
   reload();

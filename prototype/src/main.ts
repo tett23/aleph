@@ -14,7 +14,10 @@ const detached = (title: string) => {
   const app = document.getElementById("app")!;
   app.style.flexDirection = "column";
   app.innerHTML = `<div class="toolbar drag" data-tauri-drag-region style="padding-left:80px"><span class="title" data-tauri-drag-region>${title}</span><span class="tools"></span></div><div class="pbody" style="flex:1;overflow:auto;background:var(--bg-2)"></div>`;
-  return { tools: app.querySelector<HTMLElement>(".tools")!, body: app.querySelector<HTMLElement>(".pbody")! };
+  const scroller = app.querySelector<HTMLElement>(".pbody")!;
+  const body = document.createElement("div"); // renderers set their own class on it
+  scroller.append(body);
+  return { tools: app.querySelector<HTMLElement>(".tools")!, body, scroller };
 };
 
 const main = async () => {
@@ -38,9 +41,10 @@ const main = async () => {
     emit("aleph:build-request", { project });
   } else if (view === "plot") {
     const project = q.get("project")!;
-    const { body } = detached(`プロット — ${basename(project)}`);
-    body.style.background = "var(--bg)";
-    mountPlot(body, project, { standalone: true });
+    const { scroller } = detached(`プロット — ${basename(project)}`);
+    scroller.style.background = "var(--bg)";
+    scroller.style.overflow = "hidden";
+    mountPlot(scroller, project, { standalone: true });
   } else if (view === "plain") {
     const path = q.get("path")!;
     const { tools, body } = detached(`本文 — ${basename(path)}`);

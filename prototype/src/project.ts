@@ -84,7 +84,7 @@ export const PLOT_COLUMNS = [
   ["target", "予定字数"],
   ["memo", "メモ"],
   ["fragments", "本文の断片"],
-  ["start", "開始"],
+  ["start", "開始（物語の中の時）"],
   ["end", "終了"],
 ] as const;
 
