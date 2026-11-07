@@ -65,6 +65,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0048](adr/0048-paths-in-arguments-and-data-files.md) | 引数とデータのファイルのパスをワークスペースの中に限る（実装済み） |
 | [ADR 0049](adr/0049-dependency-audit-in-ci.md) | CI で依存の既知の脆弱性を検査する（実装済み） |
 | [ADR 0050](adr/0050-paths-the-writer-chooses.md) | 書き手が選んだパスだけを、範囲と実行ファイルに足す（実装済み） |
+| [ADR 0051](adr/0051-git-init-and-the-pages-window.md) | git の許可に init を足し、ページのウィンドウを権限の対象に書く（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
@@ -86,9 +87,9 @@ Rust の側は、画面（webview）からの呼び出しを信じきらない�
 - CSP で、読み込めるスクリプトを自分のものと blob（プラグイン）に、接続を IPC に限る。`object`、`base`、フォームの送り先は使わない。
 - 画面からファイルを読み書きできるのは、ワークスペース、共有ライブラリ、アプリの一時のディレクトリの下に限る。アプリの設定のディレクトリ（`config.json`、`plugins/`、`trash/`）は読めるが、書けるのはゴミ箱だけである。パスは `canonicalize` してから確かめるので、`..` やシンボリックリンクで外へ出るものも拒む。範囲の外は誤りを返し、`exists` は偽を、ツリーと一覧は空を返す。
 - Finder から落としたファイルとフォルダは、アプリが動いているあいだだけ、コピーの元として読める。
-- git、golem、shem の実行ファイルは、Rust の側が設定から決める。画面からは渡せない。サブコマンドは Aleph が使うものに限る（git は `add`、`branch`、`commit`、`diff`、`log`、`pull`、`push`、`rev-parse`、`show`、`status`、golem は `build`、`check`、`fmt`、`lint`、`new`、`preflight`、`lsp`、`--version`、shem は `render`、`--version`）。作業のディレクトリも上の範囲に限る。
+- git、golem、shem の実行ファイルは、Rust の側が設定から決める。画面からは渡せない。サブコマンドは Aleph が使うものに限る（git は `add`、`branch`、`commit`、`diff`、`init`、`log`、`pull`、`push`、`rev-parse`、`show`、`status`、golem は `build`、`check`、`fmt`、`lint`、`new`、`preflight`、`lsp`、`--version`、shem は `render`、`--version`）。git の `init` は [ADR 0051](adr/0051-git-init-and-the-pages-window.md) で足した。作業のディレクトリも上の範囲に限る。
 - 設定のうち、`workspaces`、`libraryDir`、`gitPath`、`golemPath`、`shemPath` は Rust の側だけが足し、変える。画面からの保存では、ワークスペースを外すことと、パスを空にすることだけを受け付ける。ワークスペースを足す、共有ライブラリを選ぶか作る、バイナリを選ぶときは、Rust の側がネイティブのダイアログを開く。バイナリのパスを欄に打ったときは、Rust の側がネイティブの確認のダイアログを出し、はいのときだけ使う。
-- 権限は、Aleph が開くウィンドウ（`main`、`plain-*`、`pages-*`、`plot-*`、`imelog-*`）に限って与える。
+- 権限は、Aleph が開くウィンドウ（`main`、`plain-*`、`pages-*`、`plot-*`、`imelog-*`）に限って与える。`pages-*` は [ADR 0051](adr/0051-git-init-and-the-pages-window.md) で決めた。
 - ウィンドウは、アプリのページ（開発のときは開発のサーバー）から外へ移らない（[ADR 0044](adr/0044-navigation-from-the-preview.md)）。プレビューのリンクを押しても、ウィンドウは移らない。`#…` はプレビューの中のその要素へ送り、`http` と `https` は URL を示して確かめてから既定のブラウザで開く。ウィキリンクと埋め込みの見出しは Aleph の中で開き、ほかのリンク（`file:`、相対のパスなど）は何もしない。`target="_blank"` と `window.open` も新しいウィンドウを開かない。
 
 ## 画面の構成
