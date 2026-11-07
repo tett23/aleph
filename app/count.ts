@@ -2,13 +2,13 @@
 // Intl.Segmenter, and manuscript sheets counted paragraph by paragraph.
 import { gmBlocks } from "./gm.ts";
 import type { Separator } from "./manifest.ts";
-import { parseMarkdown, type Inline } from "./md.ts";
+import { parseMarkdown, wikiText, type Inline } from "./md.ts";
 
 export type Stats = { chars: number; words: number; sheets: number };
 export type Manuscript = { cols: number; rows: number };
 
 const inlineText = (xs: Inline[]): string =>
-  xs.map((x) => (x.t === "text" || x.t === "code" ? x.v : x.t === "image" ? "" : inlineText(x.c))).join("");
+  xs.map((x) => (x.t === "text" || x.t === "code" ? x.v : x.t === "image" ? "" : x.t === "wikilink" ? wikiText(x) : inlineText(x.c))).join("");
 
 /** The paragraphs of a sheet as plain text, by its kind. */
 export const paragraphsOf = (kind: string, src: string, separator: Separator = "blank-line"): string[] => {

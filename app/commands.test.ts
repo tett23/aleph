@@ -72,7 +72,7 @@ test("recent commands keep 20, newest first, without repeats", () => {
 const INITIAL = [
   "file.newSheet", "file.newFolder", "file.newProject", "file.save",
   "view.left.files", "view.left.search", "view.left.git", "view.left.diagnostics", "view.left.library", "view.toggleLeft",
-  "view.right.attach", "view.right.outline", "view.right.library", "view.toggleRight", "view.plot", "view.vertical", "view.horizontal",
+  "view.right.attach", "view.right.outline", "view.right.links", "view.right.library", "view.toggleRight", "view.plot", "view.vertical", "view.horizontal",
   "preview.none", "preview.plain", "preview.pages", "preview.window",
   "editor.undo", "editor.redo", "editor.selectAll", "editor.find", "editor.indent", "editor.outdent", "editor.complete", "editor.format",
   "git.commit", "git.push", "git.pull",
@@ -91,7 +91,7 @@ test("every command ADR 0023 lists is registered somewhere in the app", async ()
   const src = files(new URL(".", import.meta.url).pathname).map((p) => readFileSync(p, "utf8")).join("\n");
   const ids = new Set([...src.matchAll(/id: "([\w.-]+)"/g), ...src.matchAll(/\["(editor\.\w+)"/g)].map((m) => m[1]));
   // ids built from the panel and preview tables of palette.ts
-  for (const [prefix, table] of [["view.left.", /\["(files|git|diagnostics|library)", "/g], ["view.right.", /\["(attach|outline|library)", "/g], ["preview.", /\["(none|plain|pages)", "/g]] as const)
+  for (const [prefix, table] of [["view.left.", /\["(files|git|diagnostics|library)", "/g], ["view.right.", /\["(attach|outline|links|library)", "/g], ["preview.", /\["(none|plain|pages)", "/g]] as const)
     for (const m of src.matchAll(table)) ids.add(prefix + m[1]);
   assert.deepEqual(INITIAL.filter((id) => !ids.has(id)), []);
 });

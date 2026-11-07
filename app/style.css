@@ -573,3 +573,14 @@ body.dragging-image, body.dragging-image * { user-select: none; cursor: copy !im
 .tabview { height: 100%; }
 .tabview[hidden] { display: none; }
 .tabview > .single, .single > .mhost { height: 100%; }
+
+/* wikilinks (docs/adr/0027) */
+.ed:not(.no-fallback) .t-wikilink { color: var(--accent); }
+.wl-missing { text-decoration: underline dotted var(--faint); text-underline-offset: 3px; }
+.links .sec { padding: 8px 10px; }
+.links h5 { margin: 4px 0 6px; font-size: 11px; font-weight: 600; color: var(--faint); }
+.links .lk { padding: 4px 6px; border-radius: 5px; cursor: default; }
+.links .lk:hover { background: var(--bg-3); }
+.links .lk small { display: block; color: var(--text-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.links .lk.missing { color: var(--faint); }
+a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }

@@ -37,7 +37,7 @@ export type ViewOptions = {
 const MARGIN = 1200;
 const BREAK_SIZE = 24;
 /** The layers drawn into the lines, in order: later ones nest inside earlier ones' spans. */
-const LAYERS = ["st", "search", "selmatch", "diag"];
+const LAYERS = ["st", "link", "search", "selmatch", "diag"];
 
 const walk = domWalk;
 /** A block the browser put inside a line while composing (a line break typed into the composition). */

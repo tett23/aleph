@@ -23,6 +23,7 @@ import { mountCommands } from "./palette.ts";
 import { cleanKeyBindings, mountKeybind } from "./keybind.ts";
 import { mountBookmarks } from "./bookmarkpanel.ts";
 import { mountQuickOpen } from "./quickopenmount.ts";
+import { mountWikilinks } from "./wikilinkmount.ts";
 import { mountRecent, reopenLast } from "./recentpanel.ts";
 import { keepTabs, restoreTabs } from "./tabsui.ts";
 import { mountLsp } from "./lsp/mount.ts";
@@ -179,6 +180,7 @@ const start = async () => {
   mountBookmarks(ctx);
   mountRecent(ctx);
   mountQuickOpen(ctx);
+  mountWikilinks(ctx);
   // last: the built-in commands, the settings sections as commands, and the window's keys (docs/adr/0023)
   mountKeybind(ctx);
   mountCommands(ctx);

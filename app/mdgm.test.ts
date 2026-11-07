@@ -81,3 +81,7 @@ test("the result passes golem check", { skip: !golem && "golem is not installed"
 test("an image alone on its line becomes @figure even when text follows on the next line", () => {
   assert.equal(gm("![a](x.png)\n次の行\n"), '@figure x.png alt="a"\n\n次の行\n');
 });
+
+test("a wikilink keeps only the text it shows (docs/adr/0027)", () => {
+  assert.equal(mdToGm("[[人物|父]]と[[場所]]", "blank-line").trim(), "父と場所");
+});
