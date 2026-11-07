@@ -84,6 +84,22 @@ fn spell_check(words: Vec<String>) -> Vec<String> {
     spell::misspelled(&words)
 }
 
+/// Writes the raw body of the request to the path in its `path` header (percent-encoded):
+/// a pasted image's bytes, without turning them into JSON (docs/adr/0031).
+#[tauri::command]
+fn write_bytes(request: tauri::ipc::Request<'_>) -> R<()> {
+    let path = request
+        .headers()
+        .get("path")
+        .and_then(|v| v.to_str().ok())
+        .and_then(fsops::percent_decode)
+        .ok_or_else(|| "no path".to_string())?;
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("no bytes".to_string());
+    };
+    fsops::write_bytes(Path::new(&path), bytes).map_err(err)
+}
+
 #[tauri::command]
 fn list_dir(path: String) -> Vec<String> {
     fsops::list_dir(Path::new(&path))
@@ -446,6 +462,7 @@ pub fn run_app() {
             config_save,
             list_tree,
             spell_check,
+            write_bytes,
             read_text,
             read_bytes,
             write_text,
