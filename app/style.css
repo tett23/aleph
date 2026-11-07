@@ -606,3 +606,9 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .pview .embed-head { font-size: 12px; color: var(--text-2); padding: 4px 10px; border-bottom: 1px solid var(--border); background: var(--bg-2); cursor: pointer; }
 .pview .embed-body { padding: 4px 12px; }
 .pview .embed-note { color: var(--faint); font-size: 12px; padding: 6px 0; }
+
+/* replacing in the search panel (docs/adr/0032) */
+.search .reprow { justify-content: flex-end; }
+.search .hit del { color: var(--faint); }
+.search .hit strong { color: var(--accent); }
+.search .hit input, .search .hf input { margin: 0 4px 0 0; }
