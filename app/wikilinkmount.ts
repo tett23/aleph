@@ -13,7 +13,7 @@ import { allDocs, focused } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree, treeEntries, treeReloaded } from "./ui/tree.ts";
 import { backlinks, buildIndex, completeAt, findHeading, groupBacklinks, markMissing, outlinks, parseWikilinks, renameEdits, resolveLink, type Index, type Sheet, type Wikilink } from "./wikilink.ts";
-import { IMAGE_KINDS, kindOf, TEXT_KINDS } from "./workspace.ts";
+import { IMAGE_KINDS, kindOf, TEXT_KINDS, workspaceOf } from "./workspace.ts";
 import { expandEmbeds } from "./embed.ts";
 import { parseMarkdown } from "./md.ts";
 import { markdownHook, plainHtml } from "./preview/render.ts";
@@ -155,7 +155,7 @@ const expand = async (ctx: Ctx, src: string, path: string) => {
       }
     frontier = next;
   }
-  const html = expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml, breaks: ctx.config.markdownBreaks, name: (p) => ctx.titles.get(p) ?? null });
+  const html = expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml, breaks: ctx.config.markdownBreaks, name: (p) => ctx.titles.get(p) ?? null, root: workspaceOf(path, ctx.store.get().workspaces) });
   // links to targets not found are drawn apart (docs/adr/0027)
   return markMissing(html, (t) => resolveLink(t, path, sheets, wsOf(ctx)).path !== null);
 };

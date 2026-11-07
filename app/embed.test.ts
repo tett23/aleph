@@ -93,3 +93,12 @@ test("an embed's frame is titled by the sheet's name, the written target beside 
   assert.equal(head("![[nope]]"), "nope");
   assert.equal(head("![[pic.png]]"), "pic.png");
 });
+
+test("an embedded sheet's images resolve from its own folder, inside the workspace (docs/adr/0047)", () => {
+  const files: Record<string, string> = { "/w/a.md": "![[sub/b]]", "/w/sub/b.md": "![図](img/x.png) ![外](https://example.com/x.png)" };
+  const io4 = { resolve: (t: string) => (t === "sub/b" ? "/w/sub/b.md" : null), read: (p: string) => files[p] ?? null, plain: (s: string) => s, root: "/w" };
+  const html = expandEmbeds(files["/w/a.md"], "/w/a.md", io4);
+  assert.match(html, /<img data-src="\/w\/sub\/img\/x.png" alt="図">/);
+  assert.match(html, /外部の画像は読み込みません：https:\/\/example.com\/x.png/);
+  assert.doesNotMatch(html, /src="https/);
+});
