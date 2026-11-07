@@ -253,7 +253,7 @@ const watchWidth = (ctx: Ctx, body: HTMLElement, project: string) => {
 
 const sendPlain = async (ctx: Ctx) => {
   const s = ctx.store.get();
-  await emit("aleph:plain", { sections: sectionsOf(chaptersShown(s)), vertical: s.vertical }).catch(() => {});
+  await emit("aleph:plain", { sections: sectionsOf(chaptersShown(s)), vertical: s.vertical && s.open.length === 1 }).catch(() => {});
 };
 
 const openWindow = async (ctx: Ctx, view: "plain" | "pages", project: string) => {

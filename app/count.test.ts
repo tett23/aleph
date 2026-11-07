@@ -40,6 +40,6 @@ test("Markdown counts: characters, words and sheets of its text", () => {
 
 test("manuscript lines count characters without spaces, as the character count does", () => {
   // 20 characters and 10 full-width spaces: one line of 20, not two
-  assert.equal(stats(["あ　".repeat(10) + "い".repeat(10)], 20, 20).sheets, Math.round((1 / 20) * 10) / 10);
+  assert.equal(stats(["あ　".repeat(10) + "い".repeat(10)], 20, 1).sheets, 1);
   assert.equal(stats(["あ".repeat(20) + "　".repeat(10)], 20, 1).sheets, 1);
 });
