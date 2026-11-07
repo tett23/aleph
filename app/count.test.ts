@@ -47,3 +47,7 @@ test("manuscript lines count characters without spaces, as the character count d
 test("a wikilink counts as the text it shows (docs/adr/0027)", () => {
   assert.deepEqual(paragraphsOf("md", "父は[[人物|あの人]]と[[場所#灯台]]へ"), ["父はあの人と場所 > 灯台へ"]);
 });
+
+test("strikethrough counts; task marks do not (docs/adr/0035)", () => {
+  assert.deepEqual(paragraphsOf("md", "~~消す~~文\n\n- [x] 読む"), ["消す文", "読む"]);
+});

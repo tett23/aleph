@@ -32,6 +32,8 @@ export type Config = {
   keySequenceTimeout: number;
   /** The writing checks (docs/adr/0030). */
   proofread: ProofreadConfig;
+  /** How the Markdown preview draws a paragraph's newlines (docs/adr/0035). */
+  markdownBreaks: "newline" | "blank-line";
   /** The screen's state kept between launches (panels, preview, zooms), written by the main window. */
   ui: Record<string, unknown>;
 };
@@ -60,6 +62,7 @@ export const defaults = (): Config => ({
   leaderKey: DEFAULT_LEADER,
   keySequenceTimeout: DEFAULT_TIMEOUT,
   proofread: defaultProofread(),
+  markdownBreaks: "newline",
   ui: {},
 });
 
@@ -107,6 +110,7 @@ export const normalize = (raw: unknown): Config => {
     leaderKey: leaderOf(r.leaderKey),
     keySequenceTimeout: clampTimeout(r.keySequenceTimeout),
     proofread: readProofread(r.proofread),
+    markdownBreaks: r.markdownBreaks === "blank-line" ? "blank-line" : "newline",
     ui: r.ui && typeof r.ui === "object" && !Array.isArray(r.ui) ? (r.ui as Record<string, unknown>) : d.ui,
   };
 };

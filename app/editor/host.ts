@@ -5,6 +5,7 @@ import type { Ctx } from "../ctx.ts";
 import { createEditor, type Editor } from "../ed/editor.ts";
 import { dispatchKey } from "../keybind.ts";
 import { separatorOf } from "../separator.ts";
+import { markdownHook } from "../preview/render.ts";
 import { allDocs, focused, type Doc } from "../store.ts";
 import { canVertical, PROSE } from "../toolbar.ts";
 import { mountPanes } from "./panes.ts";
@@ -83,8 +84,23 @@ export const mountEditors = (ctx: Ctx) => {
       item("本文の文字サイズ", "gm、md、txt のエディタ（縦書きも）と、本文のプレビュー（既定 16 px）", `<input class="field num" type="number" min="10" max="32" data-num="fontSize" value="${c.config.fontSize}"> px`) +
       item("コードの文字サイズ", "toml、emet などのエディタ（既定 13 px）", `<input class="field num" type="number" min="9" max="28" data-num="codeFontSize" value="${c.config.codeFontSize}"> px`) +
       item("行間", "文字の大きさに対する行の高さ（既定 1.75）", `<input class="field num" type="number" step="0.05" min="1" max="3" data-num="lineHeight" value="${c.config.lineHeight}">`) +
-      item("不可視文字を表示", "半角スペース ·、全角スペース □、タブ →、改行 ↵。ゼロ幅の文字などはいつも表示する", toggle("showInvisibles", c.config.showInvisibles)),
+      item("不可視文字を表示", "半角スペース ·、全角スペース □、タブ →、改行 ↵。ゼロ幅の文字などはいつも表示する", toggle("showInvisibles", c.config.showInvisibles)) +
+      item(
+        "Markdown の改行",
+        "プレビューで、段落の中の改行をそのまま改行にするか、空行で段落を分けるか（CommonMark。行末の空白 2 つか \\ で改行）",
+        (["newline", "blank-line"] as const)
+          .map((v) => `<span class="btn ${c.config.markdownBreaks === v ? "pri" : ""}" data-mdbreaks="${v}">${v === "newline" ? "改行をそのまま改行" : "空行で改行"}</span>`)
+          .join(""),
+      ),
     onClick: async (el, c) => {
+      const mb = el.closest<HTMLElement>("[data-mdbreaks]")?.dataset.mdbreaks;
+      if (mb === "newline" || mb === "blank-line") {
+        c.config.markdownBreaks = mb;
+        await c.saveConfig();
+        markdownHook.version++;
+        c.refresh(["side"]);
+        return true;
+      }
       const k = el.closest<HTMLElement>("[data-toggle]")?.dataset.toggle;
       if (k !== "showInvisibles") return false;
       c.config.showInvisibles = !c.config.showInvisibles;

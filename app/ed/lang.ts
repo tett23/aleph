@@ -112,7 +112,9 @@ const md: Language<{ fence: boolean }> = {
       return { tokens: s.tokens(), state };
     }
     if (s.match(/#{1,6}\s.*/, "t-heading")) return { tokens: s.tokens(), state };
-    s.match(/\s*([-*+]|\d+[.)])\s/, "t-keyword") || s.match(/\s*>/, "t-quote");
+    // a task list's mark after the list's (docs/adr/0035)
+    if (s.match(/\s*([-*+]|\d+[.)])\s/, "t-keyword")) s.match(/\[[ xX]\](?=\s)/, "t-keyword");
+    else s.match(/\s*>/, "t-quote");
     while (!s.eol()) {
       if (s.match(/`[^`]*`/, "t-code")) continue;
       if (s.match(/\\./)) continue;
@@ -133,6 +135,9 @@ const md: Language<{ fence: boolean }> = {
         s.push(o, o + 2, "t-mark");
         continue;
       }
+      if (s.match(/~~(?=\S).*?\S~~/, "t-del")) continue;
+      if (s.match(/<(?:https?|mailto):[^\s<>]+>/i, "t-link")) continue;
+      if ((s.pos === 0 || !/[A-Za-z0-9]/.test(text[s.pos - 1])) && s.match(/(?:https?:\/\/|www\.)[A-Za-z0-9\-._~:/?#@!$&'*+,;=%]*[A-Za-z0-9/]/i, "t-link")) continue;
       if (s.match(/(\*\*|__)(?=\S).*?\S\1/, "t-strong")) continue;
       if (s.match(/(\*|_)(?=\S).*?\S\1/, "t-em")) continue;
       if (s.match(/!?\[[^\]]*\]\([^)]*\)/, "t-link")) continue;
