@@ -1,6 +1,6 @@
 // The file tree of the current workspace (docs/adr/0004).
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { api, type Entry } from "../api.ts";
+import { adopt } from "../config.ts";
 import type { Ctx } from "../ctx.ts";
 import { forgetGrid } from "../docs.ts";
 import { esc } from "../esc.ts";
@@ -111,12 +111,15 @@ const targetDir = (ctx: Ctx) => {
   return d ? dirname(d.path) : ctx.store.get().workspace;
 };
 
+/** Adds a folder the writer picks in a native dialog that Rust opens (docs/adr/0050). */
 export const addWorkspace = async (ctx: Ctx) => {
-  const p = (await openDialog({ directory: true, multiple: false })) as string | null;
-  if (!p) return;
-  if (!ctx.config.workspaces.includes(p)) ctx.config.workspaces.push(p);
+  const written = await api.addWorkspace();
+  if (!written) return;
+  const before = ctx.config.workspaces;
+  adopt(ctx.config, written);
   await ctx.saveConfig();
-  ctx.store.dispatch({ type: "workspace", path: p });
+  const p = ctx.config.workspaces.find((w) => !before.includes(w));
+  if (p) ctx.store.dispatch({ type: "workspace", path: p });
 };
 
 /** Adds a new chapter to a project's manifest. */
