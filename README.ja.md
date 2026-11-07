@@ -20,6 +20,7 @@ Golem の原稿を書き、それがどう組まれるかを見て、作品の�
 - Golem の文書（`.gm`）と Emet（`.emet`）
 - CSV（`.csv`）と TSV（`.tsv`）
 - TOML（`.toml`）
+- JSON（`.json`）、コメントつきの JSON（`.jsonc`）、JSON5（`.json5`）、JSON Lines（`.jsonl`）
 - SVG（`.svg`）
 - PDF（`.pdf`）
 - Mermaid

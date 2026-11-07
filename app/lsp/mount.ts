@@ -311,7 +311,7 @@ export const mountLsp = (ctx: Ctx) => {
     label: "LSP と整形",
     group: "Golem",
     render: (c) =>
-      item("⌘S で整形する", "保存する前に golem lsp で整形する。自動保存では整形しない", toggle("formatOnSave", c.config.formatOnSave)),
+      item("⌘S で整形する", "保存する前に、golem lsp の形式（.gm、.emet）と JSON の仲間（.json、.jsonc、.json5、.jsonl）を整形する。自動保存では整形しない", toggle("formatOnSave", c.config.formatOnSave)),
     onClick: async (el, c) => {
       if (el.closest<HTMLElement>("[data-toggle]")?.dataset.toggle !== "formatOnSave") return false;
       c.config.formatOnSave = !c.config.formatOnSave;

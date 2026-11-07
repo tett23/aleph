@@ -93,3 +93,61 @@ test("lines added or removed by a change: states after them shift with them", ()
   assert.deepEqual(h.tokens(c, 4), []);
   assert.deepEqual(h.tokens(c, 5), []);
 });
+
+test("JSON: keys, values, numbers, literals; an open string runs to the end of the line", () => {
+  assert.deepEqual(toks("json", `{"a": "b", "n": -1.5e3, "t": [true, null]}`), [
+    [`"a"`, "t-attr"],
+    [`"b"`, "t-string"],
+    [`"n"`, "t-attr"],
+    ["-1.5e3", "t-number"],
+    [`"t"`, "t-attr"],
+    ["true", "t-keyword"],
+    ["null", "t-keyword"],
+  ]);
+  assert.deepEqual(toks("json", `["x\\"y", "z`), [
+    [`"x\\"y"`, "t-string"],
+    [`"z`, "t-string"],
+  ]);
+});
+
+test("JSONC: line comments, and a block comment carried to the next line", () => {
+  assert.deepEqual(toks("jsonc", `"a": 1 // note`), [
+    [`"a"`, "t-attr"],
+    ["1", "t-number"],
+    ["// note", "t-comment"],
+  ]);
+  const src = `/* open\nstill */ "k": 2`;
+  assert.deepEqual(toks("jsonc", src, 1), [["/* open", "t-comment"]]);
+  assert.deepEqual(toks("jsonc", src, 2), [
+    ["still */", "t-comment"],
+    [`"k"`, "t-attr"],
+    ["2", "t-number"],
+  ]);
+});
+
+test("JSON5: bare keys, single quotes, hex, Infinity, and a string continued with a backslash", () => {
+  assert.deepEqual(toks("json5", `{key: 'v', n: 0x1F, i: -Infinity, d: .5}`), [
+    ["key", "t-attr"],
+    ["'v'", "t-string"],
+    ["n", "t-attr"],
+    ["0x1F", "t-number"],
+    ["i", "t-attr"],
+    ["-Infinity", "t-number"],
+    ["d", "t-attr"],
+    [".5", "t-number"],
+  ]);
+  const src = `a: 'one \\\ntwo', b: 1`;
+  assert.deepEqual(toks("json5", src, 1), [
+    ["a", "t-attr"],
+    ["'one \\", "t-string"],
+  ]);
+  assert.deepEqual(toks("json5", src, 2), [
+    ["two'", "t-string"],
+    ["b", "t-attr"],
+    ["1", "t-number"],
+  ]);
+});
+
+test("JSON Lines: each line read as JSON", () => {
+  assert.deepEqual(toks("jsonl", `{"a": 1}\n["b"]`, 2), [[`"b"`, "t-string"]]);
+});

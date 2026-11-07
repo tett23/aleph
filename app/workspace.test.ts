@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Entry } from "./api.ts";
-import { collectProjects, kindOf, projectOf, readGrid, titleOf, treeRows, workspaceOf } from "./workspace.ts";
+import { OPEN_KINDS, TEXT_KINDS, collectProjects, kindOf, projectOf, readGrid, titleOf, treeRows, workspaceOf } from "./workspace.ts";
 
 const f = (path: string): Entry => ({ path, name: path.slice(path.lastIndexOf("/") + 1), dir: false, children: [] });
 const d = (path: string, children: Entry[]): Entry => ({ path, name: path.slice(path.lastIndexOf("/") + 1), dir: true, children });
@@ -85,4 +85,13 @@ test("cmd adds and removes one, keeping the tree's order", () => {
 test("without an anchor among the rows, the click alone", () => {
   assert.deepEqual(selectChapters(["/a.gm"], [], null, "/a.gm", "range"), ["/a.gm"]);
   assert.deepEqual(selectChapters(["/a.gm", "/b.gm"], [], "/x.md", "/b.gm", "range"), ["/b.gm"]);
+});
+
+test("JSON, JSONC, JSON5 and JSON Lines open as text, are shown in the tree and searched (docs/adr/0021)", () => {
+  for (const k of ["json", "jsonc", "json5", "jsonl"]) {
+    assert.equal(kindOf(`/w/a.${k}`), k);
+    assert.equal(TEXT_KINDS.includes(k), true, k);
+    assert.equal(OPEN_KINDS.includes(k), true, k);
+  }
+  assert.equal(kindOf("/w/A.JSON"), "json");
 });

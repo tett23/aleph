@@ -237,9 +237,95 @@ const mermaid: Language<null> = {
   },
 };
 
+// ---- JSON, JSONC, JSON5, JSON Lines (docs/adr/0021) ----
+
+type JsonState = { comment: boolean; str: string | null };
+const JSON_NUM = /[+-]?(?:Infinity|NaN|0[xX][0-9a-fA-F]*|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d*)?)/y;
+const JSON_WORD = /[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*/uy;
+
+/** A string is a key when a colon follows it on the line (spaces between). */
+const keyAhead = (text: string, at: number) => /^\s*:/.test(text.slice(at));
+
+const jsonLanguage = (comments: boolean, json5: boolean): Language<JsonState> => ({
+  start: () => ({ comment: false, str: null }),
+  line: (text, state) => {
+    const s = scan(text);
+    let { comment, str } = state;
+    // a string carried over from the line before (JSON5's backslash at the end of a line)
+    const string = (q: string, from: number) => {
+      let i = from;
+      for (; i < text.length; i++) {
+        if (text[i] === "\\") {
+          i++;
+          continue;
+        }
+        if (text[i] === q) break;
+      }
+      const closed = i < text.length;
+      const end = closed ? i + 1 : text.length;
+      const cont = !closed && json5 && text.endsWith("\\") ? q : null;
+      return { end, cont };
+    };
+    if (str) {
+      const r = string(str, 0);
+      s.push(0, r.end, "t-string");
+      s.skip(r.end);
+      str = r.cont;
+    }
+    while (!s.eol()) {
+      if (comment) {
+        if (s.match(/.*?\*\//, "t-comment")) comment = false;
+        else s.rest("t-comment");
+        continue;
+      }
+      if (s.match(/\s+/)) continue;
+      if (comments && s.match(/\/\/.*/, "t-comment")) continue;
+      if (comments && s.match(/\/\*/, "t-comment")) {
+        comment = true;
+        continue;
+      }
+      const c = text[s.pos];
+      if (c === '"' || (json5 && c === "'")) {
+        const from = s.pos;
+        const r = string(c, from + 1);
+        s.push(from, r.end, r.end < text.length || r.cont === null ? (keyAhead(text, r.end) ? "t-attr" : "t-string") : "t-string");
+        s.skip(r.end - from);
+        str = r.cont;
+        continue;
+      }
+      if (s.match(/(?:true|false|null)\b/, "t-keyword")) continue;
+      if (/[\d.+-]/.test(c)) {
+        JSON_NUM.lastIndex = s.pos;
+        const m = JSON_NUM.exec(text);
+        if (m && m[0]) {
+          s.push(s.pos, s.pos + m[0].length, "t-number");
+          s.skip(m[0].length);
+          continue;
+        }
+      }
+      if (json5) {
+        JSON_WORD.lastIndex = s.pos;
+        const w = JSON_WORD.exec(text);
+        if (w) {
+          const end = s.pos + w[0].length;
+          if (keyAhead(text, end)) s.push(s.pos, end, "t-attr");
+          s.skip(w[0].length);
+          continue;
+        }
+      }
+      s.skip();
+    }
+    return { tokens: s.tokens(), state: { comment, str } };
+  },
+});
+
+const json = jsonLanguage(false, false);
+const jsonc = jsonLanguage(true, false);
+const json5 = jsonLanguage(true, true);
+
 const none: Language<null> = { start: () => null, line: () => ({ tokens: [], state: null }) };
 
-export const languageOf = (kind: string): Language<any> => ({ gm, emet, md, toml, svg: xml, mmd: mermaid })[kind] ?? none;
+export const languageOf = (kind: string): Language<any> => ({ gm, emet, md, toml, svg: xml, mmd: mermaid, json, jsonc, json5, jsonl: json })[kind] ?? none;
 
 // ---- the highlighter ----
 

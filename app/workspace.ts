@@ -3,7 +3,7 @@ import type { Entry } from "./api.ts";
 import { ext } from "./path.ts";
 import type { Grid } from "./store.ts";
 
-export const TEXT_KINDS = ["gm", "emet", "md", "txt", "toml", "csv", "tsv", "svg", "mmd"];
+export const TEXT_KINDS = ["gm", "emet", "md", "txt", "toml", "csv", "tsv", "svg", "mmd", "json", "jsonc", "json5", "jsonl"];
 export const IMAGE_KINDS = ["png", "jpg", "jpeg", "gif", "webp"];
 /** Every kind Aleph opens (docs/adr/0002). */
 export const OPEN_KINDS = [...TEXT_KINDS, "pdf", ...IMAGE_KINDS];

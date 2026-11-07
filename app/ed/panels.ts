@@ -124,11 +124,16 @@ export const createDiagPanel = (host: HTMLElement, lineOf: (pos: number) => numb
   el.className = "ed-panel ed-diags";
   host.append(el);
   let list: Diag[] = [];
-  el.addEventListener("click", (e) => {
+  // taken at mousedown with the default prevented: the focus stays in the editor, and a mousedown
+  // that WebKit delivers late cannot take it away after the pick has moved the caret
+  el.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
     const t = e.target as HTMLElement;
-    if (t.closest("[data-a=close]")) return on.close();
+    if (t.closest("[data-a=close]")) return void (e.preventDefault(), on.close());
     const k = t.closest<HTMLElement>("li")?.dataset.k;
-    if (k !== undefined) on.pick(list[Number(k)]);
+    if (k === undefined) return;
+    e.preventDefault();
+    on.pick(list[Number(k)]);
   });
   el.addEventListener("keydown", (e) => {
     if (e.key === "Escape") on.close();

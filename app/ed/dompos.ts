@@ -78,3 +78,16 @@ export const domWalk: Walk<Node> = {
   children: (n) => [...n.childNodes],
   skip: (n) => n instanceof HTMLElement && (n.contentEditable === "false" || n.classList.contains("ed-gut")),
 };
+
+/**
+ * For a position between the editor's children (`offset`, as the Selection API gives it), the drawn
+ * line to use: the line right after it (its start) or right before it (its end), else the nearest line
+ * before (its end), else the nearest after (its start).
+ */
+export const nearestLine = (isLine: boolean[], offset: number): { index: number; end: boolean } | null => {
+  if (isLine[offset]) return { index: offset, end: false };
+  if (isLine[offset - 1]) return { index: offset - 1, end: true };
+  for (let i = Math.min(offset - 1, isLine.length - 1); i >= 0; i--) if (isLine[i]) return { index: i, end: true };
+  for (let i = offset; i < isLine.length; i++) if (isLine[i]) return { index: i, end: false };
+  return null;
+};
