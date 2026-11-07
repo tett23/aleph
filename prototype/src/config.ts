@@ -36,7 +36,7 @@ const defaults: Config = {
   autosaveSeconds: 10,
   autoCommit: true,
   lastAutoCommit: {},
-  dpi: 110,
+  dpi: 0, // 0: automatic, from the pane, the screen and the zoom
   plugins: [],
 };
 
@@ -45,6 +45,7 @@ export const config: Config = { ...defaults };
 export const loadConfig = async () => {
   const raw = JSON.parse(await api.configLoad()) as Partial<Config>;
   Object.assign(config, defaults, raw);
+  if (raw.dpi === 110) config.dpi = 0; // the first prototype's fixed default
   applyTheme();
 };
 

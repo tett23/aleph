@@ -74,23 +74,39 @@ const pngUrls = async (dir: string) => {
 };
 
 /** Rasterizes a PDF with shem into PNG object URLs. */
-export const rasterize = async (pdf: string, cwd: string): Promise<{ urls: string[]; out: Out }> => {
+export const rasterize = async (pdf: string, cwd: string, dpi = config.dpi || 150): Promise<{ urls: string[]; out: Out }> => {
   const dir = await api.tempDir(`pages-${basename(pdf).replace(/\W/g, "_")}`);
-  const out = await api.tool("shem", bin("shem"), cwd, ["render", "--dpi", String(config.dpi), pdf, dir]);
+  const out = await api.tool("shem", bin("shem"), cwd, ["render", "--dpi", String(Math.round(dpi)), pdf, dir]);
   return { urls: out.code === 0 ? await pngUrls(dir) : [], out };
 };
 
-export type BuildResult = { ok: boolean; log: string; pdf?: string; urls: string[] };
+export type BuildResult = { ok: boolean; log: string; pdf?: string; urls: string[]; dpi?: number };
+
+// page widths in inches by the names style.toml accepts (JIS B)
+const PAPER: Record<string, number> = { A3: 11.69, A4: 8.27, A5: 5.83, A6: 4.13, A7: 2.91, B4: 10.12, B5: 7.17, B6: 5.04, B7: 3.58 };
+
+/** The trim width of the project's page in inches, from style.toml. */
+export const pageInches = async (project: string): Promise<number> => {
+  const style = await api.readText(`${project}/style.toml`).catch(() => "");
+  const named = /^\s*size\s*=\s*"([AB]\d)"/m.exec(style)?.[1];
+  if (named && PAPER[named]) return PAPER[named];
+  const w = /width\s*=\s*"([\d.]+)mm"/.exec(style)?.[1];
+  return w ? Number(w) / 25.4 : 5.83;
+};
+
+/** The resolution that fills `cssWidth` pixels sharply on this screen at this zoom. */
+export const autoDpi = (cssWidth: number, inches: number, z: number) =>
+  config.dpi > 0 ? config.dpi : Math.min(1200, Math.max(96, Math.ceil(((cssWidth - 36) * devicePixelRatio * Math.max(1, z)) / inches)));
 
 /** golem build --target pdf, then shem. Broadcasts the pages to other windows. */
-export const buildPages = async (project: string): Promise<BuildResult> => {
+export const buildPages = async (project: string, dpi?: number): Promise<BuildResult> => {
   const out = await api.tool("golem", bin("golem"), project, ["build", "--target", "pdf"]);
   const log = (out.stdout + out.stderr).trim();
   if (out.code !== 0) return { ok: false, log, urls: [] };
   const pdfs = (await api.listDir(`${project}/build/pdf`)).filter((p) => p.endsWith(".pdf"));
   if (!pdfs.length) return { ok: false, log: log + "\nno PDF in build/pdf", urls: [] };
-  const r = await rasterize(pdfs[0], project);
-  const result = { ok: r.out.code === 0, log: [log, r.out.stderr.trim()].filter(Boolean).join("\n"), pdf: pdfs[0], urls: r.urls };
+  const r = await rasterize(pdfs[0], project, dpi);
+  const result = { ok: r.out.code === 0, log: [log, r.out.stderr.trim()].filter(Boolean).join("\n"), pdf: pdfs[0], urls: r.urls, dpi };
   await emit("aleph:pages", { project, ...result });
   return result;
 };
@@ -112,10 +128,10 @@ export const renderPages = (el: HTMLElement, r: BuildResult | null, busy: boolea
 };
 
 /** A PDF file: shem first (Golem's subset), the WebView's viewer otherwise. */
-export const renderPdf = async (el: HTMLElement, path: string, cwd: string) => {
+export const renderPdf = async (el: HTMLElement, path: string, cwd: string, dpi?: number) => {
   el.className = "pages";
   el.innerHTML = `<div class="hint">描いています…</div>`;
-  const r = await rasterize(path, cwd).catch(() => null);
+  const r = await rasterize(path, cwd, dpi).catch(() => null);
   if (r && r.out.code === 0 && r.urls.length) {
     el.innerHTML = r.urls.map((u, i) => `<figure class="page"><img src="${u}" alt=""><figcaption>${i + 1}</figcaption></figure>`).join("");
     return;

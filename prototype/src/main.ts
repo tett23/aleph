@@ -5,7 +5,7 @@ import { api, basename } from "./api";
 import { loadConfig } from "./config";
 import { icon } from "./icons";
 import { mountPlot } from "./plot";
-import { applyZoom, buildChapterHtml, renderEvaluated, renderPages, setZoom, zoom, zoomControls, type BuildResult } from "./preview";
+import { applyZoom, autoDpi, pageInches, buildChapterHtml, renderEvaluated, renderPages, setZoom, zoom, zoomControls, type BuildResult } from "./preview";
 
 const q = new URLSearchParams(location.search);
 const view = q.get("view") ?? "main";
@@ -29,6 +29,8 @@ const main = async () => {
     drawTools();
     applyZoom(scroller);
     let last: BuildResult | null = null;
+    const inches = await pageInches(project);
+    const request = () => emit("aleph:build-request", { project, dpi: autoDpi(scroller.clientWidth, inches, zoom()) });
     renderPages(body, null, false);
     tools.onclick = (e) => {
       const t = (e.target as HTMLElement).closest<HTMLElement>("[data-zoom],[data-build]");
@@ -36,9 +38,10 @@ const main = async () => {
         setZoom(t.dataset.zoom === "in" ? zoom() * 1.25 : t.dataset.zoom === "out" ? zoom() / 1.25 : 1);
         applyZoom(scroller);
         drawTools();
+        if (last?.dpi && autoDpi(scroller.clientWidth, inches, zoom()) > last.dpi * 1.05) request();
       } else if (t?.dataset.build !== undefined) {
         renderPages(body, last, true);
-        emit("aleph:build-request", { project });
+        request();
       }
     };
     await listen<BuildResult & { project: string }>("aleph:pages", (e) => {
@@ -47,7 +50,7 @@ const main = async () => {
       renderPages(body, last, false);
     });
     await emit("aleph:pages-window", { project });
-    emit("aleph:build-request", { project });
+    request();
   } else if (view === "plot") {
     const project = q.get("project")!;
     const { scroller } = detached(`プロット — ${basename(project)}`);

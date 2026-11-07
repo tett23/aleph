@@ -13,7 +13,7 @@ import { esc, h, icon } from "./icons";
 import { lspFor } from "./lsp";
 import { dropIntoLibrary, mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
 import { mountPlot } from "./plot";
-import { applyZoom, setZoom, zoom, zoomControls, renderImage } from "./preview";
+import { applyZoom, autoDpi, pageInches, rasterize, setZoom, zoom, zoomControls, renderImage } from "./preview";
 import { buildChapterHtml, buildPages, renderEvaluated, renderMarkdown, renderMermaid, renderPages, renderPdf, renderSvg, type BuildResult } from "./preview";
 import { IMAGE_KINDS, addChapter, copyFonts, flatten, gridOf, kindOf, loadMeta, loadPlot, manifestChapters, projectOf, rowsForFile, TEXT_KINDS, workspaceOf, type PlotRow } from "./project";
 import { loadPlugins, registry } from "./plugins";
@@ -555,7 +555,7 @@ const mountMain = () => {
   const d = state.doc!;
   mainBody.innerHTML = "";
   if (d.kind === "pdf") {
-    renderPdf(inner(mainBody), d.path, dirname(d.path));
+    renderPdf(inner(mainBody), d.path, dirname(d.path), config.dpi || autoDpi(mainBody.clientWidth || 800, 8.27, 1));
     return;
   }
   if (IMAGE_KINDS.includes(d.kind)) return void renderImage(inner(mainBody), d.path);
@@ -714,12 +714,12 @@ const save = async (explicit = false, o?: Open) => {
   }
 };
 
-const build = async (project: string) => {
+const build = async (project: string, dpi?: number) => {
   if (state.building.has(project)) return;
   state.building.add(project);
   renderSidePane();
   try {
-    state.pages.set(project, await buildPages(project));
+    state.pages.set(project, await buildPages(project, dpi ?? (await wantedDpi(project))));
   } catch (e) {
     state.pages.set(project, { ok: false, log: String(e), urls: [] });
   }
@@ -728,6 +728,26 @@ const build = async (project: string) => {
 };
 
 const pagesWindows = new Set<string>();
+
+/** The dpi the page pane needs now (or the fixed one from the settings). */
+const wantedDpi = async (project: string, width = sideBody.clientWidth || 500) => autoDpi(width, await pageInches(project), zoom());
+
+/** After a zoom: draws the pages again with shem when they would be too coarse; golem is not run. */
+const sharpen = async (project: string) => {
+  const r = state.pages.get(project);
+  if (!r?.pdf || !r.dpi || config.dpi > 0) return;
+  const need = await wantedDpi(project);
+  if (need <= r.dpi * 1.05) return;
+  const again = await rasterize(r.pdf, project, need);
+  if (again.out.code !== 0) return;
+  state.pages.set(project, { ...r, urls: again.urls, dpi: need });
+  if (state.doc?.project === project && state.side === "pages") renderSidePane();
+};
+let sharpenTimer = 0;
+const scheduleSharpen = (project: string) => {
+  clearTimeout(sharpenTimer);
+  sharpenTimer = window.setTimeout(() => sharpen(project), 250);
+};
 
 /** Rebuilds the HTML of the project and shows the chapter with commands and expressions applied. */
 const refreshHtml = async (d: Doc) => {
@@ -924,6 +944,7 @@ sideBody.addEventListener(
     applyZoom(sideBody);
     const v = sideHead.querySelector(".zoomv");
     if (v) v.textContent = `${Math.round(zoom() * 100)}%`;
+    if (state.doc?.project) scheduleSharpen(state.doc.project);
   },
   { passive: false },
 );
@@ -936,6 +957,7 @@ sideHead.addEventListener("click", (e) => {
     setZoom(t.dataset.zoom === "in" ? zoom() * 1.25 : t.dataset.zoom === "out" ? zoom() / 1.25 : 1);
     applyZoom(sideBody);
     sideHead.querySelector(".zoomv")!.textContent = `${Math.round(zoom() * 100)}%`;
+    if (d.project) scheduleSharpen(d.project);
   }
   if (t.dataset.build !== undefined && d.project) save(true).then(() => build(d.project!));
   if (t.dataset.pagewin !== undefined && d.project) openPagesWindow(d.project);
@@ -1035,7 +1057,8 @@ listen<{ project: string }>("aleph:plot-saved", async (e) => {
   renderSide();
   renderRight();
 });
-listen<{ project: string }>("aleph:build-request", (e) => build(e.payload.project));
+listen<{ project: string; dpi?: number }>("aleph:build-request", (e) => build(e.payload.project, e.payload.dpi));
+new ResizeObserver(() => state.doc?.project && state.side === "pages" && scheduleSharpen(state.doc.project)).observe(sideBody);
 listen<{ project: string }>("aleph:pages-window", (e) => pagesWindows.add(e.payload.project));
 
 /** Images dropped on the editor go to the project's images/ and get a @figure line;

@@ -321,7 +321,7 @@ export const openSettings = async (ctx: Ctx) => {
             ? `<div class="item"><div class="d"><div>外観</div><small>システムに合わせるか、固定するか</small></div>${(["light", "dark", "auto"] as const).map((t) => `<span class="btn ${config.theme === t ? "pri" : ""}" data-theme="${t}">${{ light: "ライト", dark: "ダーク", auto: "自動" }[t]}</span>`).join("")}</div>
                <div class="item"><div class="d"><div>保存したらページを組みなおす</div><small>golem build --target pdf のあと shem でページを描く</small></div><span class="toggle ${config.rebuildOnSave ? "on" : ""}" data-toggle="rebuildOnSave"></span></div>
                <div class="item"><div class="d"><div>1 日 1 回自動でコミットする</div><small>ワークスペースに変更があれば git add -A して「Autosave 日付」でコミットする。手動では Git のパネルか ⌘⇧K</small></div><span class="toggle ${config.autoCommit ? "on" : ""}" data-toggle="autoCommit"></span></div>
-               <div class="item"><div class="d"><div>ページの解像度</div><small>shem render --dpi</small></div><input class="field num" type="number" data-num="dpi" value="${config.dpi}"></div>`
+               <div class="item"><div class="d"><div>ページの解像度</div><small>shem render --dpi。空なら自動（枠の幅、画面の倍率、拡大率、判型から決める）</small></div><input class="field num" type="number" min="0" data-num="dpi" value="${config.dpi || ""}" placeholder="自動"> dpi</div>`
             : section.v === "editor"
               ? `<div class="item"><div class="d"><div>1 行の字数</div><small>空なら style.toml の [page.grid] characters</small></div><input class="field num" type="number" data-num="charsOverride" value="${config.charsOverride ?? ""}" placeholder="—"></div>
                  <div class="item"><div class="d"><div>本文の文字サイズ</div><small>gm、md、txt のエディタ、縦書き、本文のプレビュー（既定 16 px）</small></div><input class="field num" type="number" min="10" max="32" data-num="fontSize" value="${config.fontSize}"> px</div>
@@ -379,7 +379,7 @@ export const openSettings = async (ctx: Ctx) => {
   dim.addEventListener("change", async (e) => {
     const x = e.target as HTMLInputElement;
     if (x.dataset.str) (config as unknown as Record<string, string>)[x.dataset.str] = x.value.trim();
-    if (x.dataset.num) (config as unknown as Record<string, number | null>)[x.dataset.num] = x.value ? Number(x.value) : ({ lineHeight: 1.75, fontSize: 16, codeFontSize: 13 } as Record<string, number>)[x.dataset.num] ?? null;
+    if (x.dataset.num) (config as unknown as Record<string, number | null>)[x.dataset.num] = x.value ? Number(x.value) : ({ lineHeight: 1.75, fontSize: 16, codeFontSize: 13, dpi: 0 } as Record<string, number>)[x.dataset.num] ?? null;
     if (x.dataset.ms) config.manuscript[x.dataset.ms as "cols" | "rows"] = Number(x.value) || 20;
     await saveConfig();
   });
