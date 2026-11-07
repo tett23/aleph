@@ -61,13 +61,24 @@ export const gridOf = async (project: string | null): Promise<Grid> => {
 };
 
 // ---- per-file metadata (Ulysses-like goals and notes) in <project>/.aleph/notes.json ----
-export type SheetMeta = { goal?: number; notes: string[]; done: string[] };
+export type SheetMeta = { goal?: number; note: string; done: string[] };
 export type MetaFile = Record<string, SheetMeta>;
 
 const metaPath = (root: string) => `${root}/.aleph/notes.json`;
 
-export const loadMeta = async (root: string): Promise<MetaFile> =>
-  (await api.exists(metaPath(root))) ? JSON.parse(await api.readText(metaPath(root))) : {};
+export const loadMeta = async (root: string): Promise<MetaFile> => {
+  const raw: Record<string, SheetMeta & { notes?: string[] }> = (await api.exists(metaPath(root)))
+    ? JSON.parse(await api.readText(metaPath(root)))
+    : {};
+  // the first prototype kept several notes per sheet; join them into one
+  for (const m of Object.values(raw)) {
+    if (m.notes) m.note = [m.note, ...m.notes].filter((x) => x && x.trim()).join("\n\n");
+    delete m.notes;
+    m.note ??= "";
+    m.done ??= [];
+  }
+  return raw;
+};
 
 export const saveMeta = (root: string, m: MetaFile) => api.writeText(metaPath(root), JSON.stringify(m, null, 2) + "\n");
 

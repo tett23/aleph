@@ -684,11 +684,12 @@ const renderToolbar = () => {
   const d = state.doc;
   const kinds = d ? (sideKinds[d.kind] ?? []) : [];
   const canVertical = d && ["gm", "md", "txt"].includes(d.kind);
+  // the editor's controls on the left, the preview's on the right, as the panes are laid out
   toolbar.innerHTML = `
     <span class="iconbtn" data-tb="left" title="サイドバー">${icon("panel-left")}</span>
-    <span class="title" data-tauri-drag-region></span>
-    ${kinds.length ? `<span class="seg"><span data-side="none" class="${state.side === "none" ? "on" : ""}">原稿</span><span data-side="plain" class="${state.side === "plain" ? "on" : ""}">${d!.kind === "gm" ? "本文" : "プレビュー"}</span>${kinds.includes("pages") ? `<span data-side="pages" class="${state.side === "pages" ? "on" : ""}">ページ</span>` : ""}</span>` : ""}
     ${canVertical ? `<span class="seg"><span data-vert="1" class="${state.vertical ? "on" : ""}">縦</span><span data-vert="0" class="${state.vertical ? "" : "on"}">横</span></span>` : ""}
+    <span class="title" data-tauri-drag-region></span>
+    ${kinds.length ? `<span class="seg"><span data-side="none" class="${state.side === "none" ? "on" : ""}">原稿のみ</span><span data-side="plain" class="${state.side === "plain" ? "on" : ""}">${d!.kind === "gm" ? "本文" : "プレビュー"}</span>${kinds.includes("pages") ? `<span data-side="pages" class="${state.side === "pages" ? "on" : ""}">ページ</span>` : ""}</span>` : ""}
     ${d ? `<span class="iconbtn" data-tb="more" title="ほかの操作">${icon("more-horizontal")}</span>` : ""}
     <span class="iconbtn" data-tb="right" title="添付">${icon("paperclip")}</span>`;
   renderTitle();

@@ -175,7 +175,7 @@ export const mountAttachments = async (el: HTMLElement, ctx: Ctx, plot: PlotRow[
   const root = cur.project ?? cur.workspace ?? "";
   if (!meta || meta.root !== root) meta = { root, data: await loadMeta(root) };
   const key = rel(root, cur.path);
-  const m = (meta.data[key] ??= { notes: [], done: [] });
+  const m = (meta.data[key] ??= { note: "", done: [] });
   const rows = cur.project ? rowsForFile(plot, cur.project, cur.path) : [];
   const planned = rows.reduce((a, r) => a + (Number(r.target) || 0), 0);
   const goal = m.goal ?? (planned || 0);
@@ -207,12 +207,12 @@ export const mountAttachments = async (el: HTMLElement, ctx: Ctx, plot: PlotRow[
         : ""
     }
     ${frags.length || memos.length ? `<div class="sec"><h5>プロットのメモと断片</h5>${memos.map((x) => `<div class="fragment" style="font-family:var(--ui);font-size:12.5px">${esc(x)}</div>`).join("")}${frags.map((x) => `<div class="fragment">${esc(x)}</div>`).join("")}</div>` : ""}
-    <div class="sec"><h5>ノート <span class="iconbtn" data-add>${icon("plus", 14)}</span></h5>${m.notes.map((n, i) => `<textarea class="note" data-note="${i}" placeholder="ノート">${esc(n)}</textarea>`).join("") || `<div class="muted" style="font-size:12px">＋ でこのシートにノートを足します。</div>`}</div>`;
+    <div class="sec"><h5>ノート</h5><textarea class="note" data-note placeholder="このシートのメモ">${esc(m.note)}</textarea></div>`;
   const persist = () => saveMeta(root, meta!.data);
   let t = 0;
   el.oninput = (e) => {
     const x = e.target as HTMLInputElement;
-    if (x.dataset.note !== undefined) m.notes[Number(x.dataset.note)] = x.value;
+    if (x.dataset.note !== undefined) m.note = x.value;
     else if (x.dataset.goal !== undefined) m.goal = x.value ? Number(x.value) : undefined;
     else return;
     clearTimeout(t);
@@ -225,15 +225,6 @@ export const mountAttachments = async (el: HTMLElement, ctx: Ctx, plot: PlotRow[
       persist();
       ctx.refreshRight();
     } else if (x.dataset.goal !== undefined) ctx.refreshRight();
-  };
-  el.onclick = (e) => {
-    if ((e.target as HTMLElement).closest("[data-add]")) {
-      m.notes.push("");
-      persist().then(() => {
-        ctx.refreshRight();
-        setTimeout(() => (el.querySelector(`[data-note="${m.notes.length - 1}"]`) as HTMLElement | null)?.focus(), 30);
-      });
-    }
   };
 };
 

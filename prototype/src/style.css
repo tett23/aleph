@@ -195,7 +195,8 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .todo input { accent-color: var(--accent); margin-top: 3px; }
 .todo label.done { color: var(--faint); text-decoration: line-through; }
 .flavor { font-size: 12px; color: var(--text-2); margin-top: 8px; }
-.note { width: 100%; background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 4px; padding: 8px 10px; font: 12.5px/1.7 var(--ui); color: var(--text); margin: 0 0 8px; resize: vertical; outline: none; min-height: 52px; }
+.note { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; font: 12.5px/1.7 var(--ui); color: var(--text); margin: 0; resize: vertical; outline: none; min-height: 180px; }
+.note:focus { border-color: var(--accent); }
 .fragment { font-family: var(--body); font-size: 13px; padding: 4px 0; color: var(--text); }
 .outline div { padding: 3px 6px; border-radius: 4px; cursor: default; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .outline div:hover { background: var(--hover); }
