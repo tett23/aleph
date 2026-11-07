@@ -101,11 +101,12 @@ impl Reach {
 
 // ---- subcommands ----
 
-const GIT: [&str; 10] = [
+const GIT: [&str; 11] = [
     "add",
     "branch",
     "commit",
     "diff",
+    "init",
     "log",
     "pull",
     "push",
@@ -395,6 +396,8 @@ mod tests {
             assert!(allowed("golem", &args(&[s])).is_ok(), "{s}");
         }
         assert!(allowed("shem", &args(&["render", "a.pdf"])).is_ok());
+        // the Git panel's git init (docs/adr/0051)
+        assert!(allowed("git", &args(&["init"])).is_ok());
         assert!(allowed("git", &args(&["-c", "core.pager=x", "status"])).is_err());
         assert!(allowed("git", &args(&["config", "x"])).is_err());
         assert!(allowed("golem", &args(&["serve"])).is_err());
