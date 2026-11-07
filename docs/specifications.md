@@ -10,13 +10,13 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 ## 状態
 
 本実装はリポジトリの根（`app/` と `src-tauri/`）にあり、ADR ごとに実装している。
-捨てる前提のプロトタイプが `prototype/` にあり、使ってわかったことをもとに次の ADR を採択した。
+次の ADR は、捨てる前提のプロトタイプ（本実装が追いついたので消した。[ADR 0003](adr/0003-application-architecture.md)）を使ってわかったことをもとに採択した。
 実装済みの ADR には、表に「実装済み」と書く。
 
 | ADR | 決めたこと |
 |---|---|
 | [ADR 0001](adr/0001-update-adr-guard-to-v0.10.0.md) | ADR の検査に使う adr-guard を v0.10.0 に上げる（実装済み） |
-| [ADR 0002](adr/0002-purpose-scope-and-name.md) | 目的、範囲、名前、扱う形式（gm、md、txt、emet、toml、csv、tsv、svg、Mermaid、pdf、画像）、シートと章の定義 |
+| [ADR 0002](adr/0002-purpose-scope-and-name.md) | 目的、範囲、名前、扱う形式（gm、md、txt、emet、toml、csv、tsv、svg、Mermaid、pdf、画像）、シートと章の定義（実装済み） |
 | [ADR 0003](adr/0003-application-architecture.md) | Tauri 2、TypeScript と Rust の受け持ち、状態の持ち方、依存の方針、テストと CI（実装済み） |
 | [ADR 0004](adr/0004-workspaces-and-projects.md) | ワークスペース（登録したディレクトリ）とプロジェクト（`manifest.toml` のあるディレクトリ）、ツリー、アプリの設定、ウィンドウの位置と大きさの記録（実装済み） |
 | [ADR 0005](adr/0005-layout-and-appearance.md) | 画面の構成（リボン、左のサイドバー、エディタとプレビュー、右のパネル、ステータスバー）と見た目（実装済み） |
