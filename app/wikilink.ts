@@ -267,3 +267,18 @@ const unesc = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").repla
 /** The preview's wikilinks whose target is not found get the class `missing` (docs/adr/0027). */
 export const markMissing = (html: string, found: (target: string) => boolean): string =>
   html.replace(/<a class="wikilink" data-wikilink="([^"]*)"/g, (m, t: string) => (!t || found(unesc(t)) ? m : `<a class="wikilink missing" data-wikilink="${t}"`));
+
+export type BacklinkGroup = { from: string; count: number; lines: { line: number; text: string }[] };
+
+/** Backlinks by linking sheet (path order), each line once (line order), with the counts of sheets and links (docs/adr/0038). */
+export const groupBacklinks = (links: Link[]): { groups: BacklinkGroup[]; sheets: number; links: number } => {
+  const by = new Map<string, BacklinkGroup>();
+  for (const l of links) {
+    const g = by.get(l.from) ?? { from: l.from, count: 0, lines: [] };
+    g.count++;
+    if (!g.lines.some((x) => x.line === l.line)) g.lines.push({ line: l.line, text: l.text });
+    by.set(l.from, g);
+  }
+  const groups = [...by.values()].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0)).map((g) => ({ ...g, lines: g.lines.sort((a, b) => a.line - b.line) }));
+  return { groups, sheets: groups.length, links: links.length };
+};

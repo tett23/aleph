@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { backlinks, buildIndex, completeAt, findHeading, markMissing, parseWikilinks, renameEdits, resolveLink, type Sheet } from "./wikilink.ts";
+import { backlinks, buildIndex, completeAt, findHeading, groupBacklinks, markMissing, parseWikilinks, renameEdits, resolveLink, type Sheet } from "./wikilink.ts";
 
 test("the forms of a link: target, label, heading, and a heading of the same sheet", () => {
   const ls = parseWikilinks("[[霧笛]] [[ 人物 | 父 ]] [[場所#灯台]] [[場所#灯台|あの灯台]] [[#前の章]]");
@@ -129,4 +129,22 @@ test("the preview's links to missing targets are marked (docs/adr/0027)", () => 
     markMissing(html, (t) => t === "人物"),
     '<p><a class="wikilink" data-wikilink="人物" href="#">人物</a> <a class="wikilink missing" data-wikilink="未定&amp;仮" href="#">x</a></p>',
   );
+});
+
+test("backlinks grouped by sheet in path order, lines in order, a line once, with counts (docs/adr/0038)", () => {
+  const texts = new Map([
+    ["/w/b.md", "[[人物]]\n二行目 [[人物]] と [[登場人物]]"],
+    ["/w/a.md", "x\n[[人物]]"],
+  ]);
+  const idx = buildIndex(texts, sheets, WS);
+  const g = groupBacklinks(backlinks(idx, "/w/notes/人物.md"));
+  assert.deepEqual(
+    g.groups.map((x) => [x.from, x.count, x.lines.map((l) => l.line)]),
+    [
+      ["/w/a.md", 1, [2]],
+      ["/w/b.md", 3, [1, 2]],
+    ],
+  );
+  assert.deepEqual([g.sheets, g.links], [2, 4]);
+  assert.equal(g.groups[1].lines[1].text, "二行目 [[人物]] と [[登場人物]]");
 });
