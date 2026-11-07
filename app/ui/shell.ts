@@ -157,4 +157,8 @@ export const renderRightHead = (shell: Shell, s: State) => {
 export const renderStatus = (shell: Shell, s: State, ctx: Ctx) => {
   const parts = ctx.status.map((f) => f(s, ctx)).filter(Boolean);
   shell.statusEl.innerHTML = parts.join("");
+  shell.statusEl.onclick = (e) => {
+    const k = (e.target as HTMLElement).closest<HTMLElement>("[data-status]")?.dataset.status;
+    if (k) ctx.statusActions[k]?.(ctx);
+  };
 };

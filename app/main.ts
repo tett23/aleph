@@ -12,6 +12,7 @@ import { mountTree, reloadTree } from "./ui/tree.ts";
 import { git, mountTools } from "./tools.ts";
 import { mountEditors } from "./editor/host.ts";
 import { createVertical } from "./editor/vertical.ts";
+import { mountLsp } from "./lsp/mount.ts";
 import { rel } from "./path.ts";
 
 /** The parts of the state worth keeping between launches, per viewer (localStorage may be unavailable). */
@@ -63,6 +64,7 @@ const start = async () => {
     left: {},
     right: {},
     status: [],
+    statusActions: {},
     settings: [],
     commands: [],
     view: {},
@@ -149,6 +151,7 @@ const start = async () => {
   mountTree(ctx);
   mountTools(ctx);
   mountEditors(ctx);
+  mountLsp(ctx);
   ctx.verticalEditor = createVertical;
   await reloadTree(ctx);
   store.subscribe((s, prev) => {

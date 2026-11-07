@@ -22,5 +22,8 @@ export const api = {
   tempDir: (name: string) => invoke<string>("temp_dir", { name }),
   tool: (name: Tool, bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("tool", { name, bin, cwd, args }),
   toolInfo: (name: Tool, bin: string | undefined) => invoke<ToolInfo>("tool_info", { name, bin }),
+  lspStart: (id: string, bin: string | undefined, cwd: string) => invoke<void>("lsp_start", { id, bin, cwd }),
+  lspSend: (id: string, message: string) => invoke<void>("lsp_send", { id, message }),
+  lspStop: (id: string) => invoke<void>("lsp_stop", { id }),
   git: (bin: string | undefined, cwd: string, args: string[]) => invoke<Out>("git", { bin, cwd, args }),
 };

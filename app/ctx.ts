@@ -41,6 +41,8 @@ export type Ctx = {
   left: Partial<Record<LeftPanel, Panel>>;
   right: Partial<Record<RightPanel, Panel>>;
   status: StatusItem[];
+  /** What a click on a status item with `data-status="<key>"` does. */
+  statusActions: Record<string, (ctx: Ctx) => void>;
   settings: SettingsSection[];
   commands: Command[];
   view: View;

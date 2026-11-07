@@ -121,18 +121,24 @@ const mdLanguage = StreamLanguage.define<{ fence: boolean }>({
 const languageOf = (kind: string): Extension =>
   ({ gm: gmLanguage, emet: emetLanguage, md: mdLanguage, toml: StreamLanguage.define(toml), svg: StreamLanguage.define(xml) })[kind] ?? [];
 
-/** Commands and expressions use the code font inside prose (docs/adr/0006). */
-const highlight = HighlightStyle.define([
+/** Commands and expressions use the code font inside prose (docs/adr/0006); this stays with semantic tokens. */
+const fontStyle = HighlightStyle.define([
   { tag: t.heading, fontWeight: "600" },
-  { tag: t.processingInstruction, color: "var(--faint)", fontWeight: "400" },
-  { tag: t.keyword, color: "var(--cmd)", fontFamily: "var(--mono)", fontSize: "0.86em" },
-  { tag: t.string, color: "var(--expr)", fontFamily: "var(--mono)", fontSize: "0.86em" },
-  { tag: t.comment, color: "var(--faint)" },
-  { tag: t.escape, color: "var(--faint)" },
-  { tag: t.meta, color: "var(--faint)" },
+  { tag: t.processingInstruction, fontWeight: "400" },
+  { tag: [t.keyword, t.string], fontFamily: "var(--mono)", fontSize: "0.86em" },
   { tag: t.monospace, fontFamily: "var(--mono)" },
   { tag: t.emphasis, fontStyle: "italic" },
   { tag: t.strong, fontWeight: "600" },
+]);
+
+/** The fallback tokenizer's colours, replaced by the server's semantic tokens once they arrive (docs/adr/0009). */
+const colorStyle = HighlightStyle.define([
+  { tag: t.processingInstruction, color: "var(--faint)" },
+  { tag: t.keyword, color: "var(--cmd)" },
+  { tag: t.string, color: "var(--expr)" },
+  { tag: t.comment, color: "var(--faint)" },
+  { tag: t.escape, color: "var(--faint)" },
+  { tag: t.meta, color: "var(--faint)" },
   { tag: t.quote, color: "var(--text-2)" },
   { tag: t.link, color: "var(--accent)" },
   { tag: t.typeName, color: "var(--expr)" },
@@ -140,6 +146,10 @@ const highlight = HighlightStyle.define([
   { tag: t.operator, color: "var(--cmd)" },
   { tag: [t.propertyName, t.attributeName, t.tagName], color: "var(--cmd)" },
 ]);
+
+/** Holds the fallback colours; the LSP empties it for an editor whose semantic tokens arrived. */
+export const fallbackColors = new Compartment();
+export const fallbackColorExtension: Extension = syntaxHighlighting(colorStyle);
 
 // CodeMirror's markers and widgets are objects inheriting from its prototypes;
 // they are made without class syntax (the project does not use classes).
@@ -313,7 +323,8 @@ export const createEditor = (o: EditorOptions): Editor => {
         EditorView.lineWrapping,
         EditorView.editorAttributes.of({ class: PROSE.includes(o.kind) ? "prose" : "code" }),
         languageOf(o.kind),
-        syntaxHighlighting(highlight),
+        syntaxHighlighting(fontStyle),
+        fallbackColors.of(fallbackColorExtension),
         width.of(widthTheme(o.chars)),
         highlightSpecialChars({ addSpecialChars: /[\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]/ }),
         inv.of(o.invisibles ? invisiblesPlugin : []),
