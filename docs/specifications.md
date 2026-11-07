@@ -62,6 +62,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0045](adr/0045-symlinks.md) | シンボリックリンクを辿らず、リンクに書かない（実装済み） |
 | [ADR 0046](adr/0046-safe-automatic-git.md) | Aleph の git にリポジトリの fsmonitor と hook を使わせない（実装済み） |
 | [ADR 0047](adr/0047-no-remote-images-in-previews.md) | プレビューで外部の画像を読み込まない（実装済み） |
+| [ADR 0049](adr/0049-dependency-audit-in-ci.md) | CI で依存の既知の脆弱性を検査する（実装済み） |
 | [ADR 0050](adr/0050-paths-the-writer-chooses.md) | 書き手が選んだパスだけを、範囲と実行ファイルに足す（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
@@ -75,6 +76,7 @@ Aleph は Tauri 2 のアプリで、画面を TypeScript（`app/`）、ファイ
 - git は、設定の値、`/usr/bin`、Homebrew（`/opt/homebrew/bin`）、PATH の順に探す。設定の値があれば、ほかの場所は探さない。macOS の GUI アプリはログインシェルの PATH を受け継がないためである。
 - アイコンは、使うものだけを `app/icons/` に SVG で置く（lucide、ISC ライセンス）。
 - テストは、TypeScript は `node --test`（Node が型を取り除いて実行する）、Rust は `cargo test` で書く。CI の `app` のジョブが macOS で、型検査、`node --test`、Vite のビルド、rustfmt、clippy、`cargo test` を実行する。
+- CI の `audit` のジョブ（`.github/workflows/audit.yml`）が、プルリクエスト、main、週に一度の定期の実行で、`npm audit --omit=dev --audit-level=high` と、版を固定した `cargo audit` を走らせる（[ADR 0049](adr/0049-dependency-audit-in-ci.md)）。既知の脆弱性を一時的に許すときは、advisory の ID、理由、見直す日を書く（cargo は `src-tauri/.cargo/audit.toml`）。理由のない許可は置かない。
 
 ## 画面と Rust の信頼の境界
 
