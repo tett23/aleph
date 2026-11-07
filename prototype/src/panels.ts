@@ -5,7 +5,10 @@ import { config, saveConfig } from "./config";
 import { gmBlocks } from "./gm";
 import { esc, h, icon } from "./icons";
 import {
+  allProjects,
   installItem,
+  itemIn,
+  libraryFiles,
   libraryItems,
   listCell,
   loadMeta,
@@ -280,6 +283,51 @@ export const mountLibrary = async (el: HTMLElement, ctx: Ctx) => {
   };
 };
 
+// ---------------- the shared library across every project (left panel) ----------------
+export const mountLibraryAll = async (el: HTMLElement, ctx: Ctx) => {
+  if (!config.libraryDir) {
+    el.innerHTML = `<div class="hint">設定の「共有ライブラリ」でフォルダを決めると、フォント、プラグイン、関数をすべてのプロジェクトにまたがって管理できます。</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="hint">読んでいます…</div>`;
+  const [files, projects] = await Promise.all([libraryFiles(), allProjects()]);
+  const states = await Promise.all(files.map(async (f) => ({ f, items: await Promise.all(projects.map((p) => itemIn(p, f))) })));
+  const label = { font: ["フォント", "type"], plugin: ["プラグイン", "puzzle"], function: ["関数", "sigma"] } as const;
+  const projName = (p: string) => {
+    const ws = config.workspaces.find((w) => p.startsWith(w + "/"));
+    return config.workspaces.length > 1 && ws ? `${basename(ws)} / ${basename(p)}` : basename(p);
+  };
+  const mark = { same: ["check", "入っている"], changed: ["refresh-cw", "ライブラリの方が新しい（押すと更新）"], absent: ["plus", "入っていない（押すと入れる）"] } as const;
+  el.innerHTML =
+    (["font", "plugin", "function"] as const)
+      .map((k) => {
+        const rows = states.filter((x) => x.f.kind === k);
+        return `<div class="libsec"><div class="libh">${icon(label[k][1], 13)}${label[k][0]}<small>${rows.length}</small></div>${
+          rows
+            .map(({ f, items }) => {
+              const missing = items.filter((i) => i.state !== "same").length;
+              return `<div class="libitem"><div class="libname" title="${esc(f.from)}">${esc(f.name)}${missing ? `<span class="btn tiny" data-all="${esc(f.from)}">すべてに${items.some((i) => i.state === "changed") ? "入れる・更新" : "入れる"}</span>` : ""}</div>
+                ${items.map((i, n) => `<div class="libproj ${i.state}" ${i.state === "same" ? "" : `data-one="${esc(f.from)}" data-p="${esc(projects[n])}"`} title="${mark[i.state][1]}">${icon(mark[i.state][0], 12)}<span>${esc(projName(projects[n]))}</span></div>`).join("")}</div>`;
+            })
+            .join("") || `<div class="muted libempty">ありません</div>`
+        }</div>`;
+      })
+      .join("") +
+    `<div class="libsec"><div class="dropzone">.wasm、.emet、フォントをここにドロップすると<br>共有ライブラリにコピーします</div>
+     <div class="muted libnote">${esc(config.libraryDir)}<br>プロジェクトにはコピーして入れます。プラグインは manifest.toml に宣言も足します。</div></div>`;
+  el.onclick = async (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-all],[data-one]");
+    if (!t) return;
+    const target = states.find((x) => x.f.from === (t.dataset.all ?? t.dataset.one));
+    if (!target) return;
+    const todo = t.dataset.all ? target.items.filter((i) => i.state !== "same") : target.items.filter((i) => i.to.startsWith(t.dataset.p! + "/"));
+    for (const i of todo) await installItem(i.to.slice(0, i.to.length - i.to.split("/").slice(-2).join("/").length - 1), i);
+    ctx.toast(`${target.f.name} を ${todo.length} 件のプロジェクトに入れました`);
+    await ctx.refreshTree();
+    await mountLibraryAll(el, ctx);
+  };
+};
+
 /** Copies dropped files into the library by kind; returns what was copied where. */
 export const dropIntoLibrary = async (paths: string[]) => {
   const sub = (p: string) =>
@@ -328,7 +376,8 @@ export const openSettings = async (ctx: Ctx) => {
                  <div class="item"><div class="d"><div>コードの文字サイズ</div><small>toml、emet などのエディタ（既定 13 px）。gm の中の命令と式は本文の大きさに合わせて少し小さくする</small></div><input class="field num" type="number" min="9" max="28" data-num="codeFontSize" value="${config.codeFontSize}"> px</div>
                  <div class="item"><div class="d"><div>行間</div><small>文字の大きさに対する行の高さ（既定 1.75）。エディタ、縦書き、本文のプレビューに効く</small></div><input class="field num" type="number" step="0.05" min="1" max="3" data-num="lineHeight" value="${config.lineHeight}"></div>
                  <div class="item"><div class="d"><div>自動保存の間隔</div><small>変更があれば、この秒数ごとに保存する。⌘S ですぐ保存する</small></div><input class="field num" type="number" min="2" data-num="autosaveSeconds" value="${config.autosaveSeconds}"> 秒</div>
-                 <div class="item"><div class="d"><div>不可視文字を表示</div><small>半角スペース ·、全角スペース □、タブ →、改行 ↵。ゼロ幅の文字などはいつも表示する</small></div><span class="toggle ${config.showInvisibles ? "on" : ""}" data-toggle="showInvisibles"></span></div>
+                 <div class="item"><div class="d"><div>⌘S で整形する</div><small>gm と emet を LSP で整形してから保存する。10 秒ごとの自動保存では整形しない。⌥⇧F で整形だけする</small></div><span class="toggle ${config.formatOnSave ? "on" : ""}" data-toggle="formatOnSave"></span></div>
+                                  <div class="item"><div class="d"><div>不可視文字を表示</div><small>半角スペース ·、全角スペース □、タブ →、改行 ↵。ゼロ幅の文字などはいつも表示する</small></div><span class="toggle ${config.showInvisibles ? "on" : ""}" data-toggle="showInvisibles"></span></div>
                  <div class="item"><div class="d"><div>原稿用紙の換算</div><small>字 × 行。段落ごとに行を改めて数える</small></div><input class="field num" type="number" data-ms="cols" value="${config.manuscript.cols}"> × <input class="field num" type="number" data-ms="rows" value="${config.manuscript.rows}"></div>`
               : section.v === "tools"
                 ? `<div class="item"><div class="d"><div>Golem のバイナリ</div><small>${esc(versions[0])}<br>空なら同梱のもの、~/.local/bin、PATH の順に探す</small></div><input class="field" data-str="golemPath" value="${esc(config.golemPath)}" placeholder="同梱"><span class="btn" data-pick="golemPath">選ぶ</span></div>

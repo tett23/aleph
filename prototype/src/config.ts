@@ -10,6 +10,7 @@ export type Config = {
   theme: "auto" | "light" | "dark";
   rebuildOnSave: boolean;
   showInvisibles: boolean;
+  formatOnSave: boolean; // ⌘S formats with the LSP before saving
   lineHeight: number;
   fontSize: number; // body, px
   codeFontSize: number; // px
@@ -30,6 +31,7 @@ const defaults: Config = {
   theme: "auto",
   rebuildOnSave: true,
   showInvisibles: false,
+  formatOnSave: true,
   lineHeight: 1.75,
   fontSize: 16,
   codeFontSize: 13,

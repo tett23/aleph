@@ -6,7 +6,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, StreamLanguage, syntaxHighlighting, type LanguageSupport } from "@codemirror/language";
 import { toml } from "@codemirror/legacy-modes/mode/toml";
 import { xml } from "@codemirror/legacy-modes/mode/xml";
-import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
+import { lintGutter, openLintPanel, setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from "@codemirror/state";
 import {
@@ -28,6 +28,7 @@ import {
 import { tags as t } from "@lezer/highlight";
 import { lineMarks, type LineMark } from "./diff";
 import { emetLanguage, estimatePageBreaks, gmLanguage, type Grid } from "./gm";
+import { config } from "./config";
 import { lspFor, uriOf, type LspDiagnostic } from "./lsp";
 
 const highlight = HighlightStyle.define([
@@ -204,6 +205,8 @@ export type Editor = {
   setGrid: (g: Grid) => void;
   refreshMarks: (resetBase?: boolean) => void;
   goto: (line: number, col?: number) => void;
+  format: () => Promise<boolean>;
+  openProblems: () => void;
   destroy: () => void;
 };
 
@@ -271,6 +274,7 @@ export const createEditor = (o: EditorOptions): Editor => {
       extensions: [
         changeGutter,
         lineNumbers(),
+        lintGutter(),
         marksField,
         breaksField,
         history(),
@@ -286,7 +290,16 @@ export const createEditor = (o: EditorOptions): Editor => {
         hover,
         autocompletion({ override: [complete], activateOnTyping: true }),
         keymap.of([
-          { key: "Mod-s", run: () => (o.onSave(), true) },
+          {
+            key: "Mod-s",
+            run: () => {
+              // ⌘S formats first (autosave does not, so that a sentence being written stays put)
+              if (config.formatOnSave) editor.format().finally(() => o.onSave());
+              else o.onSave();
+              return true;
+            },
+          },
+          { key: "Shift-Alt-f", run: () => (void editor.format(), true) },
           indentWithTab,
           ...defaultKeymap,
           ...historyKeymap,
@@ -356,6 +369,24 @@ export const createEditor = (o: EditorOptions): Editor => {
       view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: "center" }) });
       view.focus();
     },
+    format: async () => {
+      // the server's formatting, applied as one edit so that undo restores it
+      if (!lsp || lsp.status() !== "ready") return false;
+      type Edit = { range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string };
+      const edits = await lsp
+        .request<Edit[] | null>("textDocument/formatting", { textDocument: { uri }, options: { tabSize: 2, insertSpaces: true } })
+        .catch(() => null);
+      if (!edits) return false;
+      const doc = view.state.doc;
+      const pos = (p: { line: number; character: number }) => {
+        if (p.line >= doc.lines) return doc.length;
+        const l = doc.line(p.line + 1);
+        return Math.min(l.to, l.from + p.character);
+      };
+      view.dispatch({ changes: edits.map((e) => ({ from: pos(e.range.start), to: pos(e.range.end), insert: e.newText })) });
+      return true;
+    },
+    openProblems: () => void openLintPanel(view),
     destroy: () => {
       off();
       lsp?.notify("textDocument/didClose", { textDocument: { uri } });

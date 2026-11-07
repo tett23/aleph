@@ -159,7 +159,44 @@ export const copyFonts = async (project: string): Promise<string[]> => {
   return copied;
 };
 
-export type LibItem = { kind: "plugin" | "function"; name: string; from: string; to: string; state: "absent" | "same" | "changed" };
+export type LibKind = "font" | "plugin" | "function";
+export type LibItem = { kind: LibKind; name: string; from: string; to: string; state: "absent" | "same" | "changed" };
+
+export const LIB_DIRS: [LibKind, string, RegExp][] = [
+  ["font", "fonts", /\.(otf|ttf|ttc|woff2?)$/i],
+  ["plugin", "plugins", /\.wasm$/i],
+  ["function", "functions", /\.emet$/i],
+];
+
+/** The files of the shared library by kind. */
+export const libraryFiles = async () => {
+  if (!config.libraryDir) return [];
+  const out: { kind: LibKind; sub: string; from: string; name: string }[] = [];
+  for (const [kind, sub, re] of LIB_DIRS)
+    for (const from of (await api.listDir(libDir(sub))).filter((p) => re.test(p)).sort())
+      out.push({ kind, sub, from, name: basename(from) });
+  return out;
+};
+
+/** The state of one library file in one project. */
+export const itemIn = async (project: string, f: { kind: LibKind; sub: string; from: string; name: string }): Promise<LibItem> => {
+  const to = `${project}/${f.sub}/${f.name}`;
+  const state = !(await api.exists(to)) ? "absent" : (await sameBytes(f.from, to)) ? "same" : "changed";
+  return { kind: f.kind, name: f.kind === "font" ? f.name : f.name.replace(/\.[^.]+$/, ""), from: f.from, to, state };
+};
+
+/** Every Golem project in every workspace. */
+export const allProjects = async (): Promise<string[]> => {
+  const found: string[] = [];
+  const walk = (es: Entry[]) =>
+    es.forEach((e) => {
+      if (!e.dir) return;
+      if (e.children.some((c) => c.name === "manifest.toml")) found.push(e.path);
+      else walk(e.children);
+    });
+  for (const w of config.workspaces) walk(await api.listTree(w).catch(() => []));
+  return found;
+};
 
 const sameBytes = async (a: string, b: string) => {
   const [x, y] = await Promise.all([api.readBytes(a), api.readBytes(b)]);
@@ -170,18 +207,8 @@ const sameBytes = async (a: string, b: string) => {
 };
 
 /** The library's plugins and functions, and whether the project has them. */
-export const libraryItems = async (project: string): Promise<LibItem[]> => {
-  if (!config.libraryDir) return [];
-  const items: LibItem[] = [];
-  for (const [kind, sub, ext] of [["plugin", "plugins", ".wasm"], ["function", "functions", ".emet"]] as const) {
-    for (const from of (await api.listDir(libDir(sub))).filter((p) => p.endsWith(ext)).sort()) {
-      const to = `${project}/${sub}/${basename(from)}`;
-      const state = !(await api.exists(to)) ? "absent" : (await sameBytes(from, to)) ? "same" : "changed";
-      items.push({ kind, name: basename(from).slice(0, -ext.length), from, to, state });
-    }
-  }
-  return items;
-};
+export const libraryItems = async (project: string): Promise<LibItem[]> =>
+  Promise.all((await libraryFiles()).filter((f) => f.kind !== "font").map((f) => itemIn(project, f)));
 
 /** Copies a library item into the project; a plugin is also declared in manifest.toml. */
 export const installItem = async (project: string, item: LibItem) => {

@@ -315,3 +315,30 @@ table.grid td:has(.chips) .cell { font-size: 11px; color: var(--faint); min-heig
 .rbody.attach { display: flex; flex-direction: column; }
 .rbody.attach .sec:last-child { flex: 1; display: flex; flex-direction: column; min-height: 220px; }
 .rbody.attach .note { flex: 1; resize: none; min-height: 160px; }
+
+/* diagnostics: a gutter of marks right of the line numbers, and the panel */
+.cm-gutter-lint { width: 14px; }
+.cm-gutter-lint .cm-gutterElement { padding: 0 !important; display: flex; align-items: flex-start; justify-content: center; line-height: calc(var(--fs) * var(--elh)); }
+.cm-lint-marker { width: 9px; height: 9px; margin-top: calc((var(--fs) * var(--elh) - 9px) / 2); }
+.cm-panel.cm-panel-lint ul [aria-selected] { background: var(--accent-bg) !important; }
+.cm-panel.cm-panel-lint { font: 12px var(--ui); }
+.status .problems { cursor: default; }
+.status .problems:hover { text-decoration: underline; }
+
+/* the shared library across projects */
+.libhost { padding: 0 8px 20px; }
+.libsec { padding: 6px 4px 10px; }
+.libh { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-2); padding: 6px 4px; }
+.libh small { margin-left: auto; color: var(--faint); font-weight: 400; }
+.libitem { padding: 6px 6px 8px; border-radius: 5px; }
+.libitem:hover { background: var(--hover); }
+.libname { display: flex; align-items: center; gap: 6px; font-size: 12.5px; overflow-wrap: anywhere; }
+.btn.tiny { margin-left: auto; padding: 0 7px; font-size: 11px; flex: none; }
+.libproj { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-2); padding: 1px 0 1px 10px; cursor: default; }
+.libproj.same { color: var(--faint); }
+.libproj.same .ic { color: var(--add); }
+.libproj.changed .ic { color: var(--mod); }
+.libproj.absent .ic { color: var(--faint); }
+.libproj:not(.same):hover span { text-decoration: underline; color: var(--text); }
+.libempty, .libnote { font-size: 11.5px; padding: 4px; line-height: 1.6; overflow-wrap: anywhere; }
+.libnote { margin-top: 8px; }

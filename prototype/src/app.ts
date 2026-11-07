@@ -11,7 +11,7 @@ import { lineMarks } from "./diff";
 import { gmBlocks, mdToGm, plainParagraphs, stats, type Grid } from "./gm";
 import { esc, h, icon } from "./icons";
 import { lspFor } from "./lsp";
-import { dropIntoLibrary, mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
+import { dropIntoLibrary, mountLibraryAll, mountAttachments, mountGit, mountLibrary, mountOutline, mountSearch, openSettings, type Ctx } from "./panels";
 import { mountPlot } from "./plot";
 import { applyZoom, autoDpi, pageInches, rasterize, setZoom, zoom, zoomControls, renderImage } from "./preview";
 import { buildChapterHtml, buildPages, renderEvaluated, renderMarkdown, renderMermaid, renderPages, renderPdf, renderSvg, type BuildResult } from "./preview";
@@ -35,7 +35,7 @@ const store = {
 
 const state = {
   workspace: store.get<string | null>("ws", null),
-  left: "files" as "files" | "search" | "git",
+  left: "files" as "files" | "search" | "git" | "library",
   right: store.get<"attach" | "outline" | "library">("right", "attach"),
   showLeft: true,
   showRight: store.get("showRight", true),
@@ -67,6 +67,7 @@ app.innerHTML = `
     <span class="iconbtn" data-left="search" title="検索">${icon("search")}</span>
     <span class="iconbtn" data-left="git" title="Git">${icon("git-branch")}</span>
     <span class="iconbtn" data-plot title="プロット">${icon("table-2")}</span>
+    <span class="iconbtn" data-left="library" title="フォント、プラグイン、関数（すべてのプロジェクト）">${icon("library-big")}</span>
     <span class="grow drag" data-tauri-drag-region></span>
     <span class="iconbtn" data-settings title="設定">${icon("settings")}</span>
   </div>
@@ -219,6 +220,9 @@ const renderSide = async () => {
   if (state.left === "search") {
     sideEl.innerHTML = head + `<div class="searchhost" style="display:flex;flex-direction:column;flex:1;min-height:0"></div>`;
     mountSearch(sideEl.querySelector(".searchhost")!, ctx);
+  } else if (state.left === "library") {
+    sideEl.innerHTML = head + `<div class="libhost rbody"></div>`;
+    await mountLibraryAll(sideEl.querySelector(".libhost")!, ctx);
   } else if (state.left === "git") {
     sideEl.innerHTML = head + `<div class="githost rbody"></div>`;
     await mountGit(sideEl.querySelector(".githost")!, ctx);
@@ -616,6 +620,8 @@ const mountVertical = (d: Doc) => {
     text: () => ta.value,
     setWidth: (c) => (setHeight(c), layout()),
     setInvisibles: () => {},
+    format: async () => false,
+    openProblems: () => {},
     setGrid: () => {},
     refreshMarks: (reset) => {
       if (reset) base = undefined;
@@ -667,6 +673,8 @@ const mountTable = (d: Doc) => {
     text: () => writeDelimited(rows, sep),
     setWidth: () => {},
     setInvisibles: () => {},
+    format: async () => false,
+    openProblems: () => {},
     setGrid: () => {},
     refreshMarks: () => {},
     goto: () => {},
@@ -840,7 +848,7 @@ const moreMenu = (anchor: HTMLElement) => {
           { label: "本文を別ウィンドウで開く", icon: icon("external-link", 14), run: () => openPlainWindow(d.path) },
           { label: "プロットを別ウィンドウで開く", icon: icon("table-2", 14), run: () => new WebviewWindow(`plot-${Date.now()}`, { url: `index.html?view=plot&project=${encodeURIComponent(d.project!)}`, title: `プロット — ${basename(d.project!)}`, width: 1300, height: 800 }) },
           { label: "今すぐコミット…", icon: icon("git-commit-horizontal", 14), run: () => commitNow() },
-          { label: "golem fmt で整形", icon: icon("wand-sparkles", 14), run: () => runGolem(d, ["fmt", rel(d.project!, d.path)]) },
+          { label: "整形（⌥⇧F）", icon: icon("wand-sparkles", 14), run: () => formatDoc(d) },
           { label: "golem check", icon: icon("circle-check", 14), run: () => runGolem(d, ["check"]) },
           { label: "共有ライブラリのフォントをコピー", icon: icon("type", 14), run: async () => toast((await copyFonts(d.project!)).join(", ") || "足りないフォントはありません") },
         ]
@@ -855,6 +863,12 @@ const commitNow = async () => {
   if (!ws) return;
   const msg = await ask("コミットメッセージ", `Update ${state.doc ? stem(state.doc.path) : basename(ws)}`);
   if (msg) toast(await commitAll(ws, msg));
+};
+
+/** Formats with the LSP (undoable); without it, runs golem fmt on the saved file. */
+const formatDoc = async (d: Doc) => {
+  if (state.editor && (await state.editor.format())) return toast("整形しました");
+  await runGolem(d, ["fmt", rel(d.project!, d.path)]);
 };
 
 const runGolem = async (d: Doc, args: string[]) => {
@@ -1016,7 +1030,7 @@ const renderStatus = () => {
   const extra = registry.status.map((f) => f(ctx.current())).filter(Boolean);
   statusEl.innerHTML = d
     ? `${lsp ? `<span class="${lsp === "ready" ? "ok" : lsp === "failed" ? "ng" : ""}">● LSP${lsp === "failed" ? " を起動できません" : lsp === "starting" ? " 起動中" : ""}</span>` : ""}
-       ${state.diagnostics.errors + state.diagnostics.warnings ? `<span>${state.diagnostics.errors ? `エラー ${state.diagnostics.errors}` : ""} ${state.diagnostics.warnings ? `警告 ${state.diagnostics.warnings}` : ""}</span>` : ""}
+       ${state.diagnostics.errors + state.diagnostics.warnings ? `<span class="problems ${state.diagnostics.errors ? "ng" : ""}" data-problems title="一覧を開く">${state.diagnostics.errors ? `エラー ${state.diagnostics.errors}` : ""} ${state.diagnostics.warnings ? `警告 ${state.diagnostics.warnings}` : ""}</span>` : ""}
        ${extra.map((x) => `<span>${esc(x)}</span>`).join("")}
        <span>${c.chars.toLocaleString()} 字</span><span>${c.words.toLocaleString()} 語</span><span>原稿用紙 ${c.sheets} 枚</span>
        ${d.project ? `<span>${charsOf(d)} 字 × ${d.grid.lines} 行${config.charsOverride ? "（上書き）" : ""}${d.grid.vertical ? " · 縦組み" : ""}</span>` : ""}
@@ -1024,6 +1038,9 @@ const renderStatus = () => {
     : "";
 };
 
+statusEl.addEventListener("click", (e) => {
+  if ((e.target as HTMLElement).closest("[data-problems]")) state.editor?.openProblems();
+});
 mainBody.addEventListener("keyup", scheduleStatus);
 mainBody.addEventListener("mouseup", scheduleStatus);
 mainBody.addEventListener("diagnostics", (e) => {
@@ -1103,7 +1120,7 @@ const dropAssets = async (paths: string[], p: { x: number; y: number }) => {
 // drop event carries no paths, so this uses Tauri's)
 const overRight = (p: { x: number; y: number }) => {
   const el = document.elementFromPoint(p.x / devicePixelRatio, p.y / devicePixelRatio);
-  return !!el && rightEl.contains(el);
+  return !!el && (rightEl.contains(el) || !!el.closest(".libhost"));
 };
 getCurrentWebview().onDragDropEvent(async (e) => {
   const t = e.payload.type;
@@ -1115,8 +1132,11 @@ getCurrentWebview().onDragDropEvent(async (e) => {
   if (!config.libraryDir) return toast("設定で共有ライブラリのフォルダを決めてください");
   const { done, skipped } = await dropIntoLibrary(e.payload.paths);
   toast([done.length ? `コピーしました: ${done.join(", ")}` : "", skipped.length ? `扱えないファイル: ${skipped.join(", ")}` : ""].filter(Boolean).join("\n"));
-  state.right = "library";
-  store.set("right", "library");
+  if (state.left === "library" && state.showLeft) renderSide();
+  else {
+    state.right = "library";
+    store.set("right", "library");
+  }
   renderRight();
 });
 
