@@ -9,7 +9,7 @@ import type { Editor } from "../ed/editor.ts";
 import { stubEditor } from "../editor/stub.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
-import { basename, dirname, stem } from "../path.ts";
+import { argPath, basename, dirname, stem } from "../path.ts";
 import { allDocs, focused, type Doc, type State } from "../store.ts";
 import { effectiveSide, verticalOn } from "../toolbar.ts";
 import { golem, shem } from "../tools.ts";
@@ -88,7 +88,7 @@ const wantedDpi = (ctx: Ctx, project: string) => {
 
 const rasterize = async (ctx: Ctx, project: string, pdf: string, dpi: number): Promise<Pages> => {
   const dir = await api.tempDir(`pages-${basename(project).replace(/[^\w]/g, "_")}-${dpi}`);
-  const o = await shem(ctx, project, ["render", "--dpi", String(dpi), pdf, dir]);
+  const o = await shem(ctx, project, ["render", "--dpi", String(dpi), argPath(pdf), argPath(dir)]);
   const pngs = o.code === 0 ? (await api.listDir(dir)).filter((p) => p.endsWith(".png")).sort() : [];
   return { pdf, pngs, dpi, ok: o.code === 0 && pngs.length > 0, log: o.code === 0 ? "" : out(o) || "shem render に失敗しました" };
 };

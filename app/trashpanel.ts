@@ -11,7 +11,7 @@ import { esc } from "./esc.ts";
 import { h, icon } from "./icons.ts";
 import { freeName } from "./library.ts";
 import { removeChapters, restoreChapters } from "./manifest.ts";
-import { basename, dirname, rel } from "./path.ts";
+import { basename, dirname, rel, underRoot } from "./path.ts";
 import { entryId, expired, parseEntry, removeNotes, restoreNotes, type Entry } from "./trash.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree, treeEntries, treeMenus } from "./ui/tree.ts";
@@ -99,6 +99,9 @@ export const moveToTrash = async (ctx: Ctx, path: string): Promise<boolean> => {
 
 /** Puts an entry back where it was (beside it with -2 when the place is taken), with its chapters and notes. */
 export const restore = async (ctx: Ctx, entry: Entry) => {
+  // only back into a registered workspace, never out of it (docs/adr/0048)
+  const ws = ctx.store.get().workspaces.find((w) => w === entry.workspace);
+  if (!ws || !underRoot(ws, rel(ws, entry.original)) || !entry.original.startsWith(`${ws}/`)) return ctx.toast(`元の場所がワークスペースの外なので戻せません：${entry.original}`);
   const dir = `${await api.trashDir()}/${entry.id}`;
   const parent = dirname(entry.original);
   const name = await freeName(fs, parent, basename(entry.original));
