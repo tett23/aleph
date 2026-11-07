@@ -9,7 +9,7 @@ import { esc } from "./esc.ts";
 import { autosaveMessage, parseStatus, shouldAutoCommit, ymd, type StatusEntry } from "./git.ts";
 import { icon } from "./icons.ts";
 import { basename, rel } from "./path.ts";
-import { dirty, type State } from "./store.ts";
+import { allDocs, dirty, type State } from "./store.ts";
 import { git } from "./tools.ts";
 import { item, toggle } from "./ui/settings.ts";
 import { renderWsbar } from "./ui/shell.ts";
@@ -46,7 +46,7 @@ export const commit = async (ctx: Ctx, ws: string, message: string): Promise<boo
   if (add.code !== 0) return ctx.toast(lines(add) || "git add に失敗しました"), false;
   const c = await git(ctx, ws, ["commit", "-m", message]);
   if (c.code !== 0) return ctx.toast(lines(c) || "コミットに失敗しました"), false;
-  for (const d of ctx.store.get().open) if (d.workspace === ws) ctx.editors.get(d.path)?.refreshMarks(true);
+  for (const d of allDocs(ctx.store.get())) if (d.workspace === ws) ctx.editors.get(d.path)?.refreshMarks(true);
   await refreshStatus(ctx, ws);
   ctx.refresh(["left"]);
   return true;
@@ -57,7 +57,7 @@ const autoCommit = async (ctx: Ctx) => {
   const now = new Date();
   for (const ws of ctx.config.workspaces) {
     await refreshStatus(ctx, ws);
-    const changed = (status.get(ws) ?? []).length > 0 || ctx.store.get().open.some((d) => d.workspace === ws && dirty(d));
+    const changed = (status.get(ws) ?? []).length > 0 || allDocs(ctx.store.get()).some((d) => d.workspace === ws && dirty(d));
     if (!shouldAutoCommit({ today: ymd(now), last: ctx.config.lastAutoCommit[ws], changed, enabled: ctx.config.autoCommit })) continue;
     const isRepo = await git(ctx, ws, ["rev-parse", "--is-inside-work-tree"]).catch(() => null);
     if (!isRepo || isRepo.code !== 0) continue;
@@ -127,7 +127,7 @@ const run = async (el: HTMLElement, ctx: Ctx, a: string) => {
     const o = await git(ctx, ws, a === "pull" ? ["pull", "--no-rebase"] : [a]);
     ctx.toast(lines(o) || (o.code === 0 ? "完了しました" : "失敗しました"));
     if (a === "pull" && o.code === 0) {
-      for (const d of ctx.store.get().open) if (d.workspace === ws) ctx.editors.get(d.path)?.refreshMarks(true);
+      for (const d of allDocs(ctx.store.get())) if (d.workspace === ws) ctx.editors.get(d.path)?.refreshMarks(true);
       await reloadTree(ctx);
     }
     if (a === "init") await refreshBranch(ctx, ws);
@@ -194,14 +194,14 @@ export const mountGit = (ctx: Ctx) => {
   const schedule = () => {
     clearInterval(timer);
     timer = window.setInterval(() => {
-      if (ctx.store.get().open.some(dirty)) void ctx.save();
+      if (allDocs(ctx.store.get()).some(dirty)) void ctx.save();
     }, ctx.config.autosaveSeconds * 1000);
   };
   schedule();
   let statusTimer = 0;
   ctx.store.subscribe((s: State, prev: State) => {
-    for (const d of prev.open) if (dirty(d) && !s.open.some((x) => x.path === d.path)) void api.writeText(d.path, d.text);
-    const saved = s.open.some((d) => prev.open.find((x) => x.path === d.path && x.saved !== d.saved));
+    for (const d of allDocs(prev)) if (dirty(d) && !allDocs(s).some((x) => x.path === d.path)) void api.writeText(d.path, d.text);
+    const saved = allDocs(s).some((d) => allDocs(prev).find((x) => x.path === d.path && x.saved !== d.saved));
     if (saved && s.workspace) {
       clearTimeout(statusTimer);
       statusTimer = window.setTimeout(() => void refreshStatus(ctx, s.workspace!).then(() => ctx.refresh(["left"])), 500);

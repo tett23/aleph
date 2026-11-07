@@ -9,7 +9,7 @@ import { startPreviewWindow } from "./preview/window.ts";
 import { mountPlotFeature, startPlotWindow } from "./plot/mount.ts";
 import { listen } from "@tauri-apps/api/event";
 import type { Ctx } from "./ctx.ts";
-import { createStore, initialState, type State } from "./store.ts";
+import { allDocs, createStore, initialState, type State } from "./store.ts";
 import { toast } from "./ui/dom.ts";
 import { item } from "./ui/settings.ts";
 import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
@@ -24,6 +24,7 @@ import { cleanKeyBindings, mountKeybind } from "./keybind.ts";
 import { mountBookmarks } from "./bookmarkpanel.ts";
 import { mountQuickOpen } from "./quickopenmount.ts";
 import { mountRecent, reopenLast } from "./recentpanel.ts";
+import { keepTabs, restoreTabs } from "./tabsui.ts";
 import { mountLsp } from "./lsp/mount.ts";
 import { mountAttach } from "./attach.ts";
 import { mountLibrary } from "./libpanel.ts";
@@ -84,7 +85,7 @@ const start = async () => {
     commands: [],
     findSheets: null,
     view: {},
-    open: (paths, at) => openPaths(ctx, paths, at),
+    open: (paths, at, opts) => openPaths(ctx, paths, at, opts),
     openers: [],
     pendingAt: null,
     decor: [],
@@ -97,7 +98,7 @@ const start = async () => {
     kindViews: {},
     save: async (paths, opts) => {
       // the basic save: write the sheets with changes (docs/adr/0011 adds autosave and the rest)
-      for (const d of store.get().open) {
+      for (const d of allDocs(store.get())) {
         if (paths && !paths.includes(d.path)) continue;
         const text = ctx.editors.get(d.path)?.text() ?? d.text;
         if (text === d.saved && !opts?.explicit) continue;
@@ -149,14 +150,11 @@ const start = async () => {
       void ctx.left[s.left]?.render(shell.leftBody, ctx);
     if (what.includes("right") || changed("right") || changed("focus") || changed("open") || changed("showRight"))
       if (s.showRight) void ctx.right[s.right]?.render(shell.rightBody, ctx);
-    if (what.includes("main") || changed("plot") || prev?.open.map((d) => d.path).join() !== s.open.map((d) => d.path).join()) {
+    // the panes and tabs follow the store themselves (docs/adr/0024); made again only when asked
+    if (what.includes("main") || !prev) {
       cleanupMain?.();
       shell.mainBody.innerHTML = "";
-      if (!s.open.length && !s.plot)
-        shell.mainBody.innerHTML = `<div class="welcome"><img src="/icon.svg" alt=""><div>${
-          s.workspaces.length ? "左からシートを選んでください。" : "設定の「ワークスペース」で、Git のリポジトリなどのフォルダを足してください。"
-        }</div></div>`;
-      else cleanupMain = ctx.view.main?.(shell.mainBody, ctx);
+      cleanupMain = ctx.view.main?.(shell.mainBody, ctx);
     }
     if (what.includes("side") || changed("side") || changed("open") || changed("focus") || changed("vertical")) ctx.view.side?.(shell.sideHead, shell.sideBody, ctx);
     if (!ctx.view.side) shell.sidePane.hidden = true;
@@ -200,8 +198,9 @@ const start = async () => {
   });
   store.subscribe((s, prev) => draw(s, prev));
   draw(store.get(), null);
-  // the sheet open when Aleph was last closed (docs/adr/0026)
-  void reopenLast(ctx);
+  // the tabs of the last launch, or else the newest recent sheet
+  void restoreTabs(ctx).then((done) => (done ? undefined : reopenLast(ctx)));
+  keepTabs(ctx);
   // plugins load last: a slow or failing one does not hold up the window
   void mountPlugins(ctx);
 };

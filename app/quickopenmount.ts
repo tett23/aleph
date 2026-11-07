@@ -17,8 +17,8 @@ export const mountQuickOpen = (ctx: Ctx) => {
         icon: "file-text",
         marks: s.field === "title" ? s.marks : [],
         detailMarks: s.field === "rel" ? s.marks : [],
-        // ⌘↩ opens a new tab once tabs exist (docs/adr/0024); until then both replace the sheet
-        run: () => void ctx.open([s.path]),
+        // ⌘↩ opens in a new tab (docs/adr/0024)
+        run: (alt) => void ctx.open([s.path], undefined, { newTab: alt }),
       };
     });
   };

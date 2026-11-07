@@ -5,7 +5,7 @@ import { api } from "../api.ts";
 import type { Ctx } from "../ctx.ts";
 import type { Diag, EditorPlugin, TextEditor } from "../ed/editor.ts";
 import { rel } from "../path.ts";
-import { focused, type Doc, type State } from "../store.ts";
+import { allDocs, focused, type Doc, type State } from "../store.ts";
 import { golem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { startClient, type Client, type LspDiagnostic } from "./client.ts";
@@ -111,7 +111,7 @@ const flush = (path: string) => {
 
 /** Keeps the servers in step with the open sheets: open, change, save, close. */
 const sync = (ctx: Ctx, s: State, prev: State | null) => {
-  const now = new Map(s.open.filter(lspDoc).map((d) => [d.path, d]));
+  const now = new Map(allDocs(s).filter(lspDoc).map((d) => [d.path, d]));
   for (const [path, st] of synced) {
     if (now.has(path)) continue;
     clearTimeout(st.timer);
@@ -146,7 +146,7 @@ const sync = (ctx: Ctx, s: State, prev: State | null) => {
         void requestTokens(c, path);
       }, CHANGE_DELAY);
     }
-    const before = prev?.open.find((x) => x.path === path);
+    const before = prev ? allDocs(prev).find((x) => x.path === path) : undefined;
     if (before && before.saved !== d.saved) {
       flush(path);
       clients.get(project)?.notify("textDocument/didSave", { textDocument: { uri: uriOf(path) }, text: d.saved });
@@ -225,7 +225,7 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
   if (!lspDoc(doc)) return null;
   const path = doc.path;
   let editor: TextEditor | null = null;
-  const current = () => ctx.store.get().open.find((d) => d.path === path) ?? doc;
+  const current = () => allDocs(ctx.store.get()).find((d) => d.path === path) ?? doc;
   return {
     attach: (t) => {
       editor = t;

@@ -46,8 +46,8 @@ const commandItems = (ctx: Ctx, q: string): PaletteItem[] =>
     run: () => void runCommand(ctx, c),
   }));
 
-/** Opens the box with some text in its input (">" for commands). */
-export const openPalette = (ctx: Ctx, initial = "") => {
+/** Opens the box with some text in its input (">" for commands); with `alt`, a pick acts as with ⌘↩. */
+export const openPalette = (ctx: Ctx, initial = "", opts: { alt?: boolean } = {}) => {
   document.querySelector(".palette")?.remove();
   const back = document.activeElement as HTMLElement | null;
   const box = document.createElement("div");
@@ -83,7 +83,7 @@ export const openPalette = (ctx: Ctx, initial = "") => {
     const it = items[k];
     if (!it) return;
     close(true);
-    it.run(alt);
+    it.run(alt || !!opts.alt);
   };
   input.addEventListener("input", () => ((sel = 0), draw()));
   input.addEventListener("keydown", (e) => {
@@ -112,7 +112,8 @@ export const openPalette = (ctx: Ctx, initial = "") => {
   // in ui/dom.ts), so a press just after opening is that one, not one outside the box
   const opened = performance.now();
   const outside = (e: MouseEvent) => {
-    if (performance.now() - opened < 400) return;
+    // the late press would also take the focus from the input
+    if (performance.now() - opened < 400) return e.preventDefault();
     if (!box.contains(e.target as Node)) close(false);
   };
   document.addEventListener("mousedown", outside, true);

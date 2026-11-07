@@ -5,7 +5,7 @@ import { api } from "../api.ts";
 import type { Command, Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { basename } from "../path.ts";
-import { focused, type State } from "../store.ts";
+import { allDocs, focused, type State } from "../store.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { API_VERSION, createHost, type Current, type LoadResult } from "./host.ts";
 
@@ -50,8 +50,8 @@ export const mountPlugins = async (ctx: Ctx) => {
 
   ctx.status.push((s) => host.status(current(s)).map((t) => `<span class="plg">${esc(t)}</span>`).join(""));
   ctx.store.subscribe((s, prev) => {
-    for (const d of s.open) {
-      const before = prev.open.find((x) => x.path === d.path);
+    for (const d of allDocs(s)) {
+      const before = allDocs(prev).find((x) => x.path === d.path);
       if (before && before.saved !== d.saved) host.saved({ path: d.path, kind: d.kind, text: d.saved, project: d.project });
     }
   });

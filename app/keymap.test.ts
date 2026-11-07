@@ -47,7 +47,7 @@ test("the first stroke needs ⌘, ⌃ or ⌥, or a function key; later strokes m
 });
 
 test("the menu's keys cannot be bound", () => {
-  for (const k of ["Mod-q", "Mod-w", "Mod-c", "Mod-v", "Mod-x", "Mod-m", "Mod-h", "Mod-Ctrl-f"]) assert.equal(reservedKey(k), true, k);
+  for (const k of ["Mod-q", "Mod-Shift-w", "Mod-c", "Mod-v", "Mod-x", "Mod-m", "Mod-h", "Mod-Ctrl-f"]) assert.equal(reservedKey(k), true, k);
   assert.equal(reservedKey("Mod-Shift-k"), false);
 });
 

@@ -10,7 +10,7 @@ import { goalOf, metaFor, parseMeta, renameKey, writeMeta, type Meta } from "./n
 import { dirname, rel } from "./path.ts";
 import { linesCell, namesCell, rowsFor, targetFor } from "./plot/data.ts";
 import { plotRows, plotRowsNow } from "./plot/mount.ts";
-import { focused } from "./store.ts";
+import { allDocs, focused } from "./store.ts";
 import { item } from "./ui/settings.ts";
 import { kindOf, projectOf, workspaceOf } from "./workspace.ts";
 
@@ -41,7 +41,7 @@ const count = (ctx: Ctx, kind: string, project: string | null, path: string, tex
 
 /** The characters of a .gm in the tree: from the open sheet, else read once in the background. */
 const charsOf = (ctx: Ctx, path: string): number | null => {
-  const open = ctx.store.get().open.find((d) => d.path === path);
+  const open = allDocs(ctx.store.get()).find((d) => d.path === path);
   if (open) return count(ctx, open.kind, open.project, path, open.text).chars;
   if (counts.has(path)) return counts.get(path)!;
   if (!pending.has(path)) {
@@ -191,8 +191,8 @@ export const mountAttach = (ctx: Ctx) => {
 
   // counts follow saves; a saved manifest changes the separators
   ctx.store.subscribe((s, prev) => {
-    for (const d of s.open) {
-      const before = prev.open.find((x) => x.path === d.path);
+    for (const d of allDocs(s)) {
+      const before = allDocs(prev).find((x) => x.path === d.path);
       if (!before || before.saved === d.saved) continue;
       counts.delete(d.path);
       if (d.path.endsWith("/manifest.toml")) {

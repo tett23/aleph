@@ -305,10 +305,12 @@ fn quit(app: AppHandle) {
     app.exit(0);
 }
 
-/// The menu bar: the default items, with Quit going through `request_quit`.
+/// The menu bar: the default items, with Quit going through `request_quit` and Close Window on ⇧⌘W.
 fn menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{Menu, MenuItem, PredefinedMenuItem as P, Submenu};
     let quit = MenuItem::with_id(app, "quit", "Aleph を終了", true, Some("CmdOrCtrl+Q"))?;
+    // ⌘W closes a tab in the page (docs/adr/0024); the window closes with ⇧⌘W
+    let close = MenuItem::with_id(app, "close_window", "ウインドウを閉じる", true, Some("CmdOrCtrl+Shift+W"))?;
     let about = Submenu::with_items(
         app,
         "Aleph",
@@ -345,7 +347,7 @@ fn menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
             &P::minimize(app, None)?,
             &P::fullscreen(app, None)?,
             &P::separator(app)?,
-            &P::close_window(app, None)?,
+            &close,
         ],
     )?;
     Menu::with_items(app, &[&about, &edit, &window])
@@ -402,6 +404,10 @@ pub fn run_app() {
         .on_menu_event(|app, e| {
             if e.id() == "quit" {
                 request_quit(app)
+            } else if e.id() == "close_window" {
+                if let Some(w) = app.webview_windows().into_values().find(|w| w.is_focused().unwrap_or(false)) {
+                    let _ = w.close();
+                }
             }
         })
         .setup(|app| {

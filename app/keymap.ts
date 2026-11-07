@@ -74,8 +74,8 @@ export const unusableFirst = (s: Stroke) => {
   return !/^F\d{1,2}$/.test(name) && !parts.some((m) => m === "Mod" || m === "Ctrl" || m === "Alt");
 };
 
-/** The keys the app's menu owns (Quit, Hide, Minimize, Close, the clipboard, full screen). */
-const RESERVED = new Set(["Mod-q", "Mod-w", "Mod-c", "Mod-v", "Mod-x", "Mod-m", "Mod-h", "Mod-Alt-h", "Mod-Ctrl-f"]);
+/** The keys the app's menu owns (Quit, Hide, Minimize, Close Window, the clipboard, full screen); ⌘W closes a tab (docs/adr/0024). */
+const RESERVED = new Set(["Mod-q", "Mod-Shift-w", "Mod-c", "Mod-v", "Mod-x", "Mod-m", "Mod-h", "Mod-Alt-h", "Mod-Ctrl-f"]);
 export const reservedKey = (s: Stroke) => RESERVED.has(canonical(s) ?? s);
 
 /** Whether a user binding can be used: its first stroke starts a binding and no stroke is the menu's. */

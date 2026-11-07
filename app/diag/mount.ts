@@ -4,7 +4,7 @@ import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { basename } from "../path.ts";
-import { focused } from "../store.ts";
+import { allDocs, focused } from "../store.ts";
 import { golem } from "../tools.ts";
 import { parseDiagnostics, sortDiagnostics, statusOf, type Diagnostic, type Result } from "./parse.ts";
 
@@ -123,13 +123,13 @@ export const mountDiagnostics = (ctx: Ctx) => {
   const opened = new Set<string>();
   const timers = new Map<string, number>();
   ctx.store.subscribe((s, prev) => {
-    for (const d of s.open) {
+    for (const d of allDocs(s)) {
       if (!d.project) continue;
       if (!opened.has(d.project)) {
         opened.add(d.project);
         void background(d.project);
       }
-      const before = prev.open.find((x) => x.path === d.path);
+      const before = allDocs(prev).find((x) => x.path === d.path);
       if (before && before.saved !== d.saved && /\.(gm|emet|toml|json)$/.test(d.path)) {
         clearTimeout(timers.get(d.project));
         const p = d.project;

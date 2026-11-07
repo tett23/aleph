@@ -35,10 +35,10 @@ export const mountPlotFeature = (ctx: Ctx) => {
     });
   };
   // plot.csv of a project opens as the plot, not as text
-  ctx.openers.push((path, c) => {
+  ctx.openers.push((path, c, opts) => {
     const project = dirname(path);
     if (!path.endsWith("/plot.csv") || !c.projects.includes(project)) return false;
-    c.store.dispatch({ type: "plot", project });
+    c.store.dispatch({ type: "plot", project, newTab: opts?.newTab });
     return true;
   });
   // a save here or in a plot window: read the rows again; the other view reloads

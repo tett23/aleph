@@ -1,86 +1,53 @@
-// The editor pane: the open sheets, one editor each, in order (docs/adr/0006,
-// docs/adr/0019). In vertical writing the sheets go from right to left, each
-// with its heading at its right edge; switching keeps the editors.
-// The correspondence between the state's sheets and the editors is kept here only.
+// The editors of the open sheets (docs/adr/0006, docs/adr/0019): how each is made,
+// the status bar's grid and caret, and the editor settings. The panes and tabs
+// that hold them are in panes.ts (docs/adr/0024).
 import type { Ctx } from "../ctx.ts";
 import { createEditor, type Editor } from "../ed/editor.ts";
-import { esc } from "../esc.ts";
-import { h } from "../icons.ts";
 import { dispatchKey } from "../keybind.ts";
-import { rel, stem } from "../path.ts";
-import { loadManifest, separatorOf } from "../separator.ts";
-import { focused, type Doc } from "../store.ts";
-import { PROSE, verticalOn } from "../toolbar.ts";
+import { separatorOf } from "../separator.ts";
+import { allDocs, focused, type Doc } from "../store.ts";
+import { canVertical, PROSE } from "../toolbar.ts";
+import { mountPanes } from "./panes.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 /** The characters per line for a sheet: the setting, or style.toml's; code is wide. */
 export const charsOf = (doc: Doc, override: number | null) => (["gm", "md", "txt"].includes(doc.kind) ? (override ?? doc.grid.chars) : 110);
 
-const editorFor = (el: HTMLElement, doc: Doc, ctx: Ctx, index: number, scroller: HTMLElement | undefined): Editor => {
+const editorFor = (el: HTMLElement, doc: Doc, ctx: Ctx, _index: number, scroller: HTMLElement | undefined): Editor => {
   const kindView = ctx.kindViews[doc.kind];
   if (kindView) return kindView(el, doc, ctx);
-  return createEditor({
+  let self: Editor | null = null;
+  const made = createEditor({
     parent: el,
     kind: doc.kind,
     text: doc.text,
     grid: doc.grid,
     chars: charsOf(doc, ctx.config.charsOverride),
     invisibles: ctx.config.showInvisibles,
-    vertical: verticalOn(ctx.store.get()),
+    vertical: ctx.store.get().vertical && canVertical(doc.kind),
     style: PROSE.includes(doc.kind) ? "prose" : "code",
     scroller,
     base: () => ctx.baseText(doc),
     onChange: (text) => ctx.store.dispatch({ type: "edit", path: doc.path, text }),
     onSave: () => void ctx.save([doc.path], { explicit: true }),
-    onFocus: () => ctx.store.dispatch({ type: "focus", index }),
+    // an editor in another tab or pane takes the selection there
+    onFocus: () => {
+      // by the editor itself: a rename changes the sheet's path
+      const path = [...ctx.editors.entries()].find(([, e]) => e === self)?.[0];
+      if (path) ctx.store.dispatch({ type: "focusDoc", path });
+    },
     onCaret: () => ctx.refresh(["status"]),
     plugins: ctx.editorPlugins.flatMap((f) => f(doc, ctx) ?? []),
     keys: (e) => dispatchKey(ctx, e, true),
     separator: () => separatorOf(doc.project, doc.path, ctx.editors.get(doc.path)?.text() ?? doc.text),
   });
+  self = made;
+  return made;
 };
 
 export const mountEditors = (ctx: Ctx) => {
-  ctx.view.main = (el) => {
-    const s = ctx.store.get();
-    if (s.plot) return ctx.kindViews.plot?.(el, focused(s) ?? ({ path: `${s.plot}/plot.csv`, project: s.plot } as Doc), ctx).destroy;
-    const many = s.open.length > 1;
-    const host = h(`<div class="${many ? "multi" : "single"}${verticalOn(s) ? " vertical" : ""}"></div>`);
-    el.append(host);
-    // the manifest decides the paragraph separator of the page break estimates
-    for (const p of new Set(s.open.flatMap((d) => (d.project ? [d.project] : []))))
-      void loadManifest(p).then(() => s.open.forEach((d) => d.project === p && ctx.editors.get(d.path)?.refreshMarks()));
-    s.open.forEach((doc, i) => {
-      const sec = many
-        ? h(`<section class="msec"><div class="mhead">${esc(ctx.titles.get(doc.path) ?? stem(doc.path))}<small>${esc(doc.workspace ? rel(doc.workspace, doc.path) : doc.path)}</small></div><div class="mhost"></div></section>`)
-        : h(`<div class="mhost single-host"></div>`);
-      host.append(sec);
-      ctx.editors.set(doc.path, editorFor(sec.querySelector<HTMLElement>(".mhost") ?? sec, doc, ctx, i, many ? host : undefined));
-    });
-    // the vertical switch changes the writing mode of the editors in place
-    let vertical = verticalOn(s);
-    const off = ctx.store.subscribe((now) => {
-      const v = verticalOn(now);
-      if (v === vertical) return;
-      vertical = v;
-      host.classList.toggle("vertical", v);
-      // back to the start (the top, or the right edge); the editor with the caret then scrolls to it
-      host.scrollTop = 0;
-      host.scrollLeft = 0;
-      ctx.editors.forEach((e) => e.setVertical(v));
-    });
-    const at = ctx.pendingAt;
-    ctx.pendingAt = null;
-    const first = s.open[0] && ctx.editors.get(s.open[0].path);
-    if (at) first?.goto(at.line, at.col);
-    else first?.focus();
-    return () => {
-      off();
-      ctx.editors.forEach((e) => e.destroy());
-      ctx.editors.clear();
-    };
-  };
+  mountPanes(ctx, (el, doc, index, scroller) => editorFor(el, doc, ctx, index, scroller));
 
   // the grid and the caret in the status bar
   ctx.status.push((s) => {
@@ -132,7 +99,7 @@ export const mountEditors = (ctx: Ctx) => {
       if (k === "charsOverride") c.config.charsOverride = v;
       else c.config[k] = v ?? Number.NaN; // normalize puts the default back
       await c.saveConfig();
-      ctx.store.get().open.forEach((d) => ctx.editors.get(d.path)?.setWidth(charsOf(d, c.config.charsOverride)));
+      allDocs(ctx.store.get()).forEach((d) => ctx.editors.get(d.path)?.setWidth(charsOf(d, c.config.charsOverride)));
       return true;
     },
   });

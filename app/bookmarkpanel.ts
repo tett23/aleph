@@ -7,7 +7,7 @@ import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
 import { basename, rel } from "./path.ts";
-import { focused } from "./store.ts";
+import { allDocs, focused } from "./store.ts";
 import { menu } from "./ui/dom.ts";
 
 const cache = new Map<string, Bookmark[]>();
@@ -42,7 +42,7 @@ const go = async (ctx: Ctx, ws: string, i: number) => {
   const abs = `${ws}/${b.path}`;
   if (!(await api.exists(abs))) return ctx.toast(`${b.path} が見つかりません`);
   if (b.line === undefined) return ctx.open([abs]);
-  const open = ctx.store.get().open.find((d) => d.path === abs);
+  const open = allDocs(ctx.store.get()).find((d) => d.path === abs);
   const text = ctx.editors.get(abs)?.text() ?? open?.text ?? (await api.readText(abs).catch(() => ""));
   const line = relocate(text.split("\n"), b.line, b.text ?? "");
   if (line !== b.line) await save(ctx, ws, list.map((x, k) => (k === i ? { ...x, line } : x)));
