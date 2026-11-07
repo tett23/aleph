@@ -2,6 +2,7 @@
 // mouse events, a line where @figure goes, inserted as one change on release.
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
+import { allDocs } from "./store.ts";
 import { esc } from "./esc.ts";
 import { h } from "./icons.ts";
 import { figureInsert, figurePlan, freeName } from "./library.ts";
@@ -28,7 +29,7 @@ const targetAt = (ctx: Ctx, x: number, y: number): Target => {
   const editor = el?.closest<HTMLElement>(".ed");
   if (!editor) return null;
   const path = [...ctx.editors.entries()].find(([, e]) => e.edit?.view.root === editor)?.[0];
-  const doc = ctx.store.get().open.find((d) => d.path === path);
+  const doc = allDocs(ctx.store.get()).find((d) => d.path === path);
   const t = path ? ctx.editors.get(path)?.edit : null;
   if (!path || !doc || !t) return null;
   if (doc.kind !== "gm") return { refuse: "図版を差し込めるのは .gm のシートです" };
@@ -39,7 +40,7 @@ const targetAt = (ctx: Ctx, x: number, y: number): Target => {
 };
 
 const drop = async (ctx: Ctx, image: string, path: string, line: number) => {
-  const doc = ctx.store.get().open.find((d) => d.path === path);
+  const doc = allDocs(ctx.store.get()).find((d) => d.path === path);
   const t = ctx.editors.get(path)?.edit;
   if (!doc?.project || !t) return;
   const plan = figurePlan(image, doc.project, ctx.projects);

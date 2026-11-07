@@ -10,7 +10,7 @@ import { stubEditor } from "../editor/stub.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { basename, dirname, stem } from "../path.ts";
-import { focused, type Doc, type State } from "../store.ts";
+import { allDocs, focused, type Doc, type State } from "../store.ts";
 import { effectiveSide, verticalOn } from "../toolbar.ts";
 import { golem, shem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
@@ -308,8 +308,8 @@ export const mountPreview = (ctx: Ctx) => {
 
   // after a save: the text is built again; the pages too when the setting says so
   ctx.store.subscribe((s, prev) => {
-    for (const d of s.open) {
-      const before = prev.open.find((x) => x.path === d.path);
+    for (const d of allDocs(s)) {
+      const before = allDocs(prev).find((x) => x.path === d.path);
       if (!before || before.saved === d.saved) continue;
       if (d.path.endsWith("/style.toml")) styles.delete(d.project ?? "");
       if (!d.project) continue;

@@ -31,6 +31,8 @@ export type View = {
   side?: (head: HTMLElement, body: HTMLElement, ctx: Ctx) => void;
 };
 
+export type OpenOpts = { newTab?: boolean };
+
 /** Where to put the caret after opening (1-based line, 0-based column). */
 export type At = { line: number; col?: number };
 
@@ -50,9 +52,10 @@ export type Ctx = {
   findSheets: ((q: string) => PaletteItem[]) | null;
   view: View;
   /** Opens sheets: one, or several chapters together; a path may be taken by an opener (the plot). */
-  open: (paths: string[], at?: At) => Promise<void>;
+  /** With `newTab`, in a new tab after the selected one (docs/adr/0024); otherwise in place of the selected tab. */
+  open: (paths: string[], at?: At, opts?: OpenOpts) => Promise<void>;
   /** Openers that take a path instead of the editor; return true when taken. */
-  openers: ((path: string, ctx: Ctx) => boolean | Promise<boolean>)[];
+  openers: ((path: string, ctx: Ctx, opts?: OpenOpts) => boolean | Promise<boolean>)[];
   /** Where to put the caret once the editor is ready. */
   pendingAt: At | null;
   /** Marks added to a file row of the tree (unsaved changes, goals). */

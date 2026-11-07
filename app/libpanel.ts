@@ -9,7 +9,7 @@ import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
 import { FIGURE_KINDS, copyFonts, figureInsert, freeName, installItem, libSubdir, libraryFiles, stateOf, targetIn, type Fs, type LibFile, type LibState } from "./library.ts";
 import { basename, dirname, rel } from "./path.ts";
-import { focused } from "./store.ts";
+import { allDocs, focused } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { item } from "./ui/settings.ts";
 import { reloadTree } from "./ui/tree.ts";
@@ -152,7 +152,7 @@ const copyInto = async (dir: string, paths: string[]) => {
 };
 
 const dropOnEditor = async (ctx: Ctx, path: string, paths: string[], x: number, y: number) => {
-  const d = ctx.store.get().open.find((o) => o.path === path);
+  const d = allDocs(ctx.store.get()).find((o) => o.path === path);
   const t = ctx.editors.get(path)?.edit;
   if (!d?.project || !t) return;
   const images = paths.filter((p) => FIGURE_KINDS.test(p));
@@ -211,7 +211,7 @@ export const mountLibrary = (ctx: Ctx) => {
   // a project's fonts are completed when one of its sheets is opened
   const seen = new Set<string>();
   ctx.store.subscribe((s) => {
-    for (const d of s.open)
+    for (const d of allDocs(s))
       if (d.project && !seen.has(d.project)) {
         seen.add(d.project);
         void fontsFor(ctx, d.project, true);

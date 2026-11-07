@@ -7,7 +7,7 @@ import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { addChapter, manifestChapters } from "../manifest.ts";
 import { basename, dirname, stem } from "../path.ts";
-import { focused } from "../store.ts";
+import { allDocs, focused } from "../store.ts";
 import { collectProjects, flatten, kindOf, selectChapters, titleOf, treeRows, type Row } from "../workspace.ts";
 import { golem } from "../tools.ts";
 import { ask, toast } from "./dom.ts";
@@ -191,16 +191,18 @@ export const mountTree = (ctx: Ctx) => {
         const d = t.dataset;
         const s = ctx.store.get();
         if (d.dir) return ctx.store.dispatch({ type: "expand", path: d.dir, on: !s.expanded.includes(d.dir) });
-        if (d.plot) return void ctx.open([`${d.plot}/plot.csv`]);
+        // ⌥ opens in a new tab (docs/adr/0024)
+        const newTab = (e as MouseEvent).altKey;
+        if (d.plot) return void ctx.open([`${d.plot}/plot.csv`], undefined, { newTab });
         if (d.file) {
           const me = e as MouseEvent;
           if (kindOf(d.file) === "gm" && (me.shiftKey || me.metaKey)) {
             const gm = rowsNow(ctx).flatMap((r) => (r.t === "file" && kindOf(r.entry.path) === "gm" ? [r.entry.path] : []));
             const sel = selectChapters(gm, s.selected, s.anchor, d.file, me.shiftKey ? "range" : "toggle");
-            if (sel.length) return void ctx.open(sel);
+            if (sel.length) return void ctx.open(sel, undefined, { newTab });
             return;
           }
-          return void ctx.open([d.file]);
+          return void ctx.open([d.file], undefined, { newTab });
         }
         return runTreeAct(ctx, d.act!);
       };
@@ -213,7 +215,7 @@ export const mountTree = (ctx: Ctx) => {
         const to = `${dirname(from)}/${name}`;
         if (await api.exists(to)) return toast(`${name} はもうあります`);
         // an open sheet is saved first, so its unsaved text goes with it (docs/adr/0011)
-        if (ctx.store.get().open.some((d) => d.path === from)) await ctx.save([from]);
+        if (allDocs(ctx.store.get()).some((d) => d.path === from)) await ctx.save([from]);
         await api.rename(from, to);
         ctx.store.dispatch({ type: "rename", from, to });
         for (const f of ctx.onRename) await f(from, to, ctx);
