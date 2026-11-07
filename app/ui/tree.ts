@@ -160,6 +160,8 @@ export const runTreeAct = async (ctx: Ctx, act: string) => {
       const ws = s.workspace;
       const name = ws && (await ask("新しいプロジェクトの名前（golem new）"));
       if (!ws || !name) return;
+      // a name like an option is not passed to golem (docs/adr/0048)
+      if (name.startsWith("-")) return toast("「-」で始まる名前のプロジェクトは作れません");
       // fonts come from the shared library, never from golem's download (docs/adr/0004, docs/adr/0014)
       const out = await golem(ctx, ws, ["new", name, "--no-fonts"]);
       if (out.code !== 0) return toast((out.stderr || out.stdout).trim());

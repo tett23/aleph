@@ -3,7 +3,7 @@
 // (docs/adr/0043). The tree comes from DOMParser in the app (xhtmldom.ts);
 // this part takes the tree, so it runs without a DOM.
 import { esc } from "../esc.ts";
-import { resolve } from "../path.ts";
+import { within } from "../path.ts";
 
 export type ChapterBody = { html: string; images: string[] };
 
@@ -37,11 +37,7 @@ const hrefOk = (v: string) => {
 };
 
 /** The absolute path of an image, when it stays under build/html. */
-const imagePath = (src: string, place: Place) => {
-  if (!relative(src)) return null;
-  const p = resolve(place.dir, src.trim());
-  return p.startsWith(`${place.root}/`) ? p : null;
-};
+const imagePath = (src: string, place: Place) => (relative(src) ? within(place.root, place.dir, src.trim()) : null);
 
 export const sanitize = (nodes: XNode[], place: Place): ChapterBody => {
   const images: string[] = [];
