@@ -13,6 +13,7 @@ import { openSettings } from "./settings.ts";
 
 const RIBBON: [LeftPanel | "plot", string, string][] = [
   ["files", "files", "ファイル"],
+  ["bookmarks", "map-pin", "ブックマークと最近開いたシート"],
   ["search", "search", "検索"],
   ["git", "git-branch", "Git"],
   ["plot", "table-2", "プロット"],

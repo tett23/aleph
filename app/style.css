@@ -529,3 +529,15 @@ body.dragging-image, body.dragging-image * { user-select: none; cursor: copy !im
 .palette li small { color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
 .palette li kbd, .menu kbd { margin-left: auto; color: var(--faint); font: 11.5px var(--ui); }
 .palette li.empty { color: var(--faint); }
+
+/* bookmarks and recent sheets (docs/adr/0025, docs/adr/0026) */
+.bookmarks .sec { padding: 8px 10px; }
+.bookmarks h5 { margin: 4px 0 6px; font-size: 11px; font-weight: 600; color: var(--faint); display: flex; justify-content: space-between; align-items: center; }
+.bookmarks .bm, .bookmarks .rc { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px; cursor: default; }
+.bookmarks .bm:hover, .bookmarks .rc:hover { background: var(--hover); }
+.bookmarks .bm .ttl, .bookmarks .rc .ttl { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.bookmarks .bm small, .bookmarks .rc small { color: var(--faint); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmarks .bm.missing { opacity: 0.45; }
+.bookmarks .bm.drop { box-shadow: 0 2px 0 var(--text-2); }
+.bookmarks .grip { color: var(--faint); cursor: grab; }
+.bookmarks .empty { color: var(--faint); font-size: 12px; line-height: 1.7; }
