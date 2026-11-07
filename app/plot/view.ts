@@ -13,6 +13,7 @@ import {
   PLOT_COLUMNS,
   barsOf,
   calendarOf,
+  columnWidths,
   freeColumnName,
   insertRow,
   moveRow,
@@ -140,6 +141,8 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
   };
   const blank = () => newRow(extras, filter ? { subplots: filter } : {});
 
+  // columns written at length grow taller while edited
+  const LONG = new Set(["memo", "fragments", "must", "flavor"]);
   const cell = (r: PlotRow, k: string, subs: string[]) => {
     const v = esc(r[k] ?? "");
     if (k === "subplots")
@@ -148,7 +151,7 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
         .join("")}</div></td>`;
     if (k === "file" && r[k].trim())
       return `<td><div class="cell link" contenteditable="plaintext-only" data-k="${k}">${v}</div><span class="open" data-open="${v}" title="開く">${icon("arrow-up-right", 12)}</span></td>`;
-    return `<td><div class="cell ${k === "fragments" ? "body" : ""}" contenteditable="plaintext-only" data-k="${esc(k)}">${v}</div></td>`;
+    return `<td><div class="cell ${k === "fragments" ? "body" : ""} ${LONG.has(k) ? "long" : ""}" contenteditable="plaintext-only" data-k="${esc(k)}">${v}</div></td>`;
   };
 
   const render = () => {
@@ -170,7 +173,9 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
       </div>
       ${
         showTable
-          ? `<div class="table-wrap"><table class="grid"><thead><tr><th></th>${PLOT_COLUMNS.map(([k, l]) => `<th>${icon(ICONS[k], 13)}${l}</th>`).join("")}${extras
+          ? `<div class="table-wrap"><table class="grid" style="width:${24 + columnWidths(extras).reduce((a, b) => a + b, 0)}px"><colgroup><col style="width:24px">${columnWidths(extras)
+              .map((w) => `<col style="width:${w}px">`)
+              .join("")}</colgroup><thead><tr><th></th>${PLOT_COLUMNS.map(([k, l]) => `<th>${icon(ICONS[k], 13)}${l}</th>`).join("")}${extras
               .map((x) => `<th class="extra">${icon("columns-3", 13)}${esc(x)}<span class="rmcol" data-rmcol="${esc(x)}" title="この列を消す">${icon("x", 11)}</span></th>`)
               .join("")}</tr></thead><tbody>${visible
               .map(

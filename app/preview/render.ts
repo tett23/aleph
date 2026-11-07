@@ -6,7 +6,7 @@ import { esc } from "../esc.ts";
 import { gmBlocks } from "../gm.ts";
 import { icon } from "../icons.ts";
 import { markdownHtml } from "../md.ts";
-import { ext, resolve } from "../path.ts";
+import { ext } from "../path.ts";
 import { uiState } from "../uistate.ts";
 
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
@@ -35,10 +35,6 @@ export const plainHtml = (src: string) =>
           : `<div class="plain-break">改ページ</div>`,
     )
     .join("");
-
-/** Images of Golem's HTML are read from the build directory; `data-src` holds their absolute path. */
-export const withImagePaths = (html: string, dir: string) =>
-  html.replace(/<img\b([^>]*?)\bsrc="([^"]+)"/gi, (_, pre, src) => `<img${pre}data-src="${esc(resolve(dir, src))}"`);
 
 export const loadImages = (el: HTMLElement) =>
   Promise.all(
