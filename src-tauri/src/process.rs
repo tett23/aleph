@@ -27,6 +27,27 @@ pub fn run(program: &Path, cwd: &Path, args: &[String]) -> Result<Out, String> {
     })
 }
 
+/// The arguments Aleph gives git (docs/adr/0046): before the repository's own
+/// settings, the fsmonitor and the hooks are turned off; reading takes no
+/// optional locks, and diff uses no external diff program.
+pub fn git_args(args: &[String]) -> Vec<String> {
+    let sub = args.first().map(String::as_str).unwrap_or("");
+    let read = matches!(sub, "status" | "diff" | "log" | "show" | "rev-parse");
+    [
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+    ]
+    .into_iter()
+    .map(String::from)
+    .chain(read.then(|| "--no-optional-locks".to_string()))
+    .chain(args.first().cloned())
+    .chain((sub == "diff").then(|| "--no-ext-diff".to_string()))
+    .chain(args.iter().skip(1).cloned())
+    .collect()
+}
+
 /// The roots the search uses; tests point them at temporary directories.
 #[derive(Clone, Debug)]
 pub struct Roots {
@@ -320,5 +341,84 @@ mod tests {
         g(&["commit", "-q", "-m", "second"]);
         assert_eq!(g(&["show", "HEAD:章.gm"]).stdout, "一\n二\n");
         assert!(g(&["status", "--porcelain=v1", "-z"]).stdout.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod safe_git_tests {
+    // git run by Aleph ignores the repository's fsmonitor and hooks (docs/adr/0046)
+    use super::*;
+    use crate::fsops::testdir;
+
+    fn s(a: &[&str]) -> Vec<String> {
+        a.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn every_git_gets_the_overrides_and_reads_take_no_locks() {
+        let pre = [
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+        ];
+        assert_eq!(
+            git_args(&s(&["commit", "-m", "x"])),
+            s(&[&pre[..], &["commit", "-m", "x"]].concat())
+        );
+        assert_eq!(git_args(&s(&["push"])), s(&[&pre[..], &["push"]].concat()));
+        for read in ["status", "log", "show", "rev-parse"] {
+            assert_eq!(
+                git_args(&s(&[read, "a"])),
+                s(&[&pre[..], &["--no-optional-locks", read, "a"]].concat())
+            );
+        }
+        assert_eq!(
+            git_args(&s(&["diff", "HEAD", "--", "a"])),
+            s(&[
+                &pre[..],
+                &[
+                    "--no-optional-locks",
+                    "diff",
+                    "--no-ext-diff",
+                    "HEAD",
+                    "--",
+                    "a"
+                ]
+            ]
+            .concat())
+        );
+    }
+
+    #[test]
+    fn a_hostile_repository_runs_nothing_on_status_and_commit() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = testdir::fresh("hostile");
+        let git = Path::new("/usr/bin/git");
+        let raw = |a: &[&str]| run(git, &d, &s(a)).unwrap();
+        raw(&["init", "-q"]);
+        let marker = d.join("pwned");
+        let evil = d.join("evil.sh");
+        std::fs::write(&evil, format!("#!/bin/sh\ntouch '{}'\n", marker.display())).unwrap();
+        std::fs::set_permissions(&evil, std::fs::Permissions::from_mode(0o755)).unwrap();
+        raw(&["config", "core.fsmonitor", evil.to_str().unwrap()]);
+        let hook = d.join(".git/hooks/pre-commit");
+        std::fs::copy(&evil, &hook).unwrap();
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::write(d.join("a.gm"), "x").unwrap();
+        let safe = |a: &[&str]| run(git, &d, &git_args(&s(a))).unwrap();
+        safe(&["status", "--porcelain=v1"]);
+        safe(&["add", "-A"]);
+        let c = safe(&[
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@example.com",
+            "commit",
+            "-q",
+            "-m",
+            "x",
+        ]);
+        assert!(!marker.exists(), "{}", c.stderr);
     }
 }
