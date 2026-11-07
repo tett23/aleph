@@ -464,3 +464,7 @@ table.grid tr.dragged td { opacity: 0.45; }
 .hit mark { background: var(--sel); color: var(--text); font-weight: 600; border-radius: 2px; }
 /* Aleph's plugins (docs/adr/0017) */
 .warn-note { font-size: 12px; color: var(--text-2); background: var(--bg-2); border-radius: 6px; padding: 8px 10px; margin: 6px 0 10px; line-height: 1.6; }
+/* dragging an image from the tree onto a chapter (docs/adr/0018) */
+body.dragging-image, body.dragging-image * { user-select: none; cursor: copy !important; }
+.drag-ghost { position: fixed; top: 0; left: 0; z-index: 50; pointer-events: none; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; font: 12px var(--ui); color: var(--text); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+.drop-line { position: fixed; height: 2px; margin-top: -1px; background: var(--text-2); z-index: 49; pointer-events: none; }
