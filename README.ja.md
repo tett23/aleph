@@ -48,6 +48,9 @@ sh scripts/bundle-tools.sh
 npx tauri build
 ```
 
+デバッグのビルド（`npx tauri dev` または `npx tauri build --debug`）は、ツールバーの左に `dev` の印を出します。
+どのビルドも同じ設定を読みます。
+
 ## 開発
 
 CI が実行する検査は次のとおりです。

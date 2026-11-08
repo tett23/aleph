@@ -87,6 +87,12 @@ fn may(app: &AppHandle, path: &str, access: guard::Access) -> R<()> {
 
 use guard::Access::{Read as RD, Write as WR};
 
+/// Whether this is a debug build, for the mark on the screen (docs/adr/0052).
+#[tauri::command]
+fn debug_build() -> bool {
+    cfg!(debug_assertions)
+}
+
 #[tauri::command]
 fn config_load(app: AppHandle) -> R<String> {
     Ok(
@@ -448,6 +454,13 @@ fn git(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn debug_build_follows_debug_assertions() {
+        // cargo test builds with debug assertions (docs/adr/0052)
+        assert_eq!(super::debug_build(), cfg!(debug_assertions));
+        assert!(super::debug_build());
+    }
+
     #[test]
     fn the_bundled_versions_come_from_tools_versions() {
         assert!(super::bundled_version("golem").starts_with('v'));
@@ -872,6 +885,7 @@ pub fn run_app() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            debug_build,
             config_load,
             config_save,
             list_tree,

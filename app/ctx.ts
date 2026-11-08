@@ -62,6 +62,8 @@ export type Ctx = {
   decor: ((path: string, ctx: Ctx) => string)[];
   /** The first heading of each gm and md sheet, by path. */
   titles: Map<string, string>;
+  /** Whether this is a debug build, marked on the screen (docs/adr/0052). */
+  debug: boolean;
   /** The Golem projects of every workspace, refreshed with the tree. */
   projects: string[];
   /** Run after `golem new` made a project (to copy fonts from the library). */

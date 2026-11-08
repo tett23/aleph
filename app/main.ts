@@ -13,6 +13,7 @@ import { allDocs, createStore, initialState, type State } from "./store.ts";
 import { confirmDialog, toast } from "./ui/dom.ts";
 import { guardLinks } from "./links.ts";
 import { item } from "./ui/settings.ts";
+import { debugBuild } from "./build.ts";
 import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
 import { openPaths } from "./docs.ts";
 import { mountTree, reloadTree } from "./ui/tree.ts";
@@ -96,6 +97,7 @@ const start = async () => {
     pendingAt: null,
     decor: [],
     titles,
+    debug: await debugBuild(),
     projects: [],
     onRename: [],
     onNewProject: [],
