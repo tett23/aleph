@@ -32,7 +32,7 @@ const MARK: Record<LibState, [string, string]> = {
   absent: ["plus", "入っていない（押すと入れる）"],
 };
 
-const dropzone = `<div class="dropzone">.wasm、.emet、フォントとライセンスをここに落とすと、<br>共有ライブラリの plugins/、functions/、fonts/ にコピーします。</div>`;
+const dropzone = `<div class="dropzone">.wasm、.emet、フォントとライセンスをここにドロップすると、<br>共有ライブラリの plugins/、functions/、fonts/ にコピーします。</div>`;
 
 const projectName = (ctx: Ctx, p: string) => {
   const ws = workspaceOf(p, ctx.config.workspaces);
