@@ -149,6 +149,7 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .chg-slot { inline-size: 9px; flex: none; display: flex; align-items: stretch; padding-block: 6px; }
 .ed-gut .ln { flex: 1; min-inline-size: 28px; padding-inline: 2px 12px; display: flex; align-items: center; justify-content: flex-end; }
 .dg-slot { inline-size: 14px; flex: none; display: flex; align-items: center; justify-content: center; }
+.dg-slot:has(.dg) { cursor: default; }
 /* in vertical writing the number stands upright in one column (tate-chu-yoko) */
 .ed.vertical .ed-gut .ln { min-inline-size: 0; padding-inline: 2px 4px; font-size: 10.5px; text-combine-upright: all; }
 .chg { inline-size: 3px; border-radius: 1px; }
@@ -185,6 +186,9 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .ed-popup { position: fixed; z-index: 45; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12); font: 12.5px/1.6 var(--ui); color: var(--text); writing-mode: horizontal-tb; max-width: 520px; max-height: 50vh; overflow: auto; }
 .ed-popup .hover, .ed-popup .hover-diag { padding: 8px 10px; white-space: pre-wrap; }
 .ed-popup .hover-diag + .hover { border-top: 1px solid var(--border); }
+/* the gutter mark's popup lists its line's diagnostics, which can be read and copied (docs/adr/0054) */
+.ed-popup .hover-diag + .hover-diag { border-top: 1px solid var(--border); }
+.ed-hover { user-select: text; -webkit-user-select: text; }
 .hover-diag.sev-error { border-left: 3px solid var(--del); }
 .hover-diag.sev-warning { border-left: 3px solid var(--mod); }
 .ed-complete ul { list-style: none; margin: 0; padding: 3px 0; font: 12.5px var(--mono); }

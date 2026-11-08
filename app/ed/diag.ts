@@ -18,6 +18,10 @@ export const diagLines = (doc: Text, diags: Diag[]): Map<number, Severity> => {
   return m;
 };
 
+/** The diagnostics starting on line `n` (1-based), most severe first: what its gutter mark shows (docs/adr/0054). */
+export const lineDiagnostics = (doc: Text, diags: Diag[], n: number): Diag[] =>
+  diags.filter((d) => doc.lineAt(d.from).number === n).sort((a, b) => RANK[b.severity] - RANK[a.severity]);
+
 /** Diagnostics kept inside the text, as ranges to draw; one at a point underlines the character after it (not a line break). */
 export const clampDiagnostics = (doc: Text, list: Diag[]): (Diag & { cls: string })[] => {
   const len = doc.length;

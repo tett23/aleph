@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allSources, clampDiagnostics, diagLines, withSource, type Diag } from "./diag.ts";
+import { allSources, clampDiagnostics, diagLines, lineDiagnostics, withSource, type Diag } from "./diag.ts";
 import { textOf } from "./text.ts";
 
 const doc = textOf("霧笛\n灯台\n");
@@ -46,4 +46,34 @@ test("diagnostics from several sources lie together; each source replaces only i
   assert.deepEqual(allSources(by).map((x) => x.message), ["lsp", "fullwidth"]);
   by = withSource(by, "lsp", []);
   assert.deepEqual(allSources(by).map((x) => x.message), ["fullwidth"]);
+});
+
+// docs/adr/0054: the gutter mark shows its line's diagnostics
+test("a line's diagnostics are those starting on it, from any source, most severe first", () => {
+  const list: Diag[] = [
+    { from: 0, to: 1, severity: "info", message: "info", source: "proofread" },
+    { from: 1, to: 2, severity: "error", message: "error" },
+    { from: 3, to: 4, severity: "error", message: "next line" },
+    { from: 1, to: 1, severity: "warning", message: "warning", source: "wikilink" },
+  ];
+  assert.deepEqual(
+    lineDiagnostics(doc, list, 1).map((d) => d.message),
+    ["error", "warning", "info"],
+  );
+});
+
+test("a diagnostic over the line break only, or with no width, belongs to the line it starts on", () => {
+  const list: Diag[] = [
+    { from: 2, to: 3, severity: "error", message: "line break" },
+    { from: 2, to: 2, severity: "warning", message: "point" },
+  ];
+  assert.deepEqual(
+    lineDiagnostics(doc, list, 1).map((d) => d.message),
+    ["line break", "point"],
+  );
+  assert.deepEqual(lineDiagnostics(doc, list, 2), []);
+});
+
+test("a line without diagnostics has none", () => {
+  assert.deepEqual(lineDiagnostics(doc, [], 1), []);
 });
