@@ -37,7 +37,7 @@ test("sorted by severity, file, line", () => {
 test("the status bar's colour and count: info is not counted", () => {
   assert.deepEqual(statusOf({ items: [d("error"), d("warning"), d("info")], raw: null }), { cls: "ng", count: 2 });
   assert.deepEqual(statusOf({ items: [d("warning"), d("notice")], raw: null }), { cls: "warn", count: 2 });
-  assert.deepEqual(statusOf({ items: [d("notice")], raw: null }), { cls: "note", count: 1 });
+  assert.deepEqual(statusOf({ items: [d("notice")], raw: null }), { cls: "notice", count: 1 });
   assert.deepEqual(statusOf({ items: [d("info")], raw: null }), { cls: "ok", count: 0 });
   assert.deepEqual(statusOf({ items: [], raw: null }), { cls: "ok", count: 0 });
   assert.deepEqual(statusOf({ items: [], raw: "golem: not found" }), { cls: "ng", count: 0 });

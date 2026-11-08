@@ -438,7 +438,8 @@ table.grid tr.dragged td { opacity: 0.45; }
 .status .chk { cursor: default; color: var(--faint); }
 .status .chk.ok { color: var(--add); }
 .status .chk.warn { color: var(--mod); }
-.status .chk.note { color: #3d7fd6; }
+/* not ".note": that is the sheet note's textarea */
+.status .chk.notice { color: #3d7fd6; }
 .status .chk.ng { color: var(--del); }
 .status .chk.running { opacity: 0.55; }
 .status .chk:hover { text-decoration: underline; }
