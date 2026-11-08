@@ -13,6 +13,9 @@ import { closeTarget, dirty, type Doc, type State, type Tab } from "../store.ts"
 import { canVertical } from "../toolbar.ts";
 import { uiState } from "../uistate.ts";
 import { openPalette } from "../palette.ts";
+import { api } from "../api.ts";
+import { revealItems, tabTarget } from "../reveal.ts";
+import { menu, toast } from "../ui/dom.ts";
 
 const tabKey = (t: Tab) => String(t.id);
 
@@ -189,6 +192,17 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
         const c = ctx.commands.find((c) => c.id === "file.newTab");
         if (c) void c.run(ctx);
       }
+    });
+
+    // a tab's right-click: "Finder で表示" for the sheet or plot it shows (docs/adr/0053)
+    root.addEventListener("contextmenu", (e) => {
+      const tab = (e.target as HTMLElement).closest<HTMLElement>("[data-tab]");
+      const pane = Number(tab?.closest<HTMLElement>(".epane")?.dataset.pane);
+      const t = tab ? ctx.store.get().panes[pane]?.tabs[Number(tab.dataset.tab)] : undefined;
+      const path = t ? tabTarget(t) : null;
+      if (!tab || !path) return;
+      e.preventDefault();
+      menu(tab, revealItems(path, (x) => void api.revealPath(x).catch((err) => toast(String(err))), icon("folder", 14)));
     });
 
     const dragTab = (down: MouseEvent, pane: number, index: number) => {
