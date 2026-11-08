@@ -1,5 +1,6 @@
 // The screen's frame, drawn from the state (docs/adr/0005): ribbon, left sidebar,
 // toolbar, editor and preview panes, right panel, status bar.
+import { devBadge } from "../build.ts";
 import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
@@ -147,7 +148,7 @@ export const renderToolbar = (root: HTMLElement, s: State, ctx: Ctx, titles: Map
   toolbar.innerHTML = `
     <span class="iconbtn" data-tb="left" title="サイドバー">${icon("panel-left")}</span>
     ${s.open.length && s.open.every((x) => canVertical(x.kind)) ? `<span class="seg"><span data-vert="1" class="${s.vertical ? "on" : ""}">縦</span><span data-vert="0" class="${s.vertical ? "" : "on"}">横</span></span>` : ""}
-    <span class="title" data-tauri-drag-region>${titleHtml(s, titles)}</span>
+    <span class="title" data-tauri-drag-region>${devBadge(ctx.debug)}${titleHtml(s, titles)}</span>
     ${sides.length ? `<span class="seg">${sides.map((k) => `<span data-side="${k}" class="${side === k ? "on" : ""}">${previewLabel(d!.kind, k)}</span>`).join("")}</span>` : ""}
     ${menuCommands(ctx.commands, s).length ? `<span class="iconbtn" data-tb="more" title="ほかの操作">${icon("more-horizontal")}</span>` : ""}
     <span class="iconbtn ${s.showRight ? "on" : ""}" data-tb="right" title="右のパネル">${icon("panel-right")}</span>`;

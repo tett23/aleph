@@ -48,6 +48,9 @@ sh scripts/bundle-tools.sh
 npx tauri build
 ```
 
+A debug build (`npx tauri dev` or `npx tauri build --debug`) shows a `dev` mark at the left of the toolbar.
+All builds read the same settings.
+
 ## Development
 
 The checks CI runs:

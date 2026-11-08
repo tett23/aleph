@@ -1,5 +1,6 @@
 // The settings dialog: sections registered by each part of the app (docs/adr/0004, docs/adr/0005).
 import { getVersion } from "@tauri-apps/api/app";
+import { versionLabel } from "../build.ts";
 import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { h, icon } from "../icons.ts";
@@ -17,7 +18,7 @@ export const openSettings = async (ctx: Ctx, sectionId?: string) => {
         .map((g) => `<h6>${esc(g)}</h6>${ctx.settings.filter((s) => s.group === g).map((s) => `<div data-sec="${s.id}" class="${s.id === current ? "on" : ""}">${esc(s.label)}</div>`).join("")}`)
         .join("")}</div>
       <div class="mbody"><span class="iconbtn close" data-close>${icon("x")}</span>
-        <div class="mhead"><img class="app-ico" src="/icon.svg" alt=""><div><h2>Aleph</h2><small class="muted">${esc(version)}</small></div></div>
+        <div class="mhead"><img class="app-ico" src="/icon.svg" alt=""><div><h2>Aleph</h2><small class="muted">${esc(versionLabel(version, ctx.debug))}</small></div></div>
         <div class="msec">${sec ? await sec.render(ctx) : ""}</div>
       </div></div>`;
   };
