@@ -343,6 +343,24 @@ fn open_plugins_folder(app: AppHandle) -> R<()> {
         .map_err(err)
 }
 
+/// The arguments of `open` that select `path` in Finder; only for an absolute path.
+fn reveal_args(path: &Path) -> Option<Vec<String>> {
+    path.is_absolute()
+        .then(|| vec!["-R".to_string(), path.to_string_lossy().into_owned()])
+}
+
+/// Shows a file or folder in Finder, selected (docs/adr/0053).
+#[tauri::command]
+fn reveal_path(app: AppHandle, path: String) -> R<()> {
+    may(&app, &path, RD)?;
+    let args = reveal_args(Path::new(&path)).ok_or_else(|| err("not an absolute path"))?;
+    std::process::Command::new("/usr/bin/open")
+        .args(args)
+        .status()
+        .map(|_| ())
+        .map_err(err)
+}
+
 /// Adds a folder the writer picks as a workspace; the settings written, or none.
 #[tauri::command]
 async fn add_workspace(app: AppHandle) -> R<Option<String>> {
@@ -454,6 +472,17 @@ fn git(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn reveal_selects_the_absolute_path_in_finder() {
+        // docs/adr/0053
+        assert_eq!(
+            super::reveal_args(std::path::Path::new("/w/p/a.gm")),
+            Some(vec!["-R".to_string(), "/w/p/a.gm".to_string()])
+        );
+        assert_eq!(super::reveal_args(std::path::Path::new("-a.gm")), None);
+        assert_eq!(super::reveal_args(std::path::Path::new("p/a.gm")), None);
+    }
+
     #[test]
     fn debug_build_follows_debug_assertions() {
         // cargo test builds with debug assertions (docs/adr/0052)
@@ -885,6 +914,7 @@ pub fn run_app() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            reveal_path,
             debug_build,
             config_load,
             config_save,

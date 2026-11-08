@@ -12,6 +12,7 @@ import { flatten, kindOf, projectsIn, selectChapters, titleOf, treeRows, workspa
 import { golem } from "../tools.ts";
 import { ask, menu, toast, type MenuItem } from "./dom.ts";
 import { item } from "./settings.ts";
+import { revealItems } from "../reveal.ts";
 
 const ICONS: Record<string, string> = {
   gm: "file-text",
@@ -241,6 +242,9 @@ export const mountTree = (ctx: Ctx) => {
       };
     },
   };
+
+  // "Finder で表示" for files, folders and projects (docs/adr/0053)
+  treeMenus.push((p) => revealItems(p, (x) => void api.revealPath(x).catch((e) => toast(String(e))), icon("folder", 14)));
 
   // a row's right-click: the items the other parts add
   document.addEventListener("contextmenu", (e) => {

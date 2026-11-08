@@ -46,6 +46,8 @@ export const api = {
   installPlugin: () => invoke<string | null>("install_plugin"),
   removePlugin: (name: string) => invoke<boolean>("remove_plugin", { name }),
   openPluginsFolder: () => invoke<void>("open_plugins_folder"),
+  /** Shows a file or folder in Finder, selected (docs/adr/0053). */
+  revealPath: (path: string) => invoke<void>("reveal_path", { path }),
   /** Paths the writer picks in native dialogs (docs/adr/0050): the settings written, or null. */
   addWorkspace: () => invoke<string | null>("add_workspace"),
   chooseLibrary: (make: boolean) => invoke<string | null>("choose_library", { make }),
