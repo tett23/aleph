@@ -11,7 +11,7 @@ import { createHighlighter, languageOf } from "./lang.ts";
 import { createCompletionList, createDiagPanel, createSearchPanel, panelHost, popup, type SearchUi } from "./panels.ts";
 import { findAll, nearest, replacementOf, selectionMatches, type Match } from "./search.ts";
 import type { Range } from "./spans.ts";
-import { allSources, clampDiagnostics, diagLines, withSource, type Diag } from "./diag.ts";
+import { allSources, clampDiagnostics, diagLines, lineDiagnostics, withSource, type Diag } from "./diag.ts";
 import { createView, type View } from "./view.ts";
 
 export type { Diag };
@@ -136,7 +136,8 @@ export const createEditor = (o: EditorOptions): Editor => {
       else closeCompletion();
       updateDiagLines();
     } else if (completion && (core.sel().head < completion.from || core.sel().anchor !== core.sel().head)) closeCompletion();
-    hideHover();
+    // the gutter mark's popup stays while only the selection moves (docs/adr/0054)
+    if (tx || hoverMark === null) hideHover();
     updateSelMatches();
     o.onCaret?.();
   };
@@ -174,6 +175,7 @@ export const createEditor = (o: EditorOptions): Editor => {
       key: "Escape",
       run: () => {
         if (completion) return closeCompletion(), true;
+        if (hoverEl) return hideHover(), true;
         if (search) return closeSearch(), true;
         if (diagPanel) return closeDiagPanel(), true;
         return false;
@@ -240,16 +242,22 @@ export const createEditor = (o: EditorOptions): Editor => {
   let hoverEl: HTMLElement | null = null;
   let hoverTimer = 0;
   let hoverSeq = 0;
+  // the gutter mark whose line the popup shows (docs/adr/0054)
+  let hoverMark: number | null = null;
   const hideHover = () => {
     clearTimeout(hoverTimer);
     hoverSeq++;
     hoverEl?.remove();
     hoverEl = null;
+    hoverMark = null;
   };
   const onMouseMove = (e: MouseEvent) => {
+    if (hoverMark !== null && hoverMark === markLine(markAt(e.target))) return;
     if (e.buttons) return hideHover();
     if (hoverEl && hoverEl.contains(e.target as Node)) return;
     hideHover();
+    const mark = markAt(e.target);
+    if (mark) return void (hoverTimer = window.setTimeout(() => showLineDiags(mark), HOVER_DELAY));
     const { clientX: x, clientY: y } = e;
     hoverTimer = window.setTimeout(async () => {
       const seq = hoverSeq;
@@ -271,6 +279,40 @@ export const createEditor = (o: EditorOptions): Editor => {
     }, HOVER_DELAY);
   };
   const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+  // the gutter mark: its line's diagnostics, whatever their range (docs/adr/0054)
+  // the slot the mark sits in (the line's height, 14 px wide) is the target, not only the 9 px dot
+  const markAt = (t: EventTarget | null) => {
+    const slot = t instanceof Element ? t.closest(".ed-gut .dg-slot") : null;
+    return slot?.querySelector(".dg") ? slot : null;
+  };
+  const markLine = (mark: Element | null) => Number(mark?.closest<HTMLElement>(".ed-line")?.dataset.line) || null;
+  const diagHtml = (d: Diag) => `<div class="hover-diag sev-${d.severity}">${escape(d.message)}</div>`;
+  const showLineDiags = (mark: Element) => {
+    const n = markLine(mark);
+    const list = n ? lineDiagnostics(core.doc(), currentDiags(), n) : [];
+    if (!list.length) return;
+    hideHover();
+    const r = mark.getBoundingClientRect();
+    // below the mark in vertical writing (the gutter is above the line), to its lower right in horizontal
+    const at = view.isVertical() ? r : new DOMRect(r.right, r.top, 0, r.height);
+    hoverEl = popup("ed-hover", at, false, list.map(diagHtml).join(""));
+    hoverMark = n;
+    hoverEl.addEventListener("mouseleave", (e) => {
+      if (markLine(markAt(e.relatedTarget)) !== hoverMark) hideHover();
+    });
+  };
+  // a press on the mark shows them at once and leaves the caret where it is
+  view.content.addEventListener(
+    "mousedown",
+    (e) => {
+      const mark = markAt(e.target);
+      if (!mark || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      showLineDiags(mark);
+    },
+    true,
+  );
   view.content.addEventListener("mousemove", onMouseMove);
   view.content.addEventListener("mouseleave", (e) => {
     if (!hoverEl?.contains(e.relatedTarget as Node)) hideHover();
