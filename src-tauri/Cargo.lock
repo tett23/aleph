@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "aleph"
-version = "1.0.0-rc1"
+version = "1.0.0-rc2"
 dependencies = [
  "ignore",
  "objc2-app-kit",
