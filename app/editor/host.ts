@@ -40,6 +40,7 @@ const editorFor = (el: HTMLElement, doc: Doc, ctx: Ctx, _index: number, scroller
       if (path) ctx.store.dispatch({ type: "focusDoc", path });
     },
     onCaret: () => ctx.refresh(["status"]),
+    onDiagnostics: () => ctx.refresh(["problems", "status"]),
     plugins: ctx.editorPlugins.flatMap((f) => f(doc, ctx) ?? []),
     keys: (e) => dispatchKey(ctx, e, true),
     separator: () => separatorOf(doc.project, doc.path, ctx.editors.get(doc.path)?.text() ?? doc.text),

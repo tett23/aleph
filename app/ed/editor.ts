@@ -8,10 +8,10 @@ import { filterItems, indent } from "./commands.ts";
 import { createCore, type Core, type Tx } from "./core.ts";
 import { matchKey } from "./keys.ts";
 import { createHighlighter, languageOf } from "./lang.ts";
-import { createCompletionList, createDiagPanel, createSearchPanel, panelHost, popup, type SearchUi } from "./panels.ts";
+import { createCompletionList, createSearchPanel, panelHost, popup, type SearchUi } from "./panels.ts";
 import { findAll, nearest, replacementOf, selectionMatches, type Match } from "./search.ts";
 import type { Range } from "./spans.ts";
-import { allSources, clampDiagnostics, diagLines, lineDiagnostics, withSource, type Diag } from "./diag.ts";
+import { allSources, clampDiagnostics, diagLines, lineDiagnostics, withSource, type Diag, type Severity } from "./diag.ts";
 import { createView, type View } from "./view.ts";
 
 export type { Diag };
@@ -39,7 +39,8 @@ export type TextEditor = {
   setDiagnostics: (list: Diag[], source?: string) => void;
   /** The tokenizer's colours, turned off once the server's semantic tokens arrive. */
   setFallbackColors: (on: boolean) => void;
-  openDiagnostics: () => void;
+  /** Every source's diagnostics, with 1-based lines and columns, for the problems panel (docs/adr/0055). */
+  diagnostics: () => { line: number; col: number; severity: Severity; message: string; source?: string }[];
   /** Runs one of the editor's commands by id (docs/adr/0023); false when it has none by that id. */
   command: (id: string) => boolean;
   /** Whether the editor has a command by that id. */
@@ -90,6 +91,8 @@ export type EditorOptions = {
   keys?: (e: KeyboardEvent) => boolean;
   /** How the file's paragraphs are separated, for the page break estimates. */
   separator?: () => "blank-line" | "line";
+  /** After the diagnostics change (the problems panel, docs/adr/0055). */
+  onDiagnostics?: () => void;
 };
 
 const HOVER_DELAY = 350;
@@ -101,7 +104,6 @@ export const createEditor = (o: EditorOptions): Editor => {
   let baseText: string | null | undefined;
   let marksTimer = 0;
   let search: { ui: SearchUi; matches: Match[] } | null = null;
-  let diagPanel: ReturnType<typeof createDiagPanel> | null = null;
   let completion: { list: ReturnType<typeof createCompletionList>; from: number } | null = null;
   let completeTimer = 0;
   let completeSeq = 0;
@@ -131,7 +133,6 @@ export const createEditor = (o: EditorOptions): Editor => {
       clearTimeout(marksTimer);
       marksTimer = window.setTimeout(() => editor.refreshMarks(), 400);
       if (search) findMatches(false);
-      if (diagPanel) diagPanel.draw(currentDiags());
       if (tx.kind === "input.type" || (completion && tx.kind === "input.delete")) scheduleComplete(false);
       else closeCompletion();
       updateDiagLines();
@@ -177,7 +178,6 @@ export const createEditor = (o: EditorOptions): Editor => {
         if (completion) return closeCompletion(), true;
         if (hoverEl) return hideHover(), true;
         if (search) return closeSearch(), true;
-        if (diagPanel) return closeDiagPanel(), true;
         return false;
       },
     },
@@ -394,12 +394,6 @@ export const createEditor = (o: EditorOptions): Editor => {
 
   const updateDiagLines = () => view.setDiagLines(diagLines(core.doc(), currentDiags()));
 
-  const closeDiagPanel = () => {
-    diagPanel?.close();
-    diagPanel = null;
-    view.focus();
-  };
-
   const text: TextEditor = {
     core,
     view,
@@ -420,7 +414,7 @@ export const createEditor = (o: EditorOptions): Editor => {
       view.whenIdle(() => {
         updateDiagLines();
         view.layersChanged();
-        diagPanel?.draw(currentDiags());
+        o.onDiagnostics?.();
       });
     },
     setFallbackColors: (on) => view.toggleClass("no-fallback", !on),
@@ -431,17 +425,11 @@ export const createEditor = (o: EditorOptions): Editor => {
       return k ? k.run() : false;
     },
     hasCommand: (id) => plugins.some((p) => p.keys?.some((k) => k.id === id)) || KEYS.some((x) => x.id === id),
-    openDiagnostics: () => {
-      diagPanel ??= createDiagPanel(panelHost(view.root), (pos) => core.doc().lineAt(pos).number, {
-        pick: (d) => {
-          core.select({ anchor: d.from, head: d.from }, true);
-          view.scrollToPos(d.from, true);
-          view.focus();
-        },
-        close: () => closeDiagPanel(),
-      });
-      diagPanel.draw(currentDiags());
-    },
+    diagnostics: () =>
+      currentDiags().map((d) => {
+        const l = core.doc().lineAt(d.from);
+        return { line: l.number, col: d.from - l.from + 1, severity: d.severity, message: d.message, source: d.source };
+      }),
   };
 
   const editor: Editor = {
@@ -475,7 +463,6 @@ export const createEditor = (o: EditorOptions): Editor => {
       closeCompletion();
       hideHover();
       search?.ui.close();
-      diagPanel?.close();
       cleanups.forEach((f) => f());
       view.destroy();
     },

@@ -29,6 +29,8 @@ export type View = {
   main?: (el: HTMLElement, ctx: Ctx) => (() => void) | void;
   /** Draws the preview pane. */
   side?: (head: HTMLElement, body: HTMLElement, ctx: Ctx) => void;
+  /** Draws the problems panel under the editor (docs/adr/0055). */
+  problems?: (el: HTMLElement, ctx: Ctx) => void;
 };
 
 export type OpenOpts = { newTab?: boolean };
@@ -81,5 +83,5 @@ export type Ctx = {
   /** HEAD's text of a file, for the change marks; null when not in HEAD. */
   baseText: (doc: Doc) => Promise<string | null>;
   /** Draws the panels and the status bar again (after a change outside the store). */
-  refresh: (what?: ("left" | "right" | "status" | "side" | "main")[]) => void;
+  refresh: (what?: ("left" | "right" | "status" | "side" | "main" | "problems")[]) => void;
 };

@@ -21,14 +21,14 @@ export const runDiag = async (ctx: Ctx, project: string, kind: Kind) => {
   const k = key(project, kind);
   if (running.has(k)) return;
   running.add(k);
-  ctx.refresh(["status", "left"]);
+  ctx.refresh(["status", "left", "problems"]);
   const args = kind === "preflight" ? ["preflight", "--format", "json"] : [kind, "--format", "json", "-v"];
   const out = await golem(ctx, project, args).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
   const r = parseDiagnostics(out.stderr);
   const done = { result: r.raw === "" && out.code !== 0 ? { items: [], raw: out.stdout.trim() || `終了コード ${out.code}` } : r, at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) };
   results.set(k, done);
   running.delete(k);
-  ctx.refresh(["status", "left"]);
+  ctx.refresh(["status", "left", "problems"]);
   return done.result;
 };
 
@@ -94,6 +94,13 @@ export const showDiag = (ctx: Ctx, project: string, kind: Kind) => {
   else ctx.refresh(["left"]);
 };
 
+/** The last results of check, lint and preflight for a project (the problems panel, docs/adr/0055); a run that failed is left out. */
+export const golemResults = (project: string): { kind: Kind; items: Diagnostic[] }[] =>
+  KINDS.flatMap((kind) => {
+    const r = results.get(key(project, kind))?.result;
+    return r && r.raw === null ? [{ kind, items: r.items }] : [];
+  });
+
 /** Lint and preflight for some projects now (a replace's files changed on disk, docs/adr/0041); set by the mount. */
 export const diagHooks: { recheck: (projects: string[]) => Promise<void> } = { recheck: async () => {} };
 
@@ -108,14 +115,14 @@ export const mountDiagnostics = (ctx: Ctx) => {
       .map((kind) => {
         const r = results.get(key(project, kind));
         const st = statusOf(r?.result ?? null);
-        return `<span class="chk ${st.cls} ${running.has(key(project, kind)) ? "running" : ""}" data-status="diag-${kind}" title="${kind} の結果を診断のパネルに出す">● ${kind}${st.count ? ` ${st.count}` : ""}</span>`;
+        return `<span class="chk ${st.cls} ${running.has(key(project, kind)) ? "running" : ""}" data-status="diag-${kind}" title="${kind} の結果を問題のパネルに出す">● ${kind}${st.count ? ` ${st.count}` : ""}</span>`;
       })
       .join("");
   });
   for (const kind of ["lint", "preflight"] as const)
     ctx.statusActions[`diag-${kind}`] = (c) => {
-      const project = focused(c.store.get())?.project;
-      if (project) showDiag(c, project, kind);
+      // the problems panel shows them (docs/adr/0055)
+      c.statusActions.problems?.(c);
     };
 
   // when a project is opened, and 2.5 s after saving its .gm, .emet, .toml or .json (docs/adr/0021): lint, then preflight

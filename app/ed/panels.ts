@@ -2,7 +2,7 @@
 // the search panel and the list of diagnostics. They are written horizontally
 // in both writing modes, placed by the client rectangles of the text.
 import { esc } from "../esc.ts";
-import type { CompletionItem, Diag } from "./editor.ts";
+import type { CompletionItem } from "./editor.ts";
 
 /** The element floating panels go into: the editor pane, so they stay put while the text scrolls. */
 export const panelHost = (root: HTMLElement): HTMLElement => root.closest<HTMLElement>(".main-pane") ?? document.body;
@@ -112,39 +112,4 @@ export const createSearchPanel = (
     },
     close: () => el.remove(),
   };
-};
-
-// ---- the list of diagnostics ----
-
-const LABEL: Record<string, string> = { error: "エラー", warning: "警告", info: "情報", hint: "ヒント" };
-
-export const createDiagPanel = (host: HTMLElement, lineOf: (pos: number) => number, on: { pick: (d: Diag) => void; close: () => void }) => {
-  host.querySelector(":scope > .ed-diags")?.remove();
-  const el = document.createElement("div");
-  el.className = "ed-panel ed-diags";
-  host.append(el);
-  let list: Diag[] = [];
-  // taken at mousedown with the default prevented: the focus stays in the editor, and a mousedown
-  // that WebKit delivers late cannot take it away after the pick has moved the caret
-  el.addEventListener("mousedown", (e) => {
-    if (e.button !== 0) return;
-    const t = e.target as HTMLElement;
-    if (t.closest("[data-a=close]")) return void (e.preventDefault(), on.close());
-    const k = t.closest<HTMLElement>("li")?.dataset.k;
-    if (k === undefined) return;
-    e.preventDefault();
-    on.pick(list[Number(k)]);
-  });
-  el.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") on.close();
-  });
-  const draw = (l: Diag[]) => {
-    list = l;
-    el.innerHTML = `<div class="ed-diags-head">診断<span class="btn" data-a="close" title="閉じる">×</span></div>${
-      l.length
-        ? `<ul>${l.map((d, k) => `<li data-k="${k}" class="sev-${d.severity}"><span class="dg dg-${d.severity}"></span><span class="sev">${LABEL[d.severity]}</span><span class="ln">${lineOf(d.from)} 行</span><span class="msg">${esc(d.message)}</span></li>`).join("")}</ul>`
-        : `<div class="hint">診断はありません</div>`
-    }`;
-  };
-  return { draw, close: () => el.remove() };
 };
