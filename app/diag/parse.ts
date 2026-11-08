@@ -38,10 +38,10 @@ export const sortDiagnostics = (xs: Diagnostic[]): Diagnostic[] =>
   );
 
 /** The class of the status item: red for errors (and a run that failed), yellow warnings, blue notices, green otherwise; "" when not run. */
-export const statusOf = (r: Result | null): { cls: "" | "ok" | "ng" | "warn" | "note"; count: number } => {
+export const statusOf = (r: Result | null): { cls: "" | "ok" | "ng" | "warn" | "notice"; count: number } => {
   if (!r) return { cls: "", count: 0 };
   if (r.raw !== null) return { cls: "ng", count: 0 };
   const n = (s: Severity) => r.items.filter((x) => x.severity === s).length;
   const count = n("error") + n("warning") + n("notice");
-  return { cls: n("error") ? "ng" : n("warning") ? "warn" : n("notice") ? "note" : "ok", count };
+  return { cls: n("error") ? "ng" : n("warning") ? "warn" : n("notice") ? "notice" : "ok", count };
 };
