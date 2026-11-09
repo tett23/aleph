@@ -10,6 +10,7 @@ import { createInput } from "./control.ts";
 import type { Highlighter } from "./lang.ts";
 import { invisibleRanges, lineSpans, specialRanges, type Range } from "./spans.ts";
 import { linesOfRanges, movedLine, mustLines as mustLinesOf } from "./update.ts";
+import { verticalMove } from "./vmove.ts";
 
 export type LineMark = "add" | "mod" | "del";
 export type { Severity };
@@ -473,6 +474,29 @@ export const createView = (o: ViewOptions) => {
     if (input.keyDown({ key: e.key, isComposing: e.isComposing, keyCode: e.keyCode })) return;
     syncFromDom(false);
     if (o.onKey?.(e)) return e.preventDefault();
+    if (vertical && moveVertically(e)) e.preventDefault();
+  };
+
+  /** The arrow keys in vertical writing, turned to the way the text runs (docs/adr/0059). */
+  const moveVertically = (e: KeyboardEvent): boolean => {
+    const m = verticalMove(e);
+    if (!m) return false;
+    if ("doc" in m) {
+      // the document's ends may not be drawn, out of the browser's reach: the editor puts the caret there
+      const pos = m.doc === "end" ? core.doc().length : 0;
+      core.select({ anchor: m.extend ? core.sel().anchor : pos, head: pos }, true);
+      scrollToPos(pos, false);
+      writeSelection();
+      o.onUpdate?.(null);
+      return true;
+    }
+    const s = document.getSelection();
+    if (!s || typeof s.modify !== "function") return false;
+    s.modify(m.alter, m.direction, m.granularity);
+    syncFromDom(true);
+    if (!units.has(core.doc().lineAt(core.sel().head).number)) draw();
+    revealCaret();
+    return true;
   };
 
   const onCopy = (e: ClipboardEvent, cut: boolean) => {
