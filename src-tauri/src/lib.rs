@@ -108,10 +108,24 @@ fn config_save(app: AppHandle, json: String) -> R<()> {
     write_config(&app, guard::merge(&kept_config(&app), incoming)).map(|_| ())
 }
 
+/// Work that waits (a program, a walk of a tree) run on a thread of its own: not the main thread, which the
+/// windows need, nor the threads of Tauri's async runtime (docs/adr/0062).
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> R<T> + Send + 'static) -> R<T> {
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
-fn list_tree(app: AppHandle, root: String) -> Vec<fsops::Entry> {
-    match may(&app, &root, RD) {
-        Ok(()) => fsops::tree(Path::new(&root)),
+async fn list_tree(app: AppHandle, root: String) -> Vec<fsops::Entry> {
+    blocking(move || Ok(tree_now(&app, &root)))
+        .await
+        .unwrap_or_default()
+}
+
+fn tree_now(app: &AppHandle, root: &str) -> Vec<fsops::Entry> {
+    match may(app, root, RD) {
+        Ok(()) => fsops::tree(Path::new(root)),
         Err(_) => vec![],
     }
 }
@@ -454,9 +468,13 @@ fn configured(app: &AppHandle, name: &str) -> Option<String> {
     })
 }
 
-/// Runs git, found by the setting, /usr/bin, Homebrew, then PATH.
+/// Runs git, found by the setting, /usr/bin, Homebrew, then PATH; off the main thread (docs/adr/0062).
 #[tauri::command]
-fn git(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
+async fn git(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
+    blocking(move || git_now(app, cwd, args)).await
+}
+
+fn git_now(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
     guard::allowed("git", &args)?;
     may(&app, &cwd, RD)?;
     let r = roots(&app);
@@ -478,7 +496,11 @@ struct GitInfo {
 
 /// The git in use and its version, or why it cannot be used (docs/adr/0060).
 #[tauri::command]
-fn git_info(app: AppHandle) -> R<GitInfo> {
+async fn git_info(app: AppHandle) -> R<GitInfo> {
+    blocking(move || git_info_now(app)).await
+}
+
+fn git_info_now(app: AppHandle) -> R<GitInfo> {
     let r = roots(&app);
     let bin = configured(&app, "git");
     let git =
@@ -501,6 +523,27 @@ fn git_info(app: AppHandle) -> R<GitInfo> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn work_off_the_main_thread_gives_what_it_gave_before() {
+        // docs/adr/0062: a program run in spawn_blocking returns the same Out, and errors stay errors
+        let out = tauri::async_runtime::block_on(super::blocking(|| {
+            crate::process::run(
+                std::path::Path::new("/bin/sh"),
+                std::path::Path::new("/"),
+                &["-c".into(), "printf out; printf err >&2; exit 3".into()],
+            )
+        }))
+        .unwrap();
+        assert_eq!(
+            (out.code, out.stdout.as_str(), out.stderr.as_str()),
+            (3, "out", "err")
+        );
+        let e: super::R<()> = tauri::async_runtime::block_on(super::blocking(|| {
+            Err("git が見つかりません".to_string())
+        }));
+        assert_eq!(e, Err("git が見つかりません".to_string()));
+    }
+
     #[test]
     fn reveal_selects_the_absolute_path_in_finder() {
         // docs/adr/0053
@@ -617,9 +660,13 @@ fn tool_path(app: &AppHandle, name: &str) -> R<PathBuf> {
     })
 }
 
-/// Runs golem or shem with its arguments, in `cwd` (a project's root).
+/// Runs golem or shem with its arguments, in `cwd` (a project's root); off the main thread (docs/adr/0062).
 #[tauri::command]
-fn tool(app: AppHandle, name: String, cwd: String, args: Vec<String>) -> R<process::Out> {
+async fn tool(app: AppHandle, name: String, cwd: String, args: Vec<String>) -> R<process::Out> {
+    blocking(move || tool_now(app, name, cwd, args)).await
+}
+
+fn tool_now(app: AppHandle, name: String, cwd: String, args: Vec<String>) -> R<process::Out> {
     guard::allowed(&name, &args)?;
     may(&app, &cwd, RD)?;
     process::run(&tool_path(&app, &name)?, Path::new(&cwd), &args)
@@ -857,7 +904,11 @@ struct ToolInfo {
 
 /// The binary in use, its `--version`, and the version bundled with this build of Aleph.
 #[tauri::command]
-fn tool_info(app: AppHandle, name: String) -> R<ToolInfo> {
+async fn tool_info(app: AppHandle, name: String) -> R<ToolInfo> {
+    blocking(move || tool_info_now(app, name)).await
+}
+
+fn tool_info_now(app: AppHandle, name: String) -> R<ToolInfo> {
     let bundled = bundled_version(&name);
     let path = tool_path(&app, &name)?;
     let out = process::run(&path, Path::new("/"), &["--version".into()])?;

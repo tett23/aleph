@@ -75,6 +75,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0058](adr/0058-build-from-aleph.md) | Aleph からプロジェクトをビルドする（実装済み） |
 | [ADR 0059](adr/0059-arrow-keys-in-vertical-writing.md) | 縦書きの矢印キーを、見た目の向きに合わせる（実装済み） |
 | [ADR 0060](adr/0060-when-git-is-missing.md) | git が使えないことを知らせ、git を使う機能を止める（実装済み） |
+| [ADR 0062](adr/0062-run-programs-off-the-main-thread.md) | 外部のプログラムをメインスレッドの外で走らせる（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
@@ -84,6 +85,7 @@ Aleph は Tauri 2 のアプリで、画面を TypeScript（`app/`）、ファイ
 
 - 画面の状態（ワークスペース、開いているシートの並び、選択、パネルの表示）は一つの値で持ち、操作を受けて新しい状態を返す関数（リデューサー）だけで変える。開いているシートは、一つでも配列で持つ。
 - Rust の側は、ファイルの読み書き、ディレクトリの一覧、外部のプロセスの実行を受け持つ。外部のプロセスは引数を配列で渡し、シェルを通さない。
+- 外部のプログラム（golem、shem、git）を走らせて待つコマンドと、ワークスペースの木を辿るコマンドは、メインスレッドの外で動かす（[ADR 0062](adr/0062-run-programs-off-the-main-thread.md)）。組版のあいだも、入力と描画は止まらない。そのため種類の違うプログラムが同時に走るので、同じワークスペースの git の書き込み（`add`、`commit`、`init`、`pull`、`push`）と、同じプロジェクトの `build/` に書く組版と `golem fmt` は、画面の側で一つずつ走らせる。
 - git は、設定の値、`/usr/bin`、Homebrew（`/opt/homebrew/bin`）、PATH の順に探す。設定の値があれば、ほかの場所は探さない。macOS の GUI アプリはログインシェルの PATH を受け継がないためである。
 - アイコンは、使うものだけを `app/icons/` に SVG で置く（lucide、ISC ライセンス）。
 - テストは、TypeScript は `node --test`（Node が型を取り除いて実行する）、Rust は `cargo test` で書く。CI の `app` のジョブが macOS で、型検査、`node --test`、Vite のビルド、rustfmt、clippy、`cargo test` を実行する。
