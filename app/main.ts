@@ -39,6 +39,7 @@ import { mountImageDrag } from "./imagedrag.ts";
 import { mountDiagnostics } from "./diag/mount.ts";
 import { mountSearch } from "./searchpanel.ts";
 import { mountProblems } from "./problemsmount.ts";
+import { mountProjectBuild } from "./projectbuildmount.ts";
 import { mountMdConvert } from "./mdconvert.ts";
 import { mountPlugins } from "./plugins/mount.ts";
 import { currentBranch, mountGit } from "./gitpanel.ts";
@@ -179,6 +180,7 @@ const start = async () => {
   mountLsp(ctx);
   mountJson(ctx);
   mountDiagnostics(ctx); // lint and preflight sit beside the LSP in the status bar
+  mountProjectBuild(ctx); // after lint and preflight: its status item sits right of them (docs/adr/0058)
   mountPreview(ctx);
   mountGit(ctx);
   mountPlotFeature(ctx);

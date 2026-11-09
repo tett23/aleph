@@ -668,3 +668,13 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .problems-panel .pr .msg { min-width: 0; overflow-wrap: anywhere; }
 .problems-panel .pr small { flex: none; color: var(--faint); font-size: 11px; white-space: nowrap; }
 .problems-panel .empty { padding: 12px 16px; color: var(--text-2); font-size: 12.5px; }
+
+/* the build popup under the toolbar's button (docs/adr/0058) */
+.buildpop { position: fixed; z-index: 30; width: 400px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14); padding: 14px 16px; font-size: 12.5px; outline: none; }
+.buildpop h4 { margin: 0 0 10px; font-size: 13px; display: flex; justify-content: space-between; align-items: baseline; }
+.buildpop h4 small { font-weight: 400; color: var(--faint); }
+.buildpop .row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.buildpop .row label { width: 84px; flex: none; white-space: nowrap; color: var(--text-2); }
+.buildpop .seg span { padding: 3px 10px; white-space: nowrap; cursor: default; }
+.buildpop .seg span.on { background: var(--sel); color: var(--text); }
+.buildpop .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }

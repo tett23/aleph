@@ -109,6 +109,8 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
     if (t.dataset.vert) ctx.store.dispatch({ type: "vertical", on: t.dataset.vert === "1" });
     if (t.dataset.tb === "left") ctx.store.dispatch({ type: "left", panel: s.left });
     if (t.dataset.tb === "right") ctx.store.dispatch({ type: "toggleRight" });
+    // the build popup (docs/adr/0058)
+    if (t.dataset.tb === "build") ctx.statusActions.buildOptions?.(ctx);
     if (t.dataset.tb === "more")
       menu(
         t,
@@ -154,6 +156,7 @@ export const renderToolbar = (root: HTMLElement, s: State, ctx: Ctx, titles: Map
     ${s.open.length && s.open.every((x) => canVertical(x.kind)) ? `<span class="seg"><span data-vert="1" class="${s.vertical ? "on" : ""}">縦</span><span data-vert="0" class="${s.vertical ? "" : "on"}">横</span></span>` : ""}
     <span class="title" data-tauri-drag-region>${devBadge(ctx.debug)}${titleHtml(s, titles)}</span>
     ${sides.length ? `<span class="seg">${sides.map((k) => `<span data-side="${k}" class="${side === k ? "on" : ""}">${previewLabel(d!.kind, k)}</span>`).join("")}</span>` : ""}
+    ${d?.project ? `<span class="iconbtn" data-tb="build" title="ビルド">${icon("hammer")}</span>` : ""}
     ${menuCommands(ctx.commands, s).length ? `<span class="iconbtn" data-tb="more" title="ほかの操作">${icon("more-horizontal")}</span>` : ""}
     <span class="iconbtn ${s.showRight ? "on" : ""}" data-tb="right" title="右のパネル">${icon("panel-right")}</span>`;
 };
