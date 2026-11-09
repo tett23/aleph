@@ -38,6 +38,7 @@ import { mountLibrary } from "./libpanel.ts";
 import { mountImageDrag } from "./imagedrag.ts";
 import { mountDiagnostics } from "./diag/mount.ts";
 import { mountSearch } from "./searchpanel.ts";
+import { mountProblems } from "./problemsmount.ts";
 import { mountMdConvert } from "./mdconvert.ts";
 import { mountPlugins } from "./plugins/mount.ts";
 import { currentBranch, mountGit } from "./gitpanel.ts";
@@ -166,6 +167,7 @@ const start = async () => {
     }
     if (what.includes("side") || changed("side") || changed("open") || changed("focus") || changed("vertical")) ctx.view.side?.(shell.sideHead, shell.sideBody, ctx);
     if (!ctx.view.side) shell.sidePane.hidden = true;
+    if (what.includes("problems") || changed("focus") || changed("open") || !prev) ctx.view.problems?.(shell.problemsEl, ctx);
     renderStatus(shell, s, ctx);
     keep(s);
   };
@@ -173,6 +175,7 @@ const start = async () => {
   mountTree(ctx);
   mountTools(ctx);
   mountEditors(ctx);
+  mountProblems(ctx); // before the LSP: the counts sit left of its state in the status bar
   mountLsp(ctx);
   mountJson(ctx);
   mountDiagnostics(ctx); // lint and preflight sit beside the LSP in the status bar

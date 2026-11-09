@@ -266,11 +266,6 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
 
 // ---- the status bar and the settings ----
 
-const counts = (path: string) => {
-  const list = diagnostics.get(path) ?? [];
-  return { errors: list.filter((d) => d.severity === 1).length, warnings: list.filter((d) => d.severity === 2).length };
-};
-
 export const mountLsp = (ctx: Ctx) => {
   ctx.editorPlugins.push(pluginFor);
   ctx.store.subscribe((s, prev) => sync(ctx, s, prev));
@@ -282,16 +277,8 @@ export const mountLsp = (ctx: Ctx) => {
     const c = clients.get(d.project!);
     const st = c?.state() ?? "failed";
     const label = { starting: "LSP 起動中", ready: "LSP", failed: "LSP 停止", stopped: "LSP 停止" }[st];
-    const { errors, warnings } = counts(d.path);
-    const problems = st === "ready" ? `<span class="problems" data-status="lsp-problems" title="エディタの診断の一覧">エラー ${errors}　警告 ${warnings}</span>` : "";
-    return `${problems}<span class="${st === "ready" ? "ok" : st === "starting" ? "" : "ng"}">● ${label}</span>`;
+    return `<span class="${st === "ready" ? "ok" : st === "starting" ? "" : "ng"}">● ${label}</span>`;
   });
-  ctx.statusActions["lsp-problems"] = (c) => {
-    const d = focused(c.store.get());
-    const v = d && views.get(d.path);
-    if (v) v.openDiagnostics();
-  };
-
   ctx.settings.push({
     id: "lsp",
     label: "LSP と整形",

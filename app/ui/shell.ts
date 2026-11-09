@@ -42,6 +42,8 @@ export type Shell = {
   rightEl: HTMLElement;
   rightBody: HTMLElement;
   statusEl: HTMLElement;
+  /** The problems panel under the editor (docs/adr/0055). */
+  problemsEl: HTMLElement;
 };
 
 export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): Shell => {
@@ -61,6 +63,7 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
         <div class="pane main-pane"><div class="pbody"></div></div>
         <div class="pane side-pane" hidden><div class="phead"></div><div class="pbody"></div></div>
       </div>
+      <div class="problems-panel" hidden></div>
       <div class="status"></div>
     </div>
     <div class="right"><div class="rhead" data-tauri-drag-region></div><div class="rbody"></div></div>`;
@@ -75,6 +78,7 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
     rightEl: $(".right"),
     rightBody: $(".right .rbody"),
     statusEl: $(".status"),
+    problemsEl: $(".problems-panel"),
   };
   const toolbar = $(".toolbar");
 

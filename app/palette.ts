@@ -258,12 +258,4 @@ export const mountCommands = (ctx: Ctx) => {
     ["editor.format", "整形", "wand-sparkles", ["Shift-Alt-f"], true],
   ];
   for (const [id, label, ic, keys, menu] of editorCommands) add(withEdit(id, editorCommand(id, label, ic, keys, menu)));
-  add({
-    id: "editor.diagnostics",
-    label: "診断の一覧",
-    icon: "list",
-    menu: true,
-    when: () => hasEdit(),
-    run: (c) => focusedEdit(c)?.openDiagnostics(),
-  });
 };
