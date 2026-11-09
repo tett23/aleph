@@ -2,6 +2,7 @@
 // kept in step with the store, and the editor's diagnostics, semantic colours,
 // hover, completion and formatting, in horizontal and vertical writing alike.
 import { api } from "../api.ts";
+import { withBuildDir } from "../buildlock.ts";
 import type { Ctx } from "../ctx.ts";
 import type { Diag, EditorPlugin, TextEditor } from "../ed/editor.ts";
 import { argPath, rel } from "../path.ts";
@@ -179,7 +180,9 @@ export const format = async (ctx: Ctx, doc: Doc): Promise<boolean | null> => {
   // without the server: golem fmt on the saved file, read back into the editor
   if (!doc.project) return null;
   await ctx.save([doc.path], { explicit: true });
-  const out = await golem(ctx, doc.project, ["fmt", argPath(rel(doc.project, doc.path))]).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
+  // not while a build reads the project (docs/adr/0062)
+  const project = doc.project;
+  const out = await withBuildDir(project, () => golem(ctx, project, ["fmt", argPath(rel(project, doc.path))])).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
   if (out.code !== 0) {
     ctx.toast((out.stderr || out.stdout).trim() || "golem fmt に失敗しました");
     return null;

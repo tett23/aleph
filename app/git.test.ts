@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autosaveMessage, gitMissingHtml, parseStatus, shouldAutoCommit, ymd } from "./git.ts";
+import { autosaveMessage, gitMissingHtml, gitWrites, parseStatus, shouldAutoCommit, ymd } from "./git.ts";
 
 test("the local date as YYYY-MM-DD", () => {
   assert.equal(ymd(new Date(2026, 10, 7, 23, 59)), "2026-11-07");
@@ -45,4 +45,10 @@ test("the Git panel when git cannot be used: the reason, how to install, and rec
   assert.match(html, /data-a="recheck"/);
   assert.match(html, /data-a="settings"/);
   assert.doesNotMatch(html, /data-a="init"/);
+});
+
+test("the git subcommands that write, which go one at a time per workspace (docs/adr/0062)", () => {
+  for (const s of ["add", "commit", "init", "pull", "push"]) assert.equal(gitWrites([s, "x"]), true, s);
+  for (const s of ["status", "diff", "log", "show", "rev-parse", "branch"]) assert.equal(gitWrites([s]), false, s);
+  assert.equal(gitWrites([]), false);
 });

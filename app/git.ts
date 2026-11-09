@@ -30,3 +30,8 @@ export const parseStatus = (z: string): StatusEntry[] => {
   }
   return out;
 };
+
+const WRITES = ["add", "commit", "init", "pull", "push"];
+
+/** Whether git's arguments write the repository (docs/adr/0062): those go one at a time per workspace. */
+export const gitWrites = (args: string[]) => WRITES.includes(args[0] ?? "");

@@ -1,7 +1,9 @@
 // golem and shem, found by the setting, the bundled copy, ~/.local/bin, Homebrew, then PATH (docs/adr/0008).
 // Rust reads the setting itself (docs/adr/0042); the paths change only through it (docs/adr/0050).
 import { api, type Out, type Tool } from "./api.ts";
+import { withLock } from "./buildlock.ts";
 import { adopt } from "./config.ts";
+import { gitWrites } from "./git.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { item } from "./ui/settings.ts";
@@ -23,7 +25,8 @@ export const gitOk = async () => (await gitNow()).ok;
 export const git = async (_ctx: Ctx, cwd: string, args: string[]): Promise<Out> => {
   const s = await gitNow();
   if (!s.ok) throw new Error(s.reason);
-  return api.git(cwd, args);
+  // writes in one workspace one at a time; reads run alongside (docs/adr/0062)
+  return gitWrites(args) ? withLock(`git\n${cwd}`, () => api.git(cwd, args)) : api.git(cwd, args);
 };
 
 const info = async (name: Tool) => {
