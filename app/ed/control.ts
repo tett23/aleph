@@ -63,7 +63,7 @@ export type RecordedEvent =
   | ({ type: "keydown" } & KeyDown)
   | { type: "compositionstart" }
   | { type: "compositionupdate"; data: string }
-  | { type: "compositionend"; data: string; dom: string }
+  | { type: "compositionend"; data: string; dom: string; html?: string }
   | { type: "blur"; dom: string };
 
 export type Recorded = { name: string; ua: string; note?: string; initial: string; events: RecordedEvent[]; expected: string; caret?: number };
