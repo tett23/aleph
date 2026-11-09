@@ -294,3 +294,6 @@ export const mountWikilinks = (ctx: Ctx) => {
     }
   });
 };
+
+/** Where an embed's or a wikilink's target goes from `from`, as the preview finds it (docs/adr/0027); null when nowhere. */
+export const resolveTarget = (ctx: Ctx, target: string, from: string): string | null => resolveLink(target, from, sheets, wsOf(ctx)).path;

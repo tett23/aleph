@@ -1,27 +1,28 @@
-// "gm に変換" for a Markdown sheet (docs/adr/0016).
+// "gm に変換" for a Markdown sheet (docs/adr/0016, docs/adr/0061).
 import { addCommands } from "./commands.ts";
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
 import { runDiag, showDiag } from "./diag/mount.ts";
-import { addChapter, manifestChapters, paragraphSeparator } from "./manifest.ts";
-import { mdToGm } from "./mdgm.ts";
-import { basename, dirname, rel, stem } from "./path.ts";
+import { convertFile, type ConvertIo } from "./mdconvertfile.ts";
+import { basename, rel } from "./path.ts";
 import { focused } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree } from "./ui/tree.ts";
+import { resolveTarget } from "./wikilinkmount.ts";
 
 export const convertToGm = async (ctx: Ctx) => {
   const d = focused(ctx.store.get());
   if (!d || d.kind !== "md") return;
-  const to = `${dirname(d.path)}/${stem(d.path)}.gm`;
-  if ((await api.exists(to)) && !(await confirmDialog(`${basename(to)} はもうあります。上書きします`, "上書きする"))) return;
+  const io: ConvertIo = {
+    exists: (p) => api.exists(p),
+    readText: (p) => api.readText(p),
+    writeText: (p, t) => api.writeText(p, t),
+    confirm: (m) => confirmDialog(m, "上書きする"),
+    resolve: (t) => resolveTarget(ctx, t, d.path),
+  };
+  const to = await convertFile(io, { path: d.path, text: ctx.editors.get(d.path)?.text() ?? d.text, project: d.project });
+  if (!to) return;
   const project = d.project;
-  const manifestPath = project ? `${project}/manifest.toml` : null;
-  const manifest = manifestPath ? await api.readText(manifestPath).catch(() => "") : "";
-  // the style of paragraphs the new file will be read in: its project's, blank-line outside projects
-  const sep = project ? paragraphSeparator(manifest, rel(project, to), "") : "blank-line";
-  await api.writeText(to, mdToGm(ctx.editors.get(d.path)?.text() ?? d.text, sep));
-  if (project && manifestPath && !manifestChapters(manifest).includes(rel(project, to))) await api.writeText(manifestPath, addChapter(manifest, rel(project, to)));
   await reloadTree(ctx);
   await ctx.open([to]);
   ctx.toast(`${basename(to)} を作りました${project ? "（manifest.toml の chapters に足しました）" : ""}`);

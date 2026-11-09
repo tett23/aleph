@@ -83,6 +83,12 @@ jobs:
         if: steps.app.outputs.dir != ''
         working-directory: ${{ steps.app.outputs.dir }}
         run: npx tsc --noEmit
+      # The conversion to gm is checked with the golem Aleph bundles; in CI a
+      # missing golem fails those tests (docs/adr/0061)
+      - name: Bundle golem and shem
+        if: steps.app.outputs.dir != ''
+        working-directory: ${{ steps.app.outputs.dir }}
+        run: sh scripts/bundle-tools.sh
       - name: Tests of the TypeScript side
         if: steps.app.outputs.dir != ''
         working-directory: ${{ steps.app.outputs.dir }}

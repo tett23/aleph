@@ -29,23 +29,31 @@ test("inline: links, images, escapes, HTML stays text", () => {
 test("blocks: headings (closing # removed), paragraphs, hard breaks", () => {
   assert.deepEqual(parseMarkdown("## 見出し ##\n\n一行目  \n二行目\n"), [
     { t: "heading", level: 2, c: [{ t: "text", v: "見出し" }] },
-    { t: "para", lines: [{ c: [{ t: "text", v: "一行目" }], hard: true }, { c: [{ t: "text", v: "二行目" }], hard: false }] },
+    { t: "para", c: [{ t: "text", v: "一行目" }, { t: "hardbreak" }, { t: "text", v: "二行目" }] },
   ]);
 });
 
-test("blocks: nested and ordered lists", () => {
-  const [l] = parseMarkdown("- a\n  - b\n    - c\n- d\n1. e\n2) f\n");
-  assert.deepEqual(
-    l.t === "list" && l.items.map((i) => [i.depth, i.ordered, i.c[0]]),
-    [[0, false, { t: "text", v: "a" }], [1, false, { t: "text", v: "b" }], [2, false, { t: "text", v: "c" }], [0, false, { t: "text", v: "d" }], [0, true, { t: "text", v: "e" }], [0, true, { t: "text", v: "f" }]],
-  );
+test("blocks: nested and ordered lists; a new marker or delimiter starts a new list (CommonMark, docs/adr/0061)", () => {
+  const p = (v: string) => ({ t: "para", c: [{ t: "text", v }] });
+  assert.deepEqual(parseMarkdown("- a\n  - b\n    - c\n- d\n1. e\n2) f\n"), [
+    {
+      t: "list",
+      ordered: false,
+      start: 1,
+      tight: true,
+      items: [{ c: [p("a"), { t: "list", ordered: false, start: 1, tight: true, items: [{ c: [p("b"), { t: "list", ordered: false, start: 1, tight: true, items: [{ c: [p("c")] }] }] }] }] }, { c: [p("d")] }],
+    },
+    { t: "list", ordered: true, start: 1, tight: true, items: [{ c: [p("e")] }] },
+    { t: "list", ordered: true, start: 2, tight: true, items: [{ c: [p("f")] }] },
+  ]);
 });
 
 test("blocks: code fences keep their text, tables their rows, quotes and rules", () => {
-  assert.deepEqual(parseMarkdown("```gm\n[ruby: a|b] **x**\n```\n"), [{ t: "code", lang: "gm", text: "[ruby: a|b] **x**" }]);
-  assert.deepEqual(parseMarkdown("| a | b |\n|---|:-:|\n| 1 | 2 |\n"), [{ t: "table", rows: ["| a | b |", "|---|:-:|", "| 1 | 2 |"] }]);
+  assert.deepEqual(parseMarkdown("```gm\n[ruby: a|b] **x**\n```\n"), [{ t: "code", lang: "gm", info: "gm", text: "[ruby: a|b] **x**" }]);
+  const tx = (v: string) => [{ t: "text", v }];
+  assert.deepEqual(parseMarkdown("| a | b |\n|---|:-:|\n| 1 | 2 |\n"), [{ t: "table", align: [null, "center"], head: [tx("a"), tx("b")], rows: [[tx("1"), tx("2")]] }]);
   assert.deepEqual(parseMarkdown("> 引用\n> 続き\n\n---\n"), [
-    { t: "quote", lines: [{ c: [{ t: "text", v: "引用" }], hard: false }, { c: [{ t: "text", v: "続き" }], hard: false }] },
+    { t: "quote", c: [{ t: "para", c: [{ t: "text", v: "引用" }, { t: "softbreak", cjk: true }, { t: "text", v: "続き" }] }] },
     { t: "hr" },
   ]);
 });
@@ -53,14 +61,15 @@ test("blocks: code fences keep their text, tables their rows, quotes and rules",
 test("blocks: an image alone on a line", () => {
   assert.deepEqual(parseMarkdown("![灯台](images/l.png)\n\n文 ![x](y.png)\n"), [
     { t: "image", alt: "灯台", src: "images/l.png" },
-    { t: "para", lines: [{ c: [{ t: "text", v: "文 " }, { t: "image", src: "y.png", alt: "x" }], hard: false }] },
+    { t: "para", c: [{ t: "text", v: "文 " }, { t: "image", src: "y.png", alt: "x" }] },
   ]);
 });
 
 test("HTML for the preview: escaped, lists nested, scripts in URLs dropped", () => {
   assert.equal(markdownHtml("# a <b>\n"), "<h1>a &lt;b&gt;</h1>");
   assert.equal(markdownHtml("- a\n  - b\n- c\n"), "<ul><li>a<ul><li>b</li></ul></li><li>c</li></ul>");
-  assert.equal(markdownHtml("[x](javascript:alert(1))"), '<p><a href="#">x</a>)</p>');
+  // the destination holds balanced parentheses (CommonMark, docs/adr/0061)
+  assert.equal(markdownHtml("[x](javascript:alert(1))"), '<p><a href="#">x</a></p>');
   assert.equal(markdownHtml("| a | b |\n|---|---|\n| 1 | `\\|` |\n"), "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td><code>|</code></td></tr></tbody></table>");
 });
 
@@ -133,4 +142,78 @@ test("images: local ones under the workspace are read, remote ones are named, no
   assert.equal(html("![秘密](../../etc/a.png)"), `<p><span class="img-note">秘密（ワークスペースの外の画像は読み込みません）</span></p>`);
   assert.equal(html("![秘密](/etc/a.png)"), `<p><span class="img-note">秘密（ワークスペースの外の画像は読み込みません）</span></p>`);
   assert.doesNotMatch(markdownHtml("![a](https://example.com/a.png)"), /<img/);
+});
+
+// ---- docs/adr/0061: what CommonMark reads ----
+
+const tx = (v: string) => ({ t: "text", v });
+
+test("Setext headings: === is level 1, --- level 2; --- after a blank line is a rule", () => {
+  assert.deepEqual(parseMarkdown("Title\n=====\nSub\n---\n\n---\n"), [
+    { t: "heading", level: 1, c: [tx("Title")] },
+    { t: "heading", level: 2, c: [tx("Sub")] },
+    { t: "hr" },
+  ]);
+});
+
+test("indented code: four spaces in, not inside a paragraph", () => {
+  assert.deepEqual(parseMarkdown("    a\n      b\n\n段落\n    続き\n"), [
+    { t: "code", lang: "", info: "", text: "a\n  b" },
+    { t: "para", c: [tx("段落"), { t: "softbreak", cjk: true }, tx("続き")] },
+  ]);
+});
+
+test("front matter at the top only, drawn as <pre> in the preview; a BOM goes", () => {
+  assert.deepEqual(parseMarkdown("﻿---\ntitle: x\n---\n本文\n"), [{ t: "front", text: "title: x" }, { t: "para", c: [tx("本文")] }]);
+  assert.equal(markdownHtml("---\na: 1\n...\n"), '<pre class="front-matter">a: 1</pre>');
+});
+
+test("fences: a backtick info string with a backtick is no fence; the close is as long or longer and the same character", () => {
+  assert.deepEqual(parseMarkdown("```code```\n"), [{ t: "para", c: [{ t: "code", v: "code" }] }]);
+  assert.deepEqual(parseMarkdown("````\n```\n~~~~\n````\n"), [{ t: "code", lang: "", info: "", text: "```\n~~~~" }]);
+});
+
+test("reference links: full, collapsed and shortcut; labels case-folded; the definitions are not drawn", () => {
+  assert.equal(
+    markdownHtml("[a][Foo Bar] [foo bar][] [FOO BAR]\n\n[foo  bar]: https://x.y/a\n"),
+    '<p><a href="https://x.y/a">a</a> <a href="https://x.y/a">foo bar</a> <a href="https://x.y/a">FOO BAR</a></p>',
+  );
+  assert.equal(markdownHtml("[x][nope]\n"), "<p>[x][nope]</p>");
+});
+
+test("entities: named, decimal and hex become characters; unknown ones stay", () => {
+  assert.deepEqual(parseInline("&amp; &copy; &#12354; &#x3042; &bogus; &#0;"), [tx("& © あ あ &bogus; �")]);
+});
+
+test("emphasis by the delimiter stack: across lines, ***x***, the rule of three; CJK next to a run counts as punctuation", () => {
+  assert.deepEqual(parseInline("**a\nb**"), [{ t: "strong", c: [tx("a"), { t: "softbreak", cjk: false }, tx("b")] }]);
+  assert.deepEqual(parseInline("***x***"), [{ t: "em", c: [{ t: "strong", c: [tx("x")] }] }]);
+  assert.deepEqual(parseInline("*foo**bar**baz*"), [{ t: "em", c: [tx("foo"), { t: "strong", c: [tx("bar")] }, tx("baz")] }]);
+  assert.deepEqual(parseInline("これは**「強調」**です"), [tx("これは"), { t: "strong", c: [tx("「強調」")] }, tx("です")]);
+});
+
+test("links: balanced parentheses and <...> destinations, titles, no links in links", () => {
+  assert.deepEqual(parseInline('[a](b(c) "t")'), [{ t: "link", href: "b(c)", c: [tx("a")] }]);
+  assert.deepEqual(parseInline("[a](<b c>)"), [{ t: "link", href: "b c", c: [tx("a")] }]);
+  assert.deepEqual(parseInline("[a [b](c) d](e)"), [tx("[a "), { t: "link", href: "c", c: [tx("b")] }, tx(" d](e)")]);
+});
+
+test("quotes hold blocks; lists hold continuation lines and child blocks; numbered lists keep their start", () => {
+  assert.deepEqual(parseMarkdown("> - a\n> ```\n> c\n> ```\n"), [
+    { t: "quote", c: [{ t: "list", ordered: false, start: 1, tight: true, items: [{ c: [{ t: "para", c: [tx("a")] }] }] }, { t: "code", lang: "", info: "", text: "c" }] },
+  ]);
+  assert.deepEqual(parseMarkdown("3. a\n続き\n\n   段落\n"), [
+    {
+      t: "list",
+      ordered: true,
+      start: 3,
+      tight: false,
+      items: [{ c: [{ t: "para", c: [tx("a"), { t: "softbreak", cjk: true }, tx("続き")] }, { t: "para", c: [tx("段落")] }] }],
+    },
+  ]);
+  assert.equal(markdownHtml("2. a\n3. b\n"), '<ol start="2"><li>a</li><li>b</li></ol>');
+});
+
+test("a table can end a paragraph (GFM)", () => {
+  assert.deepEqual(parseMarkdown("段落\n| a |\n|---|\n").map((b) => b.t), ["para", "table"]);
 });
