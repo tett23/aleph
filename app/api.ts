@@ -36,6 +36,8 @@ export const api = {
   // the programs come from the settings Rust keeps (docs/adr/0042)
   tool: (name: Tool, cwd: string, args: string[]) => invoke<Out>("tool", { name, cwd, args }),
   toolInfo: (name: Tool) => invoke<ToolInfo>("tool_info", { name }),
+  /** The git in use and its version; rejected with the reason when it cannot be used (docs/adr/0060). */
+  gitInfo: () => invoke<{ path: string; version: string }>("git_info"),
   lspStart: (id: string, cwd: string) => invoke<void>("lsp_start", { id, cwd }),
   lspSend: (id: string, message: string) => invoke<void>("lsp_send", { id, message }),
   lspStop: (id: string) => invoke<void>("lsp_stop", { id }),

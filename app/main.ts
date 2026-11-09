@@ -17,7 +17,7 @@ import { debugBuild } from "./build.ts";
 import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
 import { openPaths } from "./docs.ts";
 import { mountTree, reloadTree } from "./ui/tree.ts";
-import { git, mountTools } from "./tools.ts";
+import { git, gitOk, mountTools } from "./tools.ts";
 import { startRecorder } from "./ed/recorder.ts";
 import { mountEditors } from "./editor/host.ts";
 import { mountJson } from "./jsonfeature.ts";
@@ -90,6 +90,7 @@ const start = async () => {
     right: {},
     status: [],
     statusActions: {},
+    gitChanged: [],
     settings: [],
     commands: [],
     findSheets: null,
@@ -117,6 +118,8 @@ const start = async () => {
       }
     },
     baseText: async (d) => {
+      // no git: nothing to compare with, so no marks (docs/adr/0060)
+      if (!(await gitOk())) return false;
       if (!d.workspace) return null;
       const out = await git(ctx, d.workspace, ["show", `HEAD:${rel(d.workspace, d.path)}`]).catch(() => null);
       return out && out.code === 0 ? out.stdout : null;

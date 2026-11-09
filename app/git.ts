@@ -1,4 +1,5 @@
-// What the Git features decide without running git (docs/adr/0011).
+// What the Git features decide without running git (docs/adr/0011, docs/adr/0060).
+import { esc } from "./esc.ts";
 
 export type StatusEntry = { code: string; path: string; from?: string };
 
@@ -7,9 +8,13 @@ export const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).p
 
 export const autosaveMessage = (d: Date) => `Autosave ${ymd(d)}`;
 
-/** Once a day per workspace, when there are changes and the setting is on. */
-export const shouldAutoCommit = (o: { today: string; last: string | undefined; changed: boolean; enabled: boolean }) =>
-  o.enabled && o.changed && o.last !== o.today;
+/** Once a day per workspace, when there are changes, the setting is on and git can be used. */
+export const shouldAutoCommit = (o: { today: string; last: string | undefined; changed: boolean; enabled: boolean; git: boolean }) =>
+  o.git && o.enabled && o.changed && o.last !== o.today;
+
+/** The Git panel when git cannot be used: why, how to install it, and no git init (docs/adr/0060). */
+export const gitMissingHtml = (reason: string) =>
+  `<div class="sec"><div class="muted">git が使えません。<br><span class="ng">${esc(reason)}</span><br>Xcode のコマンドラインツール（<code>xcode-select --install</code>）か Homebrew で入れてから、確かめなおしてください。</div><div class="row"><span class="btn pri" data-a="recheck">確かめなおす</span><span class="btn" data-a="settings">設定を開く</span></div></div>`;
 
 /** `git status --porcelain=v1 -z`: NUL-separated entries; a rename is followed by its old path. */
 export const parseStatus = (z: string): StatusEntry[] => {

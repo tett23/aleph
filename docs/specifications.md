@@ -74,6 +74,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0057](adr/0057-no-fullwidth-check-in-vertical.md) | 縦組みのシートでは、全角の英数字の検査をしない（実装済み） |
 | [ADR 0058](adr/0058-build-from-aleph.md) | Aleph からプロジェクトをビルドする（実装済み） |
 | [ADR 0059](adr/0059-arrow-keys-in-vertical-writing.md) | 縦書きの矢印キーを、見た目の向きに合わせる（実装済み） |
+| [ADR 0060](adr/0060-when-git-is-missing.md) | git が使えないことを知らせ、git を使う機能を止める（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
@@ -392,6 +393,8 @@ Markdown のプレビューの改行の扱いを設定で選び、GFM の拡張�
 - 手動のコミット：左のサイドバーの Git のパネル、ツールバーのメニューの「コミット（⌘⇧K）」、⌘⇧K で、Git のパネルのメッセージ欄に移る。メッセージを書いてコミットのボタンか ⌘↩ を押すと、開いているシートを保存してから `git add -A` してコミットする。
 - Git のパネル：現在のワークスペースの、変更のあるファイル（`git status --porcelain=v1 -z -uall`）、選んだファイルの `git diff HEAD`、コミットメッセージ、コミット、push、pull（`--no-rebase`）、直近 20 件の履歴を出す。ファイルを二度押すと開く。Git のリポジトリでなければ、`git init` のボタンを出す。
 - ツリーでは、コミットしていない変更のあるファイルに点を出す。ツリーの上のワークスペースの名前の横に、現在のブランチを出す。
+- git が使えるかは、起動したときに一度、見つけた git で `git --version` を走らせて確かめる（[ADR 0060](adr/0060-when-git-is-missing.md)）。終了コードが 0 で、出力が `git version` で始まれば使えるとする。macOS の `/usr/bin/git` は、Xcode のコマンドラインツールがなければ失敗するので、見つかっても使えるとは限らない。確かめなおすのは、設定で git のパスを変えたときと、Git のパネルの「確かめなおす」を押したときに限る。
+- git が使えないときは、git を走らせない。Git のパネルには「git が使えません」と理由、入れ方の案内（`xcode-select --install` か Homebrew）、「確かめなおす」と「設定を開く」を出し、`git init` のボタンは出さない。自動コミットはせず、設定で自動コミットがオンなら、起動したときに一度だけそれを知らせる。溝の変更の印は出さない。置換の確認は、Git のリポジトリでないときと同じく「元に戻せません」とする。設定の「git のバイナリ」の説明に、使っている git のパスと版、使えないときは理由を出す。
 - Aleph が走らせる git には、いつも `-c core.fsmonitor=false -c core.hooksPath=/dev/null` を付け、リポジトリの fsmonitor と hook を使わない（[ADR 0046](adr/0046-safe-automatic-git.md)）。状態を読むだけのもの（`status`、`diff`、`log`、`show`、`rev-parse`）には `--no-optional-locks` を、`diff` には `--no-ext-diff` も付ける。hook を使いたいときは、ターミナルからコミットする。
 
 ## プロットとガントチャート
