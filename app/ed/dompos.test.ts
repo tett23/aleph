@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { domToOffset, lineText, nearestLine, offsetToDom, type Walk } from "./dompos.ts";
+import { domToOffset, lineText, nearestLine, offsetToDom, regionText, type Walk } from "./dompos.ts";
 
 // a fake DOM: elements with children, text nodes, and skipped elements (gutters, widgets)
 type N = { text?: string; skip?: boolean; kids?: N[] };
@@ -55,4 +55,28 @@ test("a position between the editor's children goes to the nearest drawn line", 
   assert.deepEqual(nearestLine(lines, 7), { index: 5, end: true });
   assert.deepEqual(nearestLine(lines, 0), { index: 1, end: false }); // before everything: the first line
   assert.equal(nearestLine([false, false], 1), null);
+});
+
+// WebKit can take an empty line's element away while composing and leave the committed text (and the
+// <br>) straight in the editor's content, between the lines around it (seen with SKK)
+test("the text between two lines: blocks are lines, loose text runs to a <br> are lines too", () => {
+  type M = N & { block?: boolean; br?: boolean };
+  const isBlock = (n: N) => !!(n as M).block;
+  const isBreak = (n: N) => !!(n as M).br;
+  const br: M = {};
+  (br as M).br = true;
+  const blockLine = (t: string): N => ({ block: true, kids: [gutter, { text: t }] }) as M;
+  // the empty line's element gone, its text left loose with the <br>
+  assert.equal(regionText(walk, [{ text: "漢字" }, br], isBlock, isBreak), "漢字");
+  // loose text in spans, and with no <br> after it
+  assert.equal(regionText(walk, [{ kids: [{ text: "漢" }] }, { text: "字" }], isBlock, isBreak), "漢字");
+  // nothing left: an empty line
+  assert.equal(regionText(walk, [], isBlock, isBreak), "");
+  assert.equal(regionText(walk, [br], isBlock, isBreak), "");
+  // line elements and loose text mixed, in order
+  assert.equal(regionText(walk, [blockLine("霧笛"), { text: "漢字" }, br, blockLine("鳴る")], isBlock, isBreak), "霧笛\n漢字\n鳴る");
+  // two loose runs split by a <br>
+  assert.equal(regionText(walk, [{ text: "a" }, br, { text: "b" }, br], isBlock, isBreak), "a\nb");
+  // skipped elements (gaps, page breaks) are left out
+  assert.equal(regionText(walk, [{ skip: true, kids: [{ text: "改ページ" }] }, { text: "漢字" }, br], isBlock, isBreak), "漢字");
 });

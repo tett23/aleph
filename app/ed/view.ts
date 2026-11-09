@@ -4,7 +4,7 @@
 // core; the browser moves the caret, and the selection is read back from it.
 import type { Core, Tx } from "./core.ts";
 import type { Severity } from "./diag.ts";
-import { domToOffset, domWalk, lineText, nearestLine, offsetToDom } from "./dompos.ts";
+import { domToOffset, domWalk, lineText, nearestLine, offsetToDom, regionText } from "./dompos.ts";
 import { blockViewport, clampPoint, createHeights, estimateSize, renderRange, scrollTarget as targetStart, type Heights } from "./heights.ts";
 import { createInput } from "./control.ts";
 import type { Highlighter } from "./lang.ts";
@@ -42,6 +42,7 @@ const LAYERS = ["st", "link", "search", "selmatch", "diag"];
 const walk = domWalk;
 /** A block the browser put inside a line while composing (a line break typed into the composition). */
 const isBlock = (n: Node) => n instanceof HTMLElement && n.tagName === "DIV";
+const isBreak = (n: Node) => n instanceof HTMLElement && n.tagName === "BR";
 
 type Unit = { line: number; el: HTMLElement; brk: HTMLElement | null; key: string };
 
@@ -413,7 +414,22 @@ export const createView = (o: ViewOptions) => {
   const composedText = (a: number, b: number): string => {
     const doc = core.doc();
     const first = units.get(a)?.el;
-    if (!first || !first.isConnected) return doc.slice(doc.line(a).from, doc.line(b).to);
+    if (!first) return doc.slice(doc.line(a).from, doc.line(b).to);
+    if (!first.isConnected) {
+      // WebKit took the line's element away (an empty line, with SKK) and left the committed text loose in
+      // the content: read what stands between the lines around the composed ones
+      const prev = units.get(a - 1)?.el;
+      let x: ChildNode | null = prev?.isConnected ? prev.nextSibling : a === 1 ? content.firstChild : null;
+      if (!x) return doc.slice(doc.line(a).from, doc.line(b).to);
+      const next = units.get(b + 1)?.el;
+      const nodes: Node[] = [];
+      for (; x; x = x.nextSibling) {
+        const n = x instanceof HTMLElement ? x.dataset.line : undefined;
+        if (x === next || (n && Number(n) > b) || (x instanceof HTMLElement && x.classList.contains("ed-gap") && nodes.length)) break;
+        nodes.push(x);
+      }
+      return regionText(walk, nodes, isBlock, isBreak);
+    }
     const parts: string[] = [];
     for (let x: Element | null = first; x; x = x.nextElementSibling) {
       const n = (x as HTMLElement).dataset?.line;

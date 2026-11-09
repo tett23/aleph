@@ -2,22 +2,27 @@
 // the editor with a short text, and the events it sees (keydown, beforeinput,
 // input, composition, the selection) written out as JSON in the shape the
 // replay tests read (app/ed/fixtures/*.json).
+import { appCacheDir, join } from "@tauri-apps/api/path";
 import { api } from "../api.ts";
 import { esc } from "../esc.ts";
 import { onPress } from "../ui/dom.ts";
 import type { Recorded, RecordedEvent } from "./control.ts";
-import { domWalk, lineText } from "./dompos.ts";
+import { domWalk, regionText } from "./dompos.ts";
 import { createEditor } from "./editor.ts";
 
-const LOG_FILE = "/tmp/aleph-ime-log.json";
+// in the app's cache directory: the webview may not write outside its reach (docs/adr/0042)
+const logFile = async () => join(await appCacheDir(), "aleph-ime-log.json");
 const SAMPLE = "灯台の灯が、\n冬の海を照らしていた。\n\n霧笛が鳴る。";
 
 /** The text the DOM shows in the editor's lines, gutters and marks left out. */
+/** Loose text the browser left between the lines (outside any line's element) is read too. */
 const domText = (content: HTMLElement): string =>
-  [...content.children]
-    .filter((c) => !c.classList.contains("ed-gap") && !c.classList.contains("page-break"))
-    .map((c) => lineText(domWalk, c as Node, (n) => n instanceof HTMLElement && n.tagName === "DIV"))
-    .join("\n");
+  regionText(
+    domWalk,
+    [...content.childNodes],
+    (n) => n instanceof HTMLElement && n.tagName === "DIV",
+    (n) => n instanceof HTMLElement && n.tagName === "BR",
+  );
 
 export const startRecorder = (root: HTMLElement) => {
   document.title = "IME の記録";
@@ -90,7 +95,8 @@ export const startRecorder = (root: HTMLElement) => {
   });
   on("compositionupdate", (e) => push({ type: "compositionupdate", data: e.data }));
   on("compositionend", (e) => {
-    push({ type: "compositionend", data: e.data, dom: domText(content) });
+    // the HTML too, to see where the browser put the committed text
+    push({ type: "compositionend", data: e.data, dom: domText(content), html: content.innerHTML });
     composing = false;
   });
   content.addEventListener(
@@ -152,8 +158,9 @@ export const startRecorder = (root: HTMLElement) => {
       const json = JSON.stringify(rec, null, 2);
       // the clipboard may be refused in the WebView; the file is always written
       try {
-        await api.writeText(LOG_FILE, json);
-        state.textContent = `${LOG_FILE} に書きました`;
+        const file = await logFile();
+        await api.writeText(file, json);
+        state.textContent = `${file} に書きました`;
       } catch (err) {
         state.textContent = `書けません：${String(err)}`;
       }
