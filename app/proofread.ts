@@ -12,7 +12,7 @@ export const RULES: [RuleId, string, string][] = [
   ["raNuki", "ら抜き言葉", "見れる、来れる、食べれる など、決まった一覧の動詞"],
   ["variants", "表記ゆれ", "出来る と できる、サーバー と サーバ など、一つのシートの中の二つの書き方"],
   ["punctuation", "句読点の連続", "、、 。。 、。 。、 と、全角のカンマとピリオドの同じ並び"],
-  ["fullwidth", "全角の英数字", "Ａ〜Ｚ、ａ〜ｚ、０〜９"],
+  ["fullwidth", "全角の英数字", "Ａ〜Ｚ、ａ〜ｚ、０〜９。縦組みのシートでは検査しない"],
   ["halfwidthKana", "半角の片仮名", "半角の片仮名と、半角の濁点と半濁点"],
   ["spelling", "英語の綴り", "2 文字以上のラテン文字の語を、macOS の英語の辞書で"],
 ];
@@ -150,11 +150,11 @@ const RULE_FNS: [RuleId, Rule, Diag["severity"]][] = [
   ["halfwidthKana", halfwidthKana, "warning"],
 ];
 
-/** The diagnostics of the rules that need no spelling checker. */
-export const checkText = (kind: string, text: string, cfg: ProofreadConfig): Diag[] => {
+/** The diagnostics of the rules that need no spelling checker; a vertical sheet writes letters and digits in full width, so it is not checked for them (docs/adr/0057). */
+export const checkText = (kind: string, text: string, cfg: ProofreadConfig, opts: { vertical?: boolean } = {}): Diag[] => {
   if (!cfg.enabled) return [];
   const segs = segments(kind, text);
-  return RULE_FNS.filter(([id]) => cfg.rules[id]).flatMap(([id, f, severity]) => f(text, segs).map((h) => ({ ...h, severity, source: id })));
+  return RULE_FNS.filter(([id]) => cfg.rules[id] && !(id === "fullwidth" && opts.vertical)).flatMap(([id, f, severity]) => f(text, segs).map((h) => ({ ...h, severity, source: id })));
 };
 
 // ---- English spelling ----

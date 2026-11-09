@@ -70,3 +70,20 @@ test("image URLs in .md are left out; only words not asked yet are asked (docs/a
   const known = new Map([["hello", false]]);
   assert.deepEqual(toAsk(["hello", "wrold", "wrold"], known), ["wrold"]);
 });
+
+// docs/adr/0057: a vertical sheet writes letters and digits in full width
+test("a vertical sheet gets no full-width letters and digits check", () => {
+  const src = "一般寮とＳ４専用寮";
+  assert.deepEqual(checkText("gm", src, only("fullwidth"), { vertical: true }), []);
+  assert.deepEqual(checkText("gm", src, only("fullwidth")).map((d) => src.slice(d.from, d.to)), ["Ｓ４"]);
+  assert.deepEqual(checkText("gm", src, only("fullwidth"), { vertical: false }).map((d) => src.slice(d.from, d.to)), ["Ｓ４"]);
+});
+
+test("a vertical sheet keeps the other checks", () => {
+  const all = { ...only("punctuation"), rules: { ...only("punctuation").rules, halfwidthKana: true } };
+  const src = "書く、、ｶﾅ";
+  assert.deepEqual(
+    checkText("txt", src, all, { vertical: true }).map((d) => d.source),
+    ["punctuation", "halfwidthKana"],
+  );
+});
