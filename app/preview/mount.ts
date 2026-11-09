@@ -16,6 +16,7 @@ import { golem, shem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { IMAGE_KINDS } from "../workspace.ts";
 import { autoDpi, pageInches } from "./pages.ts";
+import { createWaiter } from "./wait.ts";
 import {
   fileUrl,
   loadZoom,
@@ -101,8 +102,13 @@ const publishPages = async (ctx: Ctx, project: string, p: Pages) => {
   await emit("aleph:pages", { project, ...p }).catch(() => {});
 };
 
+// builds after a save wait until the input has stopped for 5 s (docs/adr/0056)
+const waiter = createWaiter({ now: () => Date.now(), set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => clearTimeout(id) });
+
 /** golem build --target pdf, then shem; with `redraw`, only shem on the PDF already built. */
 const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wantedDpi(ctx, project)) => {
+  // a build now (the button, the first one) takes the place of one waiting for the input to stop
+  if (!redraw) waiter.cancel(project);
   const b = pageBuilds.get(project) ?? { busy: false, again: null };
   pageBuilds.set(project, b);
   // a full build asked for meanwhile wins over a redraw
@@ -199,7 +205,7 @@ const drawPages = (head: HTMLElement, body: HTMLElement, ctx: Ctx, doc: Doc) => 
   }
   const p = pages.get(project);
   const busy = pageBuilds.get(project)?.busy ?? false;
-  const note = busy ? (p ? "組みなおしています…" : "組んでいます…") : p && !p.ok ? "組めませんでした" : "";
+  const note = busy ? (p ? "組みなおしています…" : "組んでいます…") : waiter.waiting(project) ? "入力が止まったら組みなおします" : p && !p.ok ? "組めませんでした" : "";
   head.innerHTML = `<span>ページ</span>${note ? `<small class="${p && !p.ok && !busy ? "ng" : ""}">${esc(note)}</small>` : ""}<span class="sp"></span>${zoomControls(zoom)}<span class="iconbtn" data-act="build" title="組みなおす">${icon(
     "refresh-cw",
     14,
@@ -307,15 +313,20 @@ export const mountPreview = (ctx: Ctx) => {
   ctx.kindViews.pdf = pdfView;
   for (const k of IMAGE_KINDS) ctx.kindViews[k] = (el, doc) => imageView(el, doc);
 
-  // after a save: the text is built again; the pages too when the setting says so
+  // after a save: the text is built again; the pages too when the setting says so, once the input has stopped (docs/adr/0056)
   ctx.store.subscribe((s, prev) => {
     for (const d of allDocs(s)) {
       const before = allDocs(prev).find((x) => x.path === d.path);
+      if (before && d.project && before.text !== d.text) waiter.edited(d.project);
       if (!before || before.saved === d.saved) continue;
       if (d.path.endsWith("/style.toml")) styles.delete(d.project ?? "");
       if (!d.project) continue;
       if (d.kind === "gm") void buildHtml(ctx, d.project, chaptersShown(s).map((x) => x.path));
-      if (ctx.config.rebuildOnSave && (pages.has(d.project) || effectiveSide(d.kind, s.side) === "pages")) void buildPages(ctx, d.project);
+      if (ctx.config.rebuildOnSave && (pages.has(d.project) || effectiveSide(d.kind, s.side) === "pages")) {
+        const project = d.project;
+        waiter.request(project, () => void buildPages(ctx, project));
+        ctx.refresh(["side"]);
+      }
     }
     if (s.vertical !== prev.vertical || s.open !== prev.open) void sendPlain(ctx);
   });
