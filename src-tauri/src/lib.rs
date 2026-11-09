@@ -470,6 +470,34 @@ fn git(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
     process::run(&git, Path::new(&cwd), &process::git_args(&args))
 }
 
+#[derive(serde::Serialize)]
+struct GitInfo {
+    path: String,
+    version: String,
+}
+
+/// The git in use and its version, or why it cannot be used (docs/adr/0060).
+#[tauri::command]
+fn git_info(app: AppHandle) -> R<GitInfo> {
+    let r = roots(&app);
+    let bin = configured(&app, "git");
+    let git = process::find("git", bin.as_deref(), &process::GIT_ORDER, &r).ok_or_else(|| {
+        match bin.filter(|b| !b.is_empty()) {
+            Some(b) => format!("git が見つかりません（設定の {b}）"),
+            None => format!(
+                "git が見つかりません（探した場所：{}）",
+                process::searched("git", &process::GIT_ORDER, &r).join("、")
+            ),
+        }
+    })?;
+    let version = process::git_version(process::run(&git, Path::new("/"), &["--version".into()]))
+        .map_err(|e| format!("{e}（{}）", git.display()))?;
+    Ok(GitInfo {
+        path: git.display().to_string(),
+        version,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -933,6 +961,7 @@ pub fn run_app() {
             git,
             tool,
             tool_info,
+            git_info,
             lsp_start,
             lsp_send,
             lsp_stop,

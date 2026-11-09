@@ -2,8 +2,12 @@
 
 export type LineMark = "add" | "mod" | "del";
 
-/** Marks for each 0-based line of `now`: added, modified, or a deletion before it. */
-export const lineMarks = (base: string | null, now: string): Map<number, LineMark> => {
+/**
+ * Marks for each 0-based line of `now`: added, modified, or a deletion before it. A null base (not in HEAD)
+ * makes every line added; false (no git to compare with, docs/adr/0060) makes no marks.
+ */
+export const lineMarks = (base: string | null | false, now: string): Map<number, LineMark> => {
+  if (base === false) return new Map();
   const b = base === null ? [] : base.split("\n");
   const a = now.split("\n");
   const marks = new Map<number, LineMark>();

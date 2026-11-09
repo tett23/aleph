@@ -48,6 +48,8 @@ export type Ctx = {
   status: StatusItem[];
   /** What a click on a status item with `data-status="<key>"` does. */
   statusActions: Record<string, (ctx: Ctx) => void>;
+  /** Run after git was checked again (docs/adr/0060). */
+  gitChanged: (() => void)[];
   settings: SettingsSection[];
   commands: Command[];
   /** The sheets for the ⌘P box (docs/adr/0022); null until that finder is mounted. */
@@ -81,7 +83,7 @@ export type Ctx = {
   /** Saves the open sheets (those given, or all with changes). */
   save: (paths?: string[], opts?: { explicit?: boolean }) => Promise<void>;
   /** HEAD's text of a file, for the change marks; null when not in HEAD. */
-  baseText: (doc: Doc) => Promise<string | null>;
+  baseText: (doc: Doc) => Promise<string | null | false>;
   /** Draws the panels and the status bar again (after a change outside the store). */
   refresh: (what?: ("left" | "right" | "status" | "side" | "main" | "problems")[]) => void;
 };

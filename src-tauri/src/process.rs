@@ -27,6 +27,21 @@ pub fn run(program: &Path, cwd: &Path, args: &[String]) -> Result<Out, String> {
     })
 }
 
+/// Whether `git --version` showed a git that works (docs/adr/0060): its version line, or why not
+/// (the first line of the error, as from the /usr/bin/git of a Mac without the command line tools).
+pub fn git_version(r: Result<Out, String>) -> Result<String, String> {
+    let o = r?;
+    let first = |t: &str| t.lines().next().unwrap_or("").trim().to_string();
+    match (o.code, first(&o.stdout)) {
+        (0, v) if v.starts_with("git version") => Ok(v),
+        (0, v) => Err(format!("git の版を読めません：{v}")),
+        (code, _) => Some(first(&o.stderr))
+            .filter(|e| !e.is_empty())
+            .ok_or_else(|| format!("終了コード {code}"))
+            .and_then(Err),
+    }
+}
+
 /// The arguments Aleph gives git (docs/adr/0046): before the repository's own
 /// settings, the fsmonitor and the hooks are turned off; reading takes no
 /// optional locks, and diff uses no external diff program.
@@ -152,6 +167,61 @@ pub fn searched(name: &str, order: &[Place], roots: &Roots) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::fsops::testdir;
+
+    fn out(code: i32, stdout: &str, stderr: &str) -> Out {
+        Out {
+            code,
+            stdout: stdout.into(),
+            stderr: stderr.into(),
+        }
+    }
+
+    #[test]
+    fn git_works_when_its_version_says_so() {
+        // docs/adr/0060
+        assert_eq!(
+            git_version(Ok(out(0, "git version 2.39.5 (Apple Git-154)\n", ""))),
+            Ok("git version 2.39.5 (Apple Git-154)".to_string())
+        );
+    }
+
+    #[test]
+    fn a_failing_git_gives_the_first_line_of_its_error() {
+        // the /usr/bin/git of a Mac without the command line tools
+        let r = git_version(Ok(out(
+            1,
+            "",
+            "xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun\nmore\n",
+        )));
+        assert_eq!(
+            r,
+            Err("xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun".to_string())
+        );
+        assert_eq!(
+            git_version(Ok(out(1, "", ""))),
+            Err("終了コード 1".to_string())
+        );
+    }
+
+    #[test]
+    fn a_program_that_does_not_say_git_version_is_not_git() {
+        assert_eq!(
+            git_version(Ok(out(0, "hello\n", ""))),
+            Err("git の版を読めません：hello".to_string())
+        );
+        assert_eq!(
+            git_version(Ok(out(0, "", ""))),
+            Err("git の版を読めません：".to_string())
+        );
+    }
+
+    #[test]
+    fn a_git_that_cannot_start_gives_why() {
+        assert_eq!(
+            git_version(Err("/x/git: No such file".into())),
+            Err("/x/git: No such file".to_string())
+        );
+    }
 
     fn fake(path: &Path, version: &str) {
         use std::os::unix::fs::PermissionsExt;

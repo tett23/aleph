@@ -76,7 +76,8 @@ export type EditorOptions = {
   /** The element that scrolls, when several sheets share one pane. */
   scroller?: HTMLElement;
   /** HEAD's text, for the change marks; null when the file is not in HEAD. */
-  base: () => Promise<string | null>;
+  /** The text to mark changes against: null when not in HEAD, false when there is nothing to compare with. */
+  base: () => Promise<string | null | false>;
   onChange: (text: string) => void;
   onSave: () => void;
   onFocus?: () => void;
@@ -101,7 +102,7 @@ export const createEditor = (o: EditorOptions): Editor => {
   const core = createCore(o.text);
   const plugins = o.plugins ?? [];
   let grid = o.grid;
-  let baseText: string | null | undefined;
+  let baseText: string | null | false | undefined;
   let marksTimer = 0;
   let search: { ui: SearchUi; matches: Match[] } | null = null;
   let completion: { list: ReturnType<typeof createCompletionList>; from: number } | null = null;

@@ -7,12 +7,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
-import { autosaveMessage, parseStatus, shouldAutoCommit, ymd, type StatusEntry } from "./git.ts";
+import { autosaveMessage, gitMissingHtml, parseStatus, shouldAutoCommit, ymd, type StatusEntry } from "./git.ts";
 import { icon } from "./icons.ts";
 import { basename, rel } from "./path.ts";
 import { allDocs, dirty, type State } from "./store.ts";
-import { git } from "./tools.ts";
-import { item, toggle } from "./ui/settings.ts";
+import { git, gitChanged, gitNow, gitOk } from "./tools.ts";
+import { item, openSettings, toggle } from "./ui/settings.ts";
 import { renderWsbar } from "./ui/shell.ts";
 import { reloadTree } from "./ui/tree.ts";
 import { OPEN_KINDS, kindOf } from "./workspace.ts";
@@ -56,10 +56,11 @@ export const commit = async (ctx: Ctx, ws: string, message: string): Promise<boo
 /** The daily commit of each workspace with changes, recorded in the settings. */
 const autoCommit = async (ctx: Ctx) => {
   const now = new Date();
+  const ok = await gitOk();
   for (const ws of ctx.config.workspaces) {
-    await refreshStatus(ctx, ws);
+    if (ok) await refreshStatus(ctx, ws);
     const changed = (status.get(ws) ?? []).length > 0 || allDocs(ctx.store.get()).some((d) => d.workspace === ws && dirty(d));
-    if (!shouldAutoCommit({ today: ymd(now), last: ctx.config.lastAutoCommit[ws], changed, enabled: ctx.config.autoCommit })) continue;
+    if (!shouldAutoCommit({ today: ymd(now), last: ctx.config.lastAutoCommit[ws], changed, enabled: ctx.config.autoCommit, git: ok })) continue;
     const isRepo = await git(ctx, ws, ["rev-parse", "--is-inside-work-tree"]).catch(() => null);
     if (!isRepo || isRepo.code !== 0) continue;
     if (await commit(ctx, ws, autosaveMessage(now))) {
@@ -85,6 +86,9 @@ const diffHtml = (text: string) =>
 const drawPanel = async (el: HTMLElement, ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
   if (!ws) return void (el.innerHTML = `<div class="sec"><div class="muted">ワークスペースがありません。</div></div>`);
+  // git that cannot be used is not taken for "not a repository" (docs/adr/0060)
+  const g = await gitNow();
+  if (!g.ok) return void (el.innerHTML = gitMissingHtml(g.reason));
   const repo = await git(ctx, ws, ["rev-parse", "--is-inside-work-tree"]).catch(() => null);
   if (!repo || repo.code !== 0)
     return void (el.innerHTML = `<div class="sec"><div class="muted">${esc(basename(ws))} は Git のリポジトリではありません。</div><div class="row"><span class="btn" data-a="init">git init</span></div></div>`);
@@ -116,6 +120,13 @@ const drawPanel = async (el: HTMLElement, ctx: Ctx) => {
 };
 
 const run = async (el: HTMLElement, ctx: Ctx, a: string) => {
+  if (a === "recheck") {
+    await gitChanged(ctx);
+    const s = await gitNow();
+    ctx.toast(s.ok ? `git が使えます（${s.version}）` : "git はまだ使えません");
+    return;
+  }
+  if (a === "settings") return void openSettings(ctx, "tools");
   const ws = ctx.store.get().workspace;
   if (!ws) return;
   if (a === "commit") {
@@ -219,7 +230,16 @@ export const mountGit = (ctx: Ctx) => {
     await ctx.save().catch(() => {});
   });
 
-  // the daily commit: at start and every hour
+  // after git was checked again: the change marks, the branch, the tree's marks and the panel follow
+  ctx.gitChanged.push(() => {
+    for (const d of allDocs(ctx.store.get())) ctx.editors.get(d.path)?.refreshMarks(true);
+    const w = ctx.store.get().workspace;
+    if (w) void refreshBranch(ctx, w).then(() => refreshStatus(ctx, w)).then(() => ctx.refresh(["left"]));
+    else ctx.refresh(["left"]);
+  });
+
+  // the daily commit: at start and every hour; without git, said once at start (docs/adr/0060)
+  void gitNow().then((s) => !s.ok && ctx.config.autoCommit && ctx.toast("git が使えないので、自動のコミットをしません"));
   void autoCommit(ctx);
   setInterval(() => void autoCommit(ctx), 60 * 60 * 1000);
   const ws = ctx.store.get().workspace;

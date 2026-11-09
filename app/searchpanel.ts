@@ -13,7 +13,7 @@ import { allDocs, focused } from "./store.ts";
 import { diffText } from "./ed/ime.ts";
 import { afterHtml, confirmText, projectsTouched, spotsOf } from "./replace.ts";
 import { diagHooks } from "./diag/mount.ts";
-import { git } from "./tools.ts";
+import { git, gitOk } from "./tools.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree } from "./ui/tree.ts";
 import { TEXT_KINDS, workspaceOf } from "./workspace.ts";
@@ -98,6 +98,7 @@ const drawResults = async (box: HTMLElement, ctx: Ctx, found: Found | string | n
 };
 
 const isGit = async (ctx: Ctx, root: string) => {
+  if (!(await gitOk())) return false;
   const r = await git(ctx, root, ["rev-parse", "--is-inside-work-tree"]).catch(() => null);
   return !!r && r.code === 0;
 };
