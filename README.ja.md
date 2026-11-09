@@ -28,7 +28,7 @@ Golem の原稿を書き、それがどう組まれるかを見て、作品の�
 
 ## 状態
 
-最初の版を実装しました。横書きと縦書きを一つで書くエディタ、golem lsp、本文とページのプレビュー、保存と Git、目標とノート、プロットとガントチャート、共有ライブラリ、診断と検索、Markdown からの変換、プラグインがあります。
+最初の版を実装しました。横書きと縦書きを一つで書くエディタ、golem lsp、本文とページのプレビュー、保存と Git、目標とノート、プロットとガントチャート、共有ライブラリ、診断と検索、プロジェクトのビルド、Markdown からの変換、プラグインがあります。
 決定はそれぞれ [docs/adr/](docs/adr/) の ADR（Architecture Decision Record）にあり、今の振る舞いは [docs/specifications.md](docs/specifications.md) にあります。
 まず Apple Silicon の macOS を対象にしています。
 

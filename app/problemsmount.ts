@@ -3,6 +3,7 @@
 import { addCommands } from "./commands.ts";
 import type { Ctx } from "./ctx.ts";
 import { golemResults } from "./diag/mount.ts";
+import { buildProblems } from "./projectbuildmount.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
 import { countProblems, DEFAULT_HEIGHT, fromGolem, groupProblems, panelHeight, type Problem } from "./problems.ts";
@@ -34,7 +35,7 @@ const editorProblems = (ctx: Ctx): Problem[] =>
 
 const allProblems = (ctx: Ctx): Problem[] => {
   const project = focused(ctx.store.get())?.project;
-  return [...editorProblems(ctx), ...(project ? golemResults(project).flatMap((r) => fromGolem(project, r.kind, r.items)) : [])];
+  return [...editorProblems(ctx), ...(project ? [...golemResults(project).flatMap((r) => fromGolem(project, r.kind, r.items)), ...buildProblems(project)] : [])];
 };
 
 const countsHtml = (c: ReturnType<typeof countProblems>) =>

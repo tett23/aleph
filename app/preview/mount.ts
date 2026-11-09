@@ -17,6 +17,7 @@ import { item, toggle } from "../ui/settings.ts";
 import { IMAGE_KINDS } from "../workspace.ts";
 import { autoDpi, pageInches } from "./pages.ts";
 import { createWaiter } from "./wait.ts";
+import { withBuildDir } from "../buildlock.ts";
 import {
   fileUrl,
   loadZoom,
@@ -61,7 +62,7 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
   b.busy = true;
   ctx.refresh(["side"]);
   try {
-    const o = await golem(ctx, project, ["build", "--target", "html"]);
+    const o = await withBuildDir(project, () => golem(ctx, project, ["build", "--target", "html"]));
     b.error = o.code === 0 ? "" : out(o) || "golem build に失敗しました";
     if (o.code === 0)
       for (const p of paths) {
@@ -124,7 +125,7 @@ const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wante
     let pdf = redraw ? prev?.pdf : undefined;
     let log = "";
     if (!pdf) {
-      const o = await golem(ctx, project, ["build", "--target", "pdf"]);
+      const o = await withBuildDir(project, () => golem(ctx, project, ["build", "--target", "pdf"]));
       log = o.code === 0 ? "" : out(o) || "golem build に失敗しました";
       pdf = o.code === 0 ? (await api.listDir(`${project}/build/pdf`)).find((f) => f.endsWith(".pdf")) : undefined;
       if (o.code === 0 && !pdf) log = "build/pdf に PDF がありません";
