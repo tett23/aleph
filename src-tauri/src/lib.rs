@@ -481,15 +481,16 @@ struct GitInfo {
 fn git_info(app: AppHandle) -> R<GitInfo> {
     let r = roots(&app);
     let bin = configured(&app, "git");
-    let git = process::find("git", bin.as_deref(), &process::GIT_ORDER, &r).ok_or_else(|| {
-        match bin.filter(|b| !b.is_empty()) {
-            Some(b) => format!("git が見つかりません（設定の {b}）"),
-            None => format!(
-                "git が見つかりません（探した場所：{}）",
-                process::searched("git", &process::GIT_ORDER, &r).join("、")
-            ),
-        }
-    })?;
+    let git =
+        process::find("git", bin.as_deref(), &process::GIT_ORDER, &r).ok_or_else(|| {
+            match bin.filter(|b| !b.is_empty()) {
+                Some(b) => format!("git が見つかりません（設定の {b}）"),
+                None => format!(
+                    "git が見つかりません（探した場所：{}）",
+                    process::searched("git", &process::GIT_ORDER, &r).join("、")
+                ),
+            }
+        })?;
     let version = process::git_version(process::run(&git, Path::new("/"), &["--version".into()]))
         .map_err(|e| format!("{e}（{}）", git.display()))?;
     Ok(GitInfo {
