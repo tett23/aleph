@@ -5,7 +5,9 @@ import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
 import type { TextEditor } from "./ed/editor.ts";
 import { checkText, englishWords, RULES, segments, spellDiags, toAsk } from "./proofread.ts";
-import { focused } from "./store.ts";
+import { forgetGrid } from "./docs.ts";
+import { allDocs, focused, type Doc } from "./store.ts";
+import { readGrid } from "./workspace.ts";
 import { item, toggle } from "./ui/settings.ts";
 import { esc } from "./esc.ts";
 
@@ -15,10 +17,13 @@ const SOURCE = "proofread";
 
 /** What macOS said of each word: true when spelled wrong. */
 const known = new Map<string, boolean>();
-const editors = new Set<{ t: TextEditor; kind: string; run: () => void }>();
+const editors = new Set<{ t: TextEditor; kind: string; project: string | null; run: () => void }>();
+// each project's writing direction, read again from style.toml when it is saved (docs/adr/0057)
+const vertical = new Map<string, boolean>();
+const verticalOf = (doc: Doc) => (doc.project ? (vertical.get(doc.project) ?? doc.grid.vertical) : false);
 const tooLong = new Set<TextEditor>();
 
-const check = async (ctx: Ctx, t: TextEditor, kind: string) => {
+const check = async (ctx: Ctx, t: TextEditor, kind: string, isVertical: boolean) => {
   const cfg = ctx.config.proofread;
   const text = t.core.text();
   const was = tooLong.has(t);
@@ -30,7 +35,7 @@ const check = async (ctx: Ctx, t: TextEditor, kind: string) => {
   }
   tooLong.delete(t);
   if (was) ctx.refresh(["status"]);
-  const diags = checkText(kind, text, cfg);
+  const diags = checkText(kind, text, cfg, { vertical: isVertical });
   t.setDiagnostics(diags, SOURCE);
   if (!cfg.enabled || !cfg.rules.spelling) return;
   const words = englishWords(segments(kind, text), text);
@@ -53,8 +58,8 @@ export const mountProofread = (ctx: Ctx) => {
     return {
       attach: (t) => {
         let timer = 0;
-        const run = () => void check(c, t, doc.kind);
-        const entry = { t, kind: doc.kind, run };
+        const run = () => void check(c, t, doc.kind, verticalOf(doc));
+        const entry = { t, kind: doc.kind, project: doc.project, run };
         editors.add(entry);
         const off = t.core.listen(() => {
           clearTimeout(timer);
@@ -69,6 +74,20 @@ export const mountProofread = (ctx: Ctx) => {
         };
       },
     };
+  });
+
+  // style.toml saved: its project's sheets are checked again with its writing direction (docs/adr/0057)
+  ctx.store.subscribe((s, prev) => {
+    for (const d of allDocs(s)) {
+      if (!d.project || !d.path.endsWith("/style.toml")) continue;
+      const before = allDocs(prev).find((x) => x.path === d.path);
+      if (!before || before.saved === d.saved) continue;
+      const v = readGrid(d.saved).vertical;
+      forgetGrid(d.project);
+      if (vertical.get(d.project) === v) continue;
+      vertical.set(d.project, v);
+      editors.forEach((e) => e.project === d.project && e.run());
+    }
   });
 
   ctx.status.push((s) => {
