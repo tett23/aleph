@@ -71,6 +71,33 @@ export const lineText = <N>(w: Walk<N>, line: N, isBlock: (n: N) => boolean): st
   return visit(line, true);
 };
 
+/**
+ * The text of the editor's children `nodes` that stand between two drawn lines, as lines: a block is a
+ * line (read as `lineText` reads it), and loose text up to a <br> or a block is a line too. WebKit can take
+ * an empty line's element away while composing and leave the committed text and its <br> in the content.
+ */
+export const regionText = <N>(w: Walk<N>, nodes: N[], isBlock: (n: N) => boolean, isBreak: (n: N) => boolean): string => {
+  const lines: string[] = [];
+  let loose: string | null = null;
+  const flush = () => {
+    if (loose !== null) lines.push(loose);
+    loose = null;
+  };
+  for (const n of nodes) {
+    if (w.skip(n)) continue;
+    if (isBlock(n)) {
+      flush();
+      lines.push(lineText(w, n, isBlock));
+    } else if (isBreak(n)) {
+      lines.push(loose ?? "");
+      loose = null;
+    } else loose = (loose ?? "") + lineText(w, n, isBlock);
+  }
+  flush();
+  // a lone <br> is an empty line, as is nothing at all
+  return lines.length ? lines.join("\n") : "";
+};
+
 /** The walk over the editor's real DOM: gutters and elements that cannot be edited (marks, page breaks) are skipped. */
 export const domWalk: Walk<Node> = {
   isText: (n) => n.nodeType === 3,
