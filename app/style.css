@@ -324,7 +324,33 @@ table.grid td:has(.chips) .cell { height: auto; font-size: 11px; color: var(--fa
 .toggle::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); transition: left 0.12s; }
 .toggle.on { background: var(--accent); }
 .toggle.on::after { left: 16px; }
-.toast { position: fixed; bottom: 34px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 6px 14px; border-radius: 6px; font-size: 12.5px; z-index: 40; max-width: 70vw; white-space: pre-wrap; }
+/* notifications (docs/adr/0064): stacked at the bottom right, above the status bar */
+.toasts { position: fixed; right: 12px; bottom: 34px; width: min(360px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; z-index: 40; pointer-events: none; }
+.toasts > * { pointer-events: auto; }
+.toasts .nt { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16); padding: 10px 10px 10px 12px; display: grid; grid-template-columns: 18px 1fr 16px; gap: 4px 8px; font-size: 12.5px; color: var(--text); }
+.toasts .nt .ic { padding-top: 1px; display: flex; }
+.toasts .nt .msg { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; cursor: text; }
+.toasts .nt .x { color: var(--faint); padding-top: 2px; display: flex; cursor: default; }
+.toasts .nt .x:hover { color: var(--text); }
+.toasts .nt .btns { grid-column: 2 / 4; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 4px; }
+.toasts .nt .btns .btn { font-size: 12px; padding: 2px 10px; }
+.toasts .more { align-self: flex-end; font-size: 12px; color: var(--text-2); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 10px; cursor: default; }
+.lv-info > .ic, .nr.lv-info > svg { color: #3d7fd6; }
+.lv-warning > .ic, .nr.lv-warning > svg { color: var(--mod); }
+.lv-error > .ic, .nr.lv-error > svg { color: var(--del); }
+/* the problems panel's tabs and the notifications' history (docs/adr/0064) */
+.problems-panel .phead2 .ptab { font-weight: 600; letter-spacing: 0.04em; color: var(--text-2); padding: 0 2px; height: 100%; display: inline-flex; align-items: center; gap: 5px; border-bottom: 2px solid transparent; cursor: default; }
+.problems-panel .phead2 .ptab.on { color: var(--text); border-bottom-color: var(--text); }
+.problems-panel .nbadge { font-weight: 400; font-size: 10.5px; background: var(--bg-3); color: var(--text-2); border-radius: 8px; padding: 0 6px; }
+.problems-panel .nbadge.err { background: color-mix(in srgb, var(--del) 18%, var(--bg)); color: var(--del); }
+.problems-panel .btn.small { font-size: 11px; padding: 0 8px; }
+.problems-panel .nr { display: grid; grid-template-columns: 14px 62px 1fr; gap: 8px; align-items: start; padding: 4px 12px; font-size: 12px; border-bottom: 1px solid var(--bg-2); }
+.problems-panel .nr > svg { margin-top: 2px; }
+.problems-panel .nr .tm { color: var(--faint); font-variant-numeric: tabular-nums; }
+.problems-panel .nr .msg { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; cursor: text; }
+.problems-panel .nr .rep { font-size: 10.5px; color: var(--text-2); background: var(--bg-2); border-radius: 8px; padding: 0 6px; margin-left: 6px; }
+.problems-panel .nr .btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.problems-panel .nr .btns .btn { font-size: 11.5px; padding: 1px 9px; }
 /* invisible characters */
 .inv-sp { background: radial-gradient(circle, var(--faint) 1.2px, transparent 1.6px) center / 100% 100% no-repeat; }
 .inv-zsp { outline: 1px solid color-mix(in srgb, var(--faint) 60%, transparent); outline-offset: -3px; border-radius: 2px; }

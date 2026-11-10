@@ -3,6 +3,7 @@
 // another tab is shown, so the caret, the scroll and the undo history stay.
 // The state's panes and tabs are in store.ts; this keeps the DOM in step.
 import { addCommands } from "../commands.ts";
+import { notifyError } from "../ui/notices.ts";
 import type { Ctx } from "../ctx.ts";
 import type { Editor } from "../ed/editor.ts";
 import { esc } from "../esc.ts";
@@ -15,7 +16,7 @@ import { uiState } from "../uistate.ts";
 import { openPalette } from "../palette.ts";
 import { api } from "../api.ts";
 import { revealItems, tabTarget } from "../reveal.ts";
-import { menu, toast } from "../ui/dom.ts";
+import { menu } from "../ui/dom.ts";
 
 const tabKey = (t: Tab) => String(t.id);
 
@@ -202,7 +203,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       const path = t ? tabTarget(t) : null;
       if (!tab || !path) return;
       e.preventDefault();
-      menu(tab, revealItems(path, (x) => void api.revealPath(x).catch((err) => toast(String(err))), icon("folder", 14)));
+      menu(tab, revealItems(path, (x) => void api.revealPath(x).catch((err) => notifyError(String(err))), icon("folder", 14)));
     });
 
     const dragTab = (down: MouseEvent, pane: number, index: number) => {

@@ -21,7 +21,8 @@ type Owned<T> = { plugin: string; f: T };
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export const createHost = (toast: (msg: string) => void) => {
+/** `fail` tells a failure (an error that stays, docs/adr/0064); without it, `toast`. */
+export const createHost = (toast: (msg: string) => void, fail: (msg: string) => void = toast) => {
   let commands: Owned<{ label: string; run: (cur: Current) => void | Promise<void> }>[] = [];
   let status: Owned<(cur: Current) => string>[] = [];
   let saves: Owned<(cur: Current) => void>[] = [];
@@ -56,7 +57,7 @@ export const createHost = (toast: (msg: string) => void) => {
         } catch (e) {
           drop(name);
           out.push({ name, state: "failed", error: message(e) });
-          toast(`プラグイン ${name} を読めません：${message(e)}`);
+          fail(`プラグイン ${name} を読めません：${message(e)}`);
         }
       }
       return out;
@@ -69,7 +70,7 @@ export const createHost = (toast: (msg: string) => void) => {
           try {
             await f.run(cur);
           } catch (e) {
-            toast(`プラグイン ${plugin} の「${f.label}」で誤りがありました：${message(e)}`);
+            fail(`プラグイン ${plugin} の「${f.label}」で誤りがありました：${message(e)}`);
           }
         },
       })),
@@ -87,7 +88,7 @@ export const createHost = (toast: (msg: string) => void) => {
         try {
           f(cur);
         } catch (e) {
-          toast(`プラグイン ${plugin} の保存の処理で誤りがありました：${message(e)}`);
+          fail(`プラグイン ${plugin} の保存の処理で誤りがありました：${message(e)}`);
         }
       }),
   };

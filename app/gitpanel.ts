@@ -44,9 +44,9 @@ const refreshBranch = async (ctx: Ctx, ws: string) => {
 export const commit = async (ctx: Ctx, ws: string, message: string): Promise<boolean> => {
   await ctx.save();
   const add = await git(ctx, ws, ["add", "-A"]);
-  if (add.code !== 0) return ctx.toast(lines(add) || "git add に失敗しました"), false;
+  if (add.code !== 0) return ctx.notify({ message: lines(add) || "git add に失敗しました", level: "error", sticky: true }), false;
   const c = await git(ctx, ws, ["commit", "-m", message]);
-  if (c.code !== 0) return ctx.toast(lines(c) || "コミットに失敗しました"), false;
+  if (c.code !== 0) return ctx.notify({ message: lines(c) || "コミットに失敗しました", level: "error", sticky: true }), false;
   for (const d of allDocs(ctx.store.get())) if (d.workspace === ws) ctx.editors.get(d.path)?.refreshMarks(true);
   await refreshStatus(ctx, ws);
   ctx.refresh(["left"]);
@@ -123,7 +123,8 @@ const run = async (el: HTMLElement, ctx: Ctx, a: string) => {
   if (a === "recheck") {
     await gitChanged(ctx);
     const s = await gitNow();
-    ctx.toast(s.ok ? `git が使えます（${s.version}）` : "git はまだ使えません");
+    if (s.ok) ctx.toast(`git が使えます（${s.version}）`);
+    else ctx.notify({ message: "git はまだ使えません", level: "warning" });
     return;
   }
   if (a === "settings") return void openSettings(ctx, "tools");
@@ -137,7 +138,8 @@ const run = async (el: HTMLElement, ctx: Ctx, a: string) => {
     }
   } else if (a === "init" || a === "push" || a === "pull") {
     const o = await git(ctx, ws, a === "pull" ? ["pull", "--no-rebase"] : [a]);
-    ctx.toast(lines(o) || (o.code === 0 ? "完了しました" : "失敗しました"));
+    if (o.code === 0) ctx.toast(lines(o) || "完了しました");
+    else ctx.notify({ message: lines(o) || "失敗しました", level: "error", sticky: true });
     if (a === "pull" && o.code === 0) {
       for (const d of allDocs(ctx.store.get())) if (d.workspace === ws) ctx.editors.get(d.path)?.refreshMarks(true);
       await reloadTree(ctx);

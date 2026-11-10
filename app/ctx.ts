@@ -1,6 +1,7 @@
 // The app's context: the store, the settings and the registries through which
 // each part (panels, views, status items, settings sections, commands) plugs in.
 import type { Config } from "./config.ts";
+import type { Handle, NotifyOpts } from "./notify.ts";
 import type { Editor, EditorPlugin } from "./ed/editor.ts";
 import type { Doc, LeftPanel, RightPanel, State, Store } from "./store.ts";
 
@@ -43,6 +44,8 @@ export type Ctx = {
   config: Config;
   saveConfig: () => Promise<void>;
   toast: (msg: string) => void;
+  /** A notification of docs/adr/0064: timed or sticky, with buttons. */
+  notify: (o: NotifyOpts) => Handle;
   left: Partial<Record<LeftPanel, Panel>>;
   right: Partial<Record<RightPanel, Panel>>;
   status: StatusItem[];

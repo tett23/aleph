@@ -1,5 +1,6 @@
 // The file tree of the current workspace (docs/adr/0004).
 import { api, type Entry } from "../api.ts";
+import { notifyError } from "./notices.ts";
 import { adopt } from "../config.ts";
 import type { Ctx } from "../ctx.ts";
 import { forgetGrid } from "../docs.ts";
@@ -170,7 +171,7 @@ export const runTreeAct = async (ctx: Ctx, act: string) => {
       if (name.startsWith("-")) return toast("「-」で始まる名前のプロジェクトは作れません");
       // fonts come from the shared library, never from golem's download (docs/adr/0004, docs/adr/0014)
       const out = await golem(ctx, ws, ["new", name, "--no-fonts"]);
-      if (out.code !== 0) return toast((out.stderr || out.stdout).trim());
+      if (out.code !== 0) return void notifyError((out.stderr || out.stdout).trim() || "golem new に失敗しました");
       for (const f of ctx.onNewProject) await f(`${ws}/${name}`, ctx);
       if (!ctx.config.libraryDir) toast("共有ライブラリがないので、フォントは入っていません。設定の「共有ライブラリ」でフォルダを決めると、開いたときにコピーします");
       await reloadTree(ctx);
@@ -244,7 +245,7 @@ export const mountTree = (ctx: Ctx) => {
   };
 
   // "Finder で表示" for files, folders and projects (docs/adr/0053)
-  treeMenus.push((p) => revealItems(p, (x) => void api.revealPath(x).catch((e) => toast(String(e))), icon("folder", 14)));
+  treeMenus.push((p) => revealItems(p, (x) => void api.revealPath(x).catch((e) => notifyError(String(e))), icon("folder", 14)));
 
   // a row's right-click: the items the other parts add
   document.addEventListener("contextmenu", (e) => {

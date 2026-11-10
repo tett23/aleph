@@ -48,7 +48,7 @@ const go = async (ctx: Ctx, ws: string, i: number) => {
   if (!b) return;
   // a path that leaves the workspace is treated as missing (docs/adr/0048)
   const abs = absOf(ws, b.path);
-  if (!abs || !(await api.exists(abs))) return ctx.toast(`${b.path} が見つかりません`);
+  if (!abs || !(await api.exists(abs))) return void ctx.notify({ message: `${b.path} が見つかりません`, level: "error", sticky: true });
   if (b.line === undefined) return ctx.open([abs]);
   const open = allDocs(ctx.store.get()).find((d) => d.path === abs);
   const text = ctx.editors.get(abs)?.text() ?? open?.text ?? (await api.readText(abs).catch(() => ""));
