@@ -1,4 +1,4 @@
 # The golem and shem bundled with Aleph (docs/adr/0008).
 # name  tag  archive (the tag is substituted for {tag})
 golem v0.1.0-rc4 golem-{tag}-aarch64-macos.tar.gz
-shem v0.1.0-rc7 shem-{tag}-aarch64-apple-darwin.tar.gz
+shem v0.1.0-rc9 shem-{tag}-aarch64-apple-darwin.tar.gz
