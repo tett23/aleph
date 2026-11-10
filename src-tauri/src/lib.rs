@@ -1,6 +1,7 @@
 //! Aleph's Rust side: files, external processes and the bridges the frontend
 //! needs (docs/adr/0003). Each concern is a module with its own tests.
 
+mod fsevents;
 mod fsops;
 mod guard;
 mod lsp;
@@ -9,6 +10,7 @@ mod process;
 mod replace;
 mod search;
 mod spell;
+mod watchfs;
 mod window;
 
 use std::path::{Path, PathBuf};
@@ -54,6 +56,82 @@ fn kept_config(app: &AppHandle) -> serde_json::Value {
         .lock()
         .map(|c| c.clone())
         .unwrap_or_default()
+}
+
+// ---- files changed outside (docs/adr/0063) ----
+
+/// The running FSEvents stream over the workspaces and the shared library.
+#[derive(Default)]
+struct Watching(std::sync::Mutex<Option<fsevents::Watcher>>);
+
+/// The folders to watch: the registered workspaces and the shared library that exist.
+fn watch_roots_of(config: &serde_json::Value) -> Vec<PathBuf> {
+    let list = |k: &str| -> Vec<PathBuf> {
+        match config.get(k) {
+            Some(serde_json::Value::Array(a)) => a
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(PathBuf::from)
+                .collect(),
+            Some(serde_json::Value::String(s)) if !s.is_empty() => vec![PathBuf::from(s)],
+            _ => vec![],
+        }
+    };
+    let mut roots: Vec<PathBuf> = list("workspaces")
+        .into_iter()
+        .chain(list("libraryDir"))
+        .filter_map(|p| p.canonicalize().ok())
+        .collect();
+    roots.sort();
+    roots.dedup();
+    roots
+}
+
+/// Watches the workspaces and the shared library again (at start, and when they change). The changed paths go
+/// to the screen as `aleph:fs`, gathered 0.2 s at a time. False when there is nothing to watch or FSEvents
+/// would not start; the saves still check the disk first.
+#[tauri::command]
+async fn watch_roots(app: AppHandle) -> R<bool> {
+    blocking(move || {
+        let roots = watch_roots_of(&kept_config(&app));
+        let state = app.state::<Watching>();
+        let mut w = state.0.lock().map_err(|e| e.to_string())?;
+        // the old stream stops before the new one starts
+        *w = None;
+        if roots.is_empty() {
+            return Ok(false);
+        }
+        let (tx, rx) = std::sync::mpsc::channel::<Vec<fsevents::Event>>();
+        let tx = std::sync::Mutex::new(tx);
+        let watcher = fsevents::watch(&roots, 0.1, move |es| {
+            if let Ok(t) = tx.lock() {
+                let _ = t.send(es);
+            }
+        })?;
+        let emitter = app.clone();
+        std::thread::spawn(move || {
+            let is_project = |p: &Path| p.join("manifest.toml").is_file();
+            // the thread ends when the stream (and its sender) goes
+            while let Ok(first) = rx.recv() {
+                let mut all = first;
+                let until = std::time::Instant::now() + std::time::Duration::from_millis(200);
+                while let Some(left) = until.checked_duration_since(std::time::Instant::now()) {
+                    match rx.recv_timeout(left) {
+                        Ok(more) => all.extend(more),
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => break,
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+                    }
+                }
+                let batch = watchfs::gather(&all, &is_project);
+                if !batch.paths.is_empty() || batch.git || !batch.rescan.is_empty() {
+                    let _ = emitter.emit("aleph:fs", batch);
+                }
+            }
+        });
+        *w = Some(watcher);
+        Ok(true)
+    })
+    .await
 }
 
 /// Writes the settings and keeps them; returns the JSON written.
@@ -955,6 +1033,7 @@ pub fn run_app() {
         )
         .manage(lsp::Servers::default())
         .manage(Kept::default())
+        .manage(Watching::default())
         .menu(menu)
         .on_menu_event(|app, e| {
             if e.id() == "quit" {
@@ -994,6 +1073,7 @@ pub fn run_app() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            watch_roots,
             reveal_path,
             debug_build,
             config_load,

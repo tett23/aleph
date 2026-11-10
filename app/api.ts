@@ -38,6 +38,8 @@ export const api = {
   toolInfo: (name: Tool) => invoke<ToolInfo>("tool_info", { name }),
   /** The git in use and its version; rejected with the reason when it cannot be used (docs/adr/0060). */
   gitInfo: () => invoke<{ path: string; version: string }>("git_info"),
+  /** Watches the workspaces and the shared library with FSEvents again (docs/adr/0063); false when it could not. */
+  watchRoots: () => invoke<boolean>("watch_roots"),
   lspStart: (id: string, cwd: string) => invoke<void>("lsp_start", { id, cwd }),
   lspSend: (id: string, message: string) => invoke<void>("lsp_send", { id, message }),
   lspStop: (id: string) => invoke<void>("lsp_stop", { id }),

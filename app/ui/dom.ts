@@ -78,3 +78,18 @@ export const menu = (anchor: HTMLElement, items: MenuItem[]) => {
   };
   setTimeout(() => document.addEventListener("mouseup", close, true), 0);
 };
+
+/** A question with several answers (docs/adr/0063): the index chosen, or null when cancelled. The last is the main one. */
+export const choiceDialog = (title: string, message: string, options: string[]): Promise<number | null> =>
+  new Promise((resolve) => {
+    const dim = h(`<div class="dim"><div class="modal small"><div class="mtitle">${esc(title)}</div>${message ? `<div class="mmsg">${esc(message)}</div>` : ""}
+      <div class="mbuttons"><span class="btn" data-x>やめる</span>${options.map((o, i) => `<span class="btn${i === options.length - 1 ? " pri" : ""}" data-i="${i}">${esc(o)}</span>`).join("")}</div></div></div>`);
+    const done = (v: number | null) => (dim.remove(), resolve(v));
+    dim.addEventListener("click", (e) => {
+      const t = e.target as HTMLElement;
+      if (t === dim || t.closest("[data-x]")) return done(null);
+      const i = t.closest<HTMLElement>("[data-i]")?.dataset.i;
+      if (i !== undefined) done(Number(i));
+    });
+    document.body.append(dim);
+  });

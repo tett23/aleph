@@ -15,6 +15,7 @@ import { git, gitChanged, gitNow, gitOk } from "./tools.ts";
 import { item, openSettings, toggle } from "./ui/settings.ts";
 import { renderWsbar } from "./ui/shell.ts";
 import { reloadTree } from "./ui/tree.ts";
+import { mayWrite } from "./watchmount.ts";
 import { OPEN_KINDS, kindOf } from "./workspace.ts";
 
 const status = new Map<string, StatusEntry[]>();
@@ -214,7 +215,8 @@ export const mountGit = (ctx: Ctx) => {
   schedule();
   let statusTimer = 0;
   ctx.store.subscribe((s: State, prev: State) => {
-    for (const d of allDocs(prev)) if (dirty(d) && !allDocs(s).some((x) => x.path === d.path)) void api.writeText(d.path, d.text);
+    for (const d of allDocs(prev))
+      if (dirty(d) && !allDocs(s).some((x) => x.path === d.path)) void mayWrite(ctx, d, false).then((ok) => (ok ? api.writeText(d.path, d.text) : undefined));
     const saved = allDocs(s).some((d) => allDocs(prev).find((x) => x.path === d.path && x.saved !== d.saved));
     if (saved && s.workspace) {
       clearTimeout(statusTimer);
