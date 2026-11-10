@@ -6,6 +6,8 @@ import { esc } from "../esc.ts";
 import { h } from "../icons.ts";
 import { resolve, type Choice, type Chunk } from "../merge3.ts";
 import { diffText } from "../ed/ime.ts";
+import { onPress } from "./dom.ts";
+import { swallowLatePress } from "./press.ts";
 
 /** `side` with the part that differs from `base` marked (one changed stretch: the common head and tail kept plain). */
 const marked = (base: string, side: string) => {
@@ -63,10 +65,11 @@ export const settleConflicts = (name: string, chunks: Chunk[]): Promise<string |
         <div class="mbuttons"><span class="btn" data-x>やめる</span><span class="btn pri" data-ok>これで決める</span></div>`;
     };
     draw();
-    dim.addEventListener("click", (e) => {
+    // taken at mouseup: in this window a click was seen not to arrive on the first press
+    onPress(dim, (e) => {
       const t = e.target as HTMLElement;
-      if (t === dim || t.closest("[data-x]")) return (dim.remove(), done(null));
-      if (t.closest("[data-ok]")) return (dim.remove(), done(resolve(chunks, choices)));
+      if (t === dim || t.closest("[data-x]")) return (dim.remove(), swallowLatePress(), done(null));
+      if (t.closest("[data-ok]")) return (dim.remove(), swallowLatePress(), done(resolve(chunks, choices)));
       const pick = t.closest<HTMLElement>("[data-pick]")?.dataset.pick;
       if (!pick) return;
       const [i, w] = pick.split(":");
