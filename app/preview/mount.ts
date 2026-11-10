@@ -284,6 +284,7 @@ const pdfView = (el: HTMLElement, doc: Doc, ctx: Ctx): Editor => {
   const pane = document.createElement("div");
   pane.className = "pbody";
   el.append(pane);
+  const draw = () => {
   renderHint(pane, "描いています…");
   void (async () => {
     const cwd = doc.project ?? dirname(doc.path);
@@ -294,7 +295,10 @@ const pdfView = (el: HTMLElement, doc: Doc, ctx: Ctx): Editor => {
     pane.querySelector(".pview")!.innerHTML = `<div class="hint">shem で描けない PDF です。WebView で表示します。</div><iframe src="${url}"></iframe>`;
     pane.querySelector<HTMLElement>(".pview")!.className = "pview media";
   })();
-  return stubEditor(() => pane.remove());
+  };
+  draw();
+  // drawn again when the file changes outside (docs/adr/0063)
+  return stubEditor(() => pane.remove(), undefined, draw);
 };
 
 const imageView = (el: HTMLElement, doc: Doc): Editor => {
@@ -302,7 +306,7 @@ const imageView = (el: HTMLElement, doc: Doc): Editor => {
   pane.className = "pbody";
   el.append(pane);
   void renderImage(pane, doc.path);
-  return stubEditor(() => pane.remove());
+  return stubEditor(() => pane.remove(), undefined, () => void renderImage(pane, doc.path));
 };
 
 export const mountPreview = (ctx: Ctx) => {

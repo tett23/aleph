@@ -5,6 +5,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { esc } from "../esc.ts";
 import { h, icon } from "../icons.ts";
+import { swallowLatePress } from "./press.ts";
 import { createNotifications, type Handle, type Level, type Note, type Notifications, type NotifyOpts } from "../notify.ts";
 
 export const LEVEL_ICON: Record<Level, string> = { info: "info", warning: "triangle-alert", error: "circle-x" };
@@ -73,9 +74,12 @@ function draw() {
       if (t.closest("[data-more]")) return notifications().expand(true);
       const id = Number(t.closest<HTMLElement>("[data-id]")?.dataset.id);
       if (!id) return;
-      if (t.closest("[data-x]")) return notifications().dismiss(id);
+      if (t.closest("[data-x]")) return (swallowLatePress(), notifications().dismiss(id));
       const a = t.closest<HTMLElement>("[data-a]")?.dataset.a;
-      if (a !== undefined) notifications().press(id, Number(a));
+      if (a !== undefined) {
+        swallowLatePress();
+        notifications().press(id, Number(a));
+      }
     });
   }
   const { notes, more } = notifications().shown();

@@ -2,6 +2,8 @@
 // the core and the view, with the change marks, line numbers, page breaks,
 // key bindings, search, diagnostics, and what plugins (the LSP) add.
 import { lineMarks } from "../diff.ts";
+import { diffText } from "./ime.ts";
+import { caretAfter } from "../watch.ts";
 import { estimatePageBreaks } from "../gm.ts";
 import type { Grid } from "../store.ts";
 import { filterItems, indent } from "./commands.ts";
@@ -52,6 +54,10 @@ export type Editor = {
   edit: TextEditor | null;
   text: () => string;
   setText: (text: string) => void;
+  /** The disk's text put in as one edit (⌘Z undoes it), the caret kept at its line and column (docs/adr/0063). */
+  fromOutside?: (text: string) => void;
+  /** Draws a view of a file again after it changed outside (PDF, images). */
+  reload?: () => void;
   goto: (line: number, col?: number) => void;
   focus: () => void;
   setWidth: (chars: number) => void;
@@ -437,6 +443,18 @@ export const createEditor = (o: EditorOptions): Editor => {
     edit: text,
     text: () => core.text(),
     setText: (t) => view.whenIdle(() => t !== core.text() && core.setText(t)),
+    fromOutside: (t) =>
+      view.whenIdle(() => {
+        const before = core.text();
+        const d = diffText(before, t);
+        if (!d) return;
+        const caret = caretAfter(before, core.sel().head, t);
+        // its own step in the history
+        core.select(core.sel(), true);
+        core.apply([d], "external", { anchor: caret, head: caret });
+        core.select(core.sel(), true);
+        view.syncSelection();
+      }),
     goto: (line, col = 0) => {
       const l = core.doc().line(Math.max(1, Math.min(core.doc().lines, line)));
       const pos = Math.min(l.to, l.from + col);

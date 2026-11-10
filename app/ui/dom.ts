@@ -2,6 +2,7 @@
 import { esc } from "../esc.ts";
 import { h } from "../icons.ts";
 import { notify } from "./notices.ts";
+import { swallowLatePress } from "./press.ts";
 
 /** An information that goes after a while (docs/adr/0064). */
 export const toast = (msg: string) => void notify({ message: msg });
@@ -78,3 +79,19 @@ export const menu = (anchor: HTMLElement, items: MenuItem[]) => {
   };
   setTimeout(() => document.addEventListener("mouseup", close, true), 0);
 };
+
+/** A question with several answers (docs/adr/0063): the index chosen, or null when cancelled. The last is the main one. */
+export const choiceDialog = (title: string, message: string, options: string[]): Promise<number | null> =>
+  new Promise((resolve) => {
+    const dim = h(`<div class="dim"><div class="modal small choice"><div class="mtitle">${esc(title)}</div>${message ? `<div class="mmsg">${esc(message)}</div>` : ""}
+      <div class="mbuttons"><span class="btn" data-x>やめる</span>${options.map((o, i) => `<span class="btn${i === options.length - 1 ? " pri" : ""}" data-i="${i}">${esc(o)}</span>`).join("")}</div></div></div>`);
+    const done = (v: number | null) => (dim.remove(), swallowLatePress(), resolve(v));
+    // taken at mouseup: in this window a click was seen not to arrive on the first press
+    onPress(dim, (e) => {
+      const t = e.target as HTMLElement;
+      if (t === dim || t.closest("[data-x]")) return done(null);
+      const i = t.closest<HTMLElement>("[data-i]")?.dataset.i;
+      if (i !== undefined) done(Number(i));
+    });
+    document.body.append(dim);
+  });

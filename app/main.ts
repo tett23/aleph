@@ -12,6 +12,7 @@ import type { Ctx } from "./ctx.ts";
 import { allDocs, createStore, initialState, type State } from "./store.ts";
 import { confirmDialog, toast } from "./ui/dom.ts";
 import { notify } from "./ui/notices.ts";
+import { mayWrite, mountWatch } from "./watchmount.ts";
 import { guardLinks } from "./links.ts";
 import { item } from "./ui/settings.ts";
 import { debugBuild } from "./build.ts";
@@ -115,6 +116,8 @@ const start = async () => {
         if (paths && !paths.includes(d.path)) continue;
         const text = ctx.editors.get(d.path)?.text() ?? d.text;
         if (text === d.saved && !opts?.explicit) continue;
+        // not over a change made outside since the last read or write (docs/adr/0063)
+        if (!(await mayWrite(ctx, d, !!opts?.explicit))) continue;
         await api.writeText(d.path, text);
         store.dispatch({ type: "saved", path: d.path, text });
       }
@@ -188,6 +191,7 @@ const start = async () => {
   mountProjectBuild(ctx); // after lint and preflight: its status item sits right of them (docs/adr/0058)
   mountPreview(ctx);
   mountGit(ctx);
+  mountWatch(ctx);
   mountPlotFeature(ctx);
   mountAttach(ctx);
   mountLibrary(ctx);
