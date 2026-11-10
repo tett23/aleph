@@ -274,7 +274,7 @@ export const openWindow = async (ctx: Ctx, view: "plain" | "pages", project: str
     width: 620,
     height: 820,
   });
-  w.once("tauri://error", (e) => ctx.toast(`ウィンドウを開けません：${String(e.payload)}`));
+  w.once("tauri://error", (e) => ctx.notify({ message: `ウィンドウを開けません：${String(e.payload)}`, level: "error", sticky: true }));
 };
 
 // ---- PDF and images in place of the editor ----

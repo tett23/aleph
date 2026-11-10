@@ -51,7 +51,7 @@ export const mountPasteImage = (ctx: Ctx) => {
         // the default would bring no text anyway; stopping it also stops beforeinput
         e.preventDefault();
         const path = [...c.editors.entries()].find(([, ed]) => ed.edit === t)?.[0] ?? doc.path;
-        void paste(c, t, path, doc.kind, files.filter((f) => f.type.startsWith("image/"))).catch((err) => c.toast(`画像を書けませんでした：${err}`));
+        void paste(c, t, path, doc.kind, files.filter((f) => f.type.startsWith("image/"))).catch((err) => c.notify({ message: `画像を書けませんでした：${err}`, level: "error", sticky: true }));
       };
       t.view.content.addEventListener("paste", onPaste, true);
       return () => t.view.content.removeEventListener("paste", onPaste, true);

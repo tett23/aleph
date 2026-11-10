@@ -184,7 +184,7 @@ export const format = async (ctx: Ctx, doc: Doc): Promise<boolean | null> => {
   const project = doc.project;
   const out = await withBuildDir(project, () => golem(ctx, project, ["fmt", argPath(rel(project, doc.path))])).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
   if (out.code !== 0) {
-    ctx.toast((out.stderr || out.stdout).trim() || "golem fmt に失敗しました");
+    ctx.notify({ message: (out.stderr || out.stdout).trim() || "golem fmt に失敗しました", level: "error", sticky: true });
     return null;
   }
   const text = await api.readText(doc.path);

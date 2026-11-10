@@ -101,7 +101,7 @@ export const moveToTrash = async (ctx: Ctx, path: string): Promise<boolean> => {
 export const restore = async (ctx: Ctx, entry: Entry) => {
   // only back into a registered workspace, never out of it (docs/adr/0048)
   const ws = ctx.store.get().workspaces.find((w) => w === entry.workspace);
-  if (!ws || !underRoot(ws, rel(ws, entry.original)) || !entry.original.startsWith(`${ws}/`)) return ctx.toast(`元の場所がワークスペースの外なので戻せません：${entry.original}`);
+  if (!ws || !underRoot(ws, rel(ws, entry.original)) || !entry.original.startsWith(`${ws}/`)) return void ctx.notify({ message: `元の場所がワークスペースの外なので戻せません：${entry.original}`, level: "error", sticky: true });
   const dir = `${await api.trashDir()}/${entry.id}`;
   const parent = dirname(entry.original);
   const name = await freeName(fs, parent, basename(entry.original));

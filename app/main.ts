@@ -11,6 +11,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { Ctx } from "./ctx.ts";
 import { allDocs, createStore, initialState, type State } from "./store.ts";
 import { confirmDialog, toast } from "./ui/dom.ts";
+import { notify } from "./ui/notices.ts";
 import { guardLinks } from "./links.ts";
 import { item } from "./ui/settings.ts";
 import { debugBuild } from "./build.ts";
@@ -86,6 +87,7 @@ const start = async () => {
       store.dispatch({ type: "workspaces", workspaces: config.workspaces });
     },
     toast,
+    notify,
     left: {},
     right: {},
     status: [],

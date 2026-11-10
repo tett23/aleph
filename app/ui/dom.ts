@@ -1,12 +1,10 @@
 // Small DOM helpers: toast, ask (Tauri's WebView has no window.prompt), confirm and menu.
 import { esc } from "../esc.ts";
 import { h } from "../icons.ts";
+import { notify } from "./notices.ts";
 
-export const toast = (msg: string) => {
-  const t = h(`<div class="toast">${esc(msg)}</div>`);
-  document.body.append(t);
-  setTimeout(() => t.remove(), 3500);
-};
+/** An information that goes after a while (docs/adr/0064). */
+export const toast = (msg: string) => void notify({ message: msg });
 
 const dialog = (title: string, body: string, ok: string) =>
   h(`<div class="dim"><div class="modal small"><div class="mtitle">${esc(title)}</div>${body}

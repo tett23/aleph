@@ -24,6 +24,7 @@ import {
 import { focused } from "./store.ts";
 import { golem } from "./tools.ts";
 import { uiState } from "./uistate.ts";
+import { notifications } from "./ui/notices.ts";
 
 const KEY = "buildOptions";
 const results = new Map<string, BuildResult>();
@@ -50,9 +51,14 @@ export const mountProjectBuild = (ctx: Ctx) => {
     running.delete(project);
     ctx.refresh(["status", "problems"]);
     const errors = r.items.filter((d) => d.severity === "error").length;
-    if (r.failed) ctx.toast("ビルドできませんでした");
-    else if (errors) ctx.toast(`ビルドでエラーが ${errors} 件あります`);
-    else ctx.toast(`ビルドしました（${r.seconds.toFixed(1)} 秒）`);
+    const open = [{ label: "問題のパネルを開く", run: () => ctx.statusActions.problems?.(ctx) }];
+    if (r.failed) ctx.notify({ message: "ビルドできませんでした", level: "error", sticky: true, actions: open, key: `build:${project}` });
+    else if (errors) ctx.notify({ message: `ビルドでエラーが ${errors} 件あります`, level: "error", sticky: true, actions: open, key: `build:${project}` });
+    else {
+      // the last build's failure no longer holds
+      notifications().dismissKey(`build:${project}`);
+      ctx.toast(`ビルドしました（${r.seconds.toFixed(1)} 秒）`);
+    }
     if (r.failed || errors) ctx.statusActions.problems?.(ctx);
   });
 

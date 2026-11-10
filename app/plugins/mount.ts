@@ -25,7 +25,7 @@ const current = (s: State): Current => {
 };
 
 export const mountPlugins = async (ctx: Ctx) => {
-  const host = createHost(ctx.toast);
+  const host = createHost(ctx.toast, (m) => void ctx.notify({ message: m, level: "error", sticky: true }));
   let dir = "";
   let results: LoadResult[] = [];
   let mine: Command[] = [];
@@ -88,15 +88,15 @@ export const mountPlugins = async (ctx: Ctx) => {
         c.config.disabledPlugins = c.config.disabledPlugins.includes(name) ? c.config.disabledPlugins.filter((n) => n !== name) : [...c.config.disabledPlugins, name];
         await c.saveConfig();
       } else if (t.dataset.plgRm !== undefined) {
-        const removed = await api.removePlugin(t.dataset.plgRm).catch((e) => void c.toast(String(e)));
+        const removed = await api.removePlugin(t.dataset.plgRm).catch((e) => void c.notify({ message: String(e), level: "error", sticky: true }));
         if (!removed) return false;
         c.toast(`${t.dataset.plgRm} を外しました`);
       } else if (t.dataset.plg === "install") {
-        const name = await api.installPlugin().catch((e) => void c.toast(String(e)));
+        const name = await api.installPlugin().catch((e) => void c.notify({ message: String(e), level: "error", sticky: true }));
         if (!name) return false;
         c.toast(`${name} を入れました`);
       } else if (t.dataset.plg === "open") {
-        await api.openPluginsFolder().catch((e) => c.toast(String(e)));
+        await api.openPluginsFolder().catch((e) => c.notify({ message: String(e), level: "error", sticky: true }));
         return false;
       } else if (t.dataset.plg !== "reload") return false;
       await load();
