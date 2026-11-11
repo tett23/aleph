@@ -42,6 +42,26 @@ pub fn resolve(p: &Path) -> Option<PathBuf> {
         .flatten()
 }
 
+/// The registered workspace containing a rename source. Moving any registered
+/// workspace, including one nested in another, is outside the rename operation.
+pub fn workspace_for_rename(config: &Value, source: &Path) -> Option<PathBuf> {
+    let roots: Vec<PathBuf> = config
+        .get("workspaces")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter_map(|p| Path::new(p).canonicalize().ok())
+        .collect();
+    if roots.iter().any(|root| root.starts_with(source)) {
+        return None;
+    }
+    roots
+        .into_iter()
+        .filter(|root| source.starts_with(root))
+        .max_by_key(|root| root.components().count())
+}
+
 fn canon(p: &Path) -> Option<PathBuf> {
     (!p.as_os_str().is_empty())
         .then(|| p.canonicalize().ok())
@@ -361,6 +381,23 @@ mod tests {
         let config = json!({ "workspaces": [d.join("gone").to_str().unwrap()] });
         let r = Reach::new(&config, &d.join("cfg"), &d.join("cache"), &[]);
         assert!(r.check(&d.join("gone/a.gm"), Access::Read).is_err());
+    }
+
+    #[test]
+    fn adr_0070_2_a_registered_nested_workspace_and_its_ancestors_cannot_be_renamed() {
+        let (d, _) = setup("rename-workspaces");
+        std::fs::create_dir_all(d.join("ws/a/b")).unwrap();
+        let config = json!({ "workspaces": [d.join("ws").to_str().unwrap(), d.join("ws/a/b").to_str().unwrap()] });
+        for source in [d.join("ws"), d.join("ws/a"), d.join("ws/a/b")] {
+            assert!(workspace_for_rename(&config, &source.canonicalize().unwrap()).is_none());
+        }
+        assert_eq!(
+            workspace_for_rename(
+                &config,
+                &d.join("ws/a/b").canonicalize().unwrap().join("sheet.gm")
+            ),
+            Some(d.join("ws/a/b").canonicalize().unwrap())
+        );
     }
 
     fn args(a: &[&str]) -> Vec<String> {

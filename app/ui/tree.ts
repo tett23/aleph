@@ -14,6 +14,7 @@ import { golem } from "../tools.ts";
 import { ask, menu, toast, type MenuItem } from "./dom.ts";
 import { item } from "./settings.ts";
 import { revealItems } from "../reveal.ts";
+import { canRenameTreeItem, renameTarget } from "../tree-rename.ts";
 
 const ICONS: Record<string, string> = {
   gm: "file-text",
@@ -116,6 +117,32 @@ const draw = (el: HTMLElement, ctx: Ctx) => {
 const targetDir = (ctx: Ctx) => {
   const d = focused(ctx.store.get());
   return d ? dirname(d.path) : ctx.store.get().workspace;
+};
+
+/** Both rename entry points operate on the row that was activated. */
+const renameTreeItem = async (ctx: Ctx, from: string) => {
+  if (!canRenameTreeItem(from, ctx.store.get().workspaces, ctx.projects)) return;
+  const name = await ask("名前を変える", basename(from));
+  if (name === null) return;
+  const to = renameTarget(from, name);
+  if (!to) return;
+  try {
+    if (await api.exists(to)) return toast(`${name} はもうあります`);
+    const open = allDocs(ctx.store.get())
+      .filter((d) => d.path === from || d.path.startsWith(`${from}/`))
+      .map((d) => d.path);
+    if (open.length) await ctx.save(open);
+    // mayWrite can decline a save when an external edit conflicts with it.
+    if (allDocs(ctx.store.get()).some((d) => open.includes(d.path) && (ctx.editors.get(d.path)?.text() ?? d.text) !== d.saved)) return;
+    for (const f of ctx.beforeRename) await f(from, to, ctx);
+    await api.rename(from, to);
+    ctx.store.dispatch({ type: "rename", from, to });
+    for (const f of ctx.onRename) await f(from, to, ctx);
+    await reloadTree(ctx);
+    ctx.refresh(["left"]);
+  } catch (error) {
+    notifyError(String(error));
+  }
 };
 
 /** Adds a folder the writer picks in a native dialog that Rust opens (docs/adr/0050). */
@@ -227,25 +254,18 @@ export const mountTree = (ctx: Ctx) => {
       };
       el.ondblclick = async (e) => {
         const t = (e.target as HTMLElement).closest<HTMLElement>("[data-file]");
-        if (!t || t.dataset.plot) return;
-        const from = t.dataset.file!;
-        const name = await ask("名前を変える", basename(from));
-        if (!name || name === basename(from)) return;
-        const to = `${dirname(from)}/${name}`;
-        if (await api.exists(to)) return toast(`${name} はもうあります`);
-        // an open sheet is saved first, so its unsaved text goes with it (docs/adr/0011)
-        if (allDocs(ctx.store.get()).some((d) => d.path === from)) await ctx.save([from]);
-        await api.rename(from, to);
-        ctx.store.dispatch({ type: "rename", from, to });
-        for (const f of ctx.onRename) await f(from, to, ctx);
-        await reloadTree(ctx);
-        draw(el, ctx);
+        if (t?.dataset.file) await renameTreeItem(ctx, t.dataset.file);
       };
     },
   };
 
   // "Finder で表示" for files, folders and projects (docs/adr/0053)
   treeMenus.push((p) => revealItems(p, (x) => void api.revealPath(x).catch((e) => notifyError(String(e))), icon("folder", 14)));
+  treeMenus.push((p) =>
+    canRenameTreeItem(p, ctx.store.get().workspaces, ctx.projects)
+      ? [{ label: "名前を変える", icon: icon("pencil", 14), run: () => void renameTreeItem(ctx, p) }]
+      : [],
+  );
 
   // a row's right-click: the items the other parts add
   document.addEventListener("contextmenu", (e) => {

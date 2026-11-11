@@ -275,12 +275,19 @@ export const reduce = (s: State, a: Action): State => {
       return mapTabs(s, (d) => (d.path === a.path ? { ...d, text: a.text } : d));
     case "saved":
       return mapTabs(s, (d) => (d.path === a.path ? { ...d, saved: a.text } : d));
-    case "rename":
+    case "rename": {
+      const panes = s.panes.map((p) => ({ ...p, tabs: p.tabs.map((t) => ({
+        ...t,
+        open: t.open.map((d) => ({ ...d, path: moved(d.path, a.from, a.to), project: d.project && moved(d.project, a.from, a.to) })),
+        plot: t.plot && moved(t.plot, a.from, a.to),
+      })) }));
       return {
-        ...mapTabs(s, (d) => ({ ...d, path: moved(d.path, a.from, a.to) })),
-        selected: s.selected.map((p) => (p === a.from ? a.to : p)),
-        anchor: s.anchor === a.from ? a.to : s.anchor,
+        ...withPanes(s, panes),
+        selected: s.selected.map((p) => moved(p, a.from, a.to)),
+        anchor: s.anchor && moved(s.anchor, a.from, a.to),
+        expanded: s.expanded.map((p) => moved(p, a.from, a.to)),
       };
+    }
     case "select":
       return { ...s, selected: a.paths, anchor: a.anchor === undefined ? s.anchor : a.anchor };
     case "left":

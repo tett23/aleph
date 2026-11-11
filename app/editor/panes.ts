@@ -18,6 +18,8 @@ import { api } from "../api.ts";
 import { revealItems, tabTarget } from "../reveal.ts";
 import { menu } from "../ui/dom.ts";
 
+import { bindEditorDoc } from "./binding.ts";
+
 const tabKey = (t: Tab) => String(t.id);
 
 /** Whether a tab's sheets are written vertically: the switch is on and every sheet can be. */
@@ -31,7 +33,7 @@ export const tabTitle = (ctx: Ctx, t: Tab) => {
 };
 
 /** A tab's DOM: its editors by sheet path (in the tab's order), kept while the tab lives. */
-type View = { el: HTMLElement; host: HTMLElement | null; editors: Map<string, Editor>; vertical: boolean };
+type View = { el: HTMLElement; host: HTMLElement | null; editors: Map<string, Editor>; docs: ReturnType<typeof bindEditorDoc>[]; vertical: boolean };
 
 const SPLIT_KEY = "splitRatio";
 
@@ -50,7 +52,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
     let paneEls: HTMLElement[] = [];
 
     const build = (s: State, t: Tab): View => {
-      const view: View = { el: h(`<div class="tabview"></div>`), host: null, editors: new Map(), vertical: tabVertical(s, t) };
+      const view: View = { el: h(`<div class="tabview"></div>`), host: null, editors: new Map(), docs: t.open.map(bindEditorDoc), vertical: tabVertical(s, t) };
       if (t.plot) {
         const ed = ctx.kindViews.plot?.(view.el, { path: `${t.plot}/plot.csv`, project: t.plot } as Doc, ctx);
         if (ed) view.editors.set(`plot:${t.plot}`, ed);
@@ -68,7 +70,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
           ? h(`<section class="msec"><div class="mhead">${esc(ctx.titles.get(doc.path) ?? stem(doc.path))}<small>${esc(doc.workspace ? rel(doc.workspace, doc.path) : doc.path)}</small></div><div class="mhost"></div></section>`)
           : h(`<div class="mhost single-host"></div>`);
         host.append(sec);
-        const ed = editorFor(sec.querySelector<HTMLElement>(".mhost") ?? sec, doc, i, many ? host : undefined);
+        const ed = editorFor(sec.querySelector<HTMLElement>(".mhost") ?? sec, view.docs[i].doc, i, many ? host : undefined);
         view.editors.set(doc.path, ed);
         ctx.editors.set(doc.path, ed);
       });
@@ -136,6 +138,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
           if (v.el.parentElement !== body) body.append(v.el);
           // a renamed sheet keeps its editor under the new path
           if (!t.plot && [...v.editors.keys()].join("\n") !== t.open.map((d) => d.path).join("\n")) {
+            for (const [i, doc] of t.open.entries()) v.docs[i].update(doc);
             const eds = [...v.editors.entries()];
             v.editors = new Map(t.open.map((d, i) => [d.path, eds[i][1]]));
             eds.forEach(([old, ed]) => ctx.editors.get(old) === ed && ctx.editors.delete(old));
