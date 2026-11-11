@@ -50,3 +50,23 @@ test("Golem ADR 0338 R3: an application failure rolls back only applied document
   }));
   assert.deepEqual([...files], [["a", "old a"], ["b", "old b"]]);
 });
+
+test("Golem ADR 0338 R2: non-ASCII file URI and UTF-16 surrogate boundary", () => {
+  const path = `${root}/章 1.gm`;
+  const snapshots = new Map([[path, { text: "😀 a.gm", version: 4 }]]);
+  const response = { documentChanges: [edit("章 1.gm", 4, [{ line: 0, start: 3, end: 7, text: "b.gm" }])] };
+  assert.equal(planFileRename(root, response, snapshots)[0].after, "😀 b.gm");
+  assert.throws(() => planFileRename(root, { documentChanges: [edit("章 1.gm", 4, [{ line: 0, start: 1, end: 7, text: "b.gm" }])] }, snapshots));
+});
+
+test("Golem ADR 0338 R3: rollback leaves a concurrently changed document alone", async () => {
+  const files = new Map([["a", "old a"]]);
+  const plan: FileEditPlan = { path: "a", before: "old a", after: "new a", version: null, changes: [] };
+  const rollback = await applyFileRenamePlans([plan], {
+    read: async (path) => files.get(path)!,
+    write: async (path, text) => { files.set(path, text); },
+  });
+  files.set("a", "newer user edit");
+  await assert.rejects(rollback, /Could not roll back all rename edits/);
+  assert.equal(files.get("a"), "newer user edit");
+});
