@@ -190,6 +190,32 @@ fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
     std::fs::rename(from, to)
 }
 
+pub fn create_entry(path: &Path, dir: bool) -> std::io::Result<()> {
+    let name = path
+        .file_name()
+        .and_then(|part| part.to_str())
+        .unwrap_or_default();
+    if name.is_empty() || name == "." || name == ".." || name.contains('\\') {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "名前には一つの名前だけを指定してください",
+        ));
+    }
+    let parent = path.parent().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "親フォルダがありません")
+    })?;
+    not_link(parent)?;
+    if dir {
+        std::fs::create_dir(path)
+    } else {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .map(|_| ())
+    }
+}
+
 pub fn write_text(path: &Path, content: &str) -> std::io::Result<()> {
     not_link(path)?;
     if let Some(parent) = path.parent() {
@@ -314,6 +340,30 @@ pub mod testdir {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn adr_0065_1_and_2_creates_one_entry_and_preserves_existing() {
+        let root = testdir::fresh("tree-create");
+        let nested = root.join("draft");
+        std::fs::create_dir(&nested).unwrap();
+        for parent in [&root, &nested] {
+            let sheet = parent.join("opening.gm");
+            create_entry(&sheet, false).unwrap();
+            assert_eq!(std::fs::read(&sheet).unwrap(), b"");
+            std::fs::write(&sheet, "original").unwrap();
+            assert!(create_entry(&sheet, false).is_err());
+            assert_eq!(std::fs::read_to_string(&sheet).unwrap(), "original");
+            let folder = parent.join("images");
+            create_entry(&folder, true).unwrap();
+            assert!(create_entry(&folder, true).is_err());
+            assert_eq!(
+                std::fs::read_dir(parent).unwrap().count(),
+                if parent == &root { 3 } else { 2 }
+            );
+        }
+        assert!(create_entry(&root.join("missing/child"), false).is_err());
+        assert!(!root.join("missing").exists());
+    }
 
     #[test]
     fn adr_0070_1_protects_only_the_project_root_files() {
