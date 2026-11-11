@@ -36,6 +36,8 @@ With page refresh on save enabled, ⌘S refreshes the PDF preview immediately wh
 
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
 
+In the text editor, press Escape or Control-E to dismiss suggestions. With suggestions closed, Control-E moves to the end of the logical line. Each shortcut’s context can be changed in the key binding settings.
+
 ## Status
 
 The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, the conversion from Markdown, and plugins.

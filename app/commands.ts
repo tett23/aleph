@@ -1,6 +1,7 @@
 // The command registry (docs/adr/0023): every action has an id, a name, a check
 // for whether it can run, and default keys; the toolbar menu, the palette and
 // the keys all read from it.
+import type { Binding, BindingContext } from "./keymap.ts";
 import { fuzzy } from "./fuzzy.ts";
 import { isMac } from "./ed/keys.ts";
 import type { Ctx } from "./ctx.ts";
@@ -13,7 +14,8 @@ export type Command = {
   when: (s: State) => boolean;
   run: (ctx: Ctx) => void | Promise<void>;
   /** Default key bindings (docs/adr/0034 may change them). */
-  keys?: string[];
+  keys?: Binding[];
+  keyContexts?: readonly BindingContext[];
   /** Shown in the toolbar menu. */
   menu?: boolean;
   /** "editor": runs only while a text editor has the focus (its keys are taken by the editor). */

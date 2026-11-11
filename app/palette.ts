@@ -131,7 +131,7 @@ const focusedEdit = (ctx: Ctx) => {
 };
 
 /** An editor command: run in the focused sheet's editor, which takes the focus back first. */
-const editorCommand = (id: string, label: string, icon: string, keys?: string[], menu = false): Command => ({
+const editorCommand = (id: string, label: string, icon: string, keys?: Command["keys"], menu = false): Command => ({
   id,
   label,
   icon,
@@ -258,4 +258,14 @@ export const mountCommands = (ctx: Ctx) => {
     ["editor.format", "整形", "wand-sparkles", ["Shift-Alt-f"], true],
   ];
   for (const [id, label, ic, keys, menu] of editorCommands) add(withEdit(id, editorCommand(id, label, ic, keys, menu)));
+  add({
+    ...editorCommand("editor.dismissCompletion", "サジェストを閉じる", "x", ["Escape", "Ctrl-e"]),
+    keyContexts: ["completionVisible"],
+    when: () => hasEdit() && !!focusedEdit(ctx)?.completionVisible(),
+  });
+  add({
+    ...withEdit("editor.moveToLineEnd", editorCommand("editor.moveToLineEnd", "行末に移動", "arrow-right")),
+    keys: [{ key: "Ctrl-e", context: "completionHidden" }],
+    keyContexts: ["editor"],
+  });
 };

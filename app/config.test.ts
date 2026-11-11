@@ -104,3 +104,25 @@ test("ADR 0067 invariant 2: visibility defaults and invalid types", () => {
   assert.deepEqual([normalize({ showHiddenFiles: "yes", showGitignoredFiles: 0 }).showHiddenFiles, normalize({ showHiddenFiles: "yes", showGitignoredFiles: 0 }).showGitignoredFiles], [false, true]);
   assert.deepEqual([normalize({ showHiddenFiles: true, showGitignoredFiles: false }).showHiddenFiles, normalize({ showHiddenFiles: true, showGitignoredFiles: false }).showGitignoredFiles], [true, false]);
 });
+
+test("ADR 0073 invariant 2: configuration keeps contextual entries and discards malformed entries", () => {
+  const settings = normalize({ keyBindings: {
+    "editor.moveToLineEnd": [
+      { key: "Ctrl-e", context: "completionHidden" },
+      { key: 5, context: "editor" },
+    ],
+  } });
+  assert.deepEqual(settings.keyBindings["editor.moveToLineEnd"], [{ key: "Ctrl-e", context: "completionHidden" }]);
+});
+
+test("ADR 0073 invariant 2: normalization discards unsupported binding contexts before commands register", () => {
+  const settings = normalize({ keyBindings: {
+    "editor.moveToLineEnd": [
+      { key: "Ctrl-e", context: "completionHidden" },
+      { key: "F8", context: "unknown" },
+      { key: "F9", context: 3 },
+      { key: "F10", context: "all" },
+    ],
+  } });
+  assert.deepEqual(settings.keyBindings["editor.moveToLineEnd"], [{ key: "Ctrl-e", context: "completionHidden" }]);
+});
