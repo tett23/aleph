@@ -1,6 +1,7 @@
 // Building a project from Aleph (docs/adr/0058): the toolbar's button and its
 // popup, the commands, the status item, and the diagnostics for the problems panel.
 import { api } from "./api.ts";
+import { createBuildLogs, revealBuildAction } from "./buildlog.ts";
 import { withBuildDir } from "./buildlock.ts";
 import { addCommands } from "./commands.ts";
 import type { Ctx } from "./ctx.ts";
@@ -28,7 +29,7 @@ import { notifications } from "./ui/notices.ts";
 
 const KEY = "buildOptions";
 const results = new Map<string, BuildResult>();
-const running = new Set<string>();
+export const buildLogs = createBuildLogs();
 
 /** The last build's diagnostics of a project, for the problems panel. */
 export const buildProblems = (project: string): Problem[] => fromGolem(project, "build", results.get(project)?.items ?? []);
@@ -42,13 +43,13 @@ export const mountProjectBuild = (ctx: Ctx) => {
   const projectNow = () => focused(ctx.store.get())?.project ?? null;
 
   const run = createRunner(async (project) => {
-    running.add(project);
-    ctx.refresh(["status"]);
     const started = performance.now();
-    const o = await withBuildDir(project, () => golem(ctx, project, buildArgs(options()))).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
+    const args = buildArgs(options());
+    const pending = buildLogs.run(project, args, () => withBuildDir(project, () => golem(ctx, project, args)));
+    ctx.refresh(["status", "problems"]);
+    const o = await pending;
     const r: BuildResult = { ...readBuildResult(o.code, o.stderr, o.stdout), seconds: (performance.now() - started) / 1000 };
     results.set(project, r);
-    running.delete(project);
     ctx.refresh(["status", "problems"]);
     const errors = r.items.filter((d) => d.severity === "error").length;
     const open = [{ label: "問題のパネルを開く", run: () => ctx.statusActions.problems?.(ctx) }];
@@ -57,7 +58,7 @@ export const mountProjectBuild = (ctx: Ctx) => {
     else {
       // the last build's failure no longer holds
       notifications().dismissKey(`build:${project}`);
-      ctx.toast(`ビルドしました（${r.seconds.toFixed(1)} 秒）`);
+      ctx.notify({ message: `ビルドしました（${r.seconds.toFixed(1)} 秒）`, actions: [revealBuildAction(project, reveal)] });
     }
     if (r.failed || errors) ctx.statusActions.problems?.(ctx);
   });
@@ -67,7 +68,7 @@ export const mountProjectBuild = (ctx: Ctx) => {
     if (!p) return ctx.toast("Golem のプロジェクトのシートを開いてから実行してください");
     void run(p);
   };
-  const reveal = (project: string) => void api.revealPath(`${project}/build`).catch(() => ctx.toast("build/ はまだありません"));
+  const reveal = (path: string) => void api.revealPath(path).catch((error) => ctx.notify({ message: String(error), level: "error", sticky: true }));
 
   // the popup under the toolbar's button
   let popup: HTMLElement | null = null;
@@ -111,7 +112,7 @@ export const mountProjectBuild = (ctx: Ctx) => {
         return draw(readBuildOptions(next));
       }
       const act = t.closest<HTMLElement>("[data-act]")?.dataset.act;
-      if (act === "reveal") return reveal(project);
+      if (act === "reveal") return reveal(`${project}/build`);
       if (act === "build") {
         closePopup();
         void run(project);
@@ -137,10 +138,9 @@ export const mountProjectBuild = (ctx: Ctx) => {
   ctx.status.push((s) => {
     const project = focused(s)?.project;
     if (!project) return "";
-    const st = buildStatus(results.get(project) ?? null, running.has(project));
-    return st ? `<span class="chk ${st.cls === "running" ? "running" : st.cls}" data-status="build" title="ビルドの診断を問題のパネルに出す">${esc(st.text)}</span>` : "";
+    const st = buildStatus(results.get(project) ?? null, buildLogs.get(project)?.result.state === "running");
+    return st ? `<span class="chk ${st.cls === "running" ? "running" : st.cls}" data-status="build" title="ビルドログを開く">${esc(st.text)}</span>` : "";
   });
-  ctx.statusActions.build = (c) => c.statusActions.problems?.(c);
 
   addCommands(
     ctx.commands,

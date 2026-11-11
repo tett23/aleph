@@ -65,3 +65,7 @@ test("the runner: one build at a time per project; asks meanwhile make one more 
   await new Promise((r) => setTimeout(r, 0));
   assert.deepEqual(runs, ["/p", "/p"]);
 });
+
+test("ADR 0069 invariant 1: an unsuccessful exit with valid diagnostics cannot reveal a successful build", () => {
+  assert.equal(readBuildResult(1, "[]", "").failed, true);
+});
