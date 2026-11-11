@@ -47,6 +47,7 @@ export type TextEditor = {
   command: (id: string) => boolean;
   /** Whether the editor has a command by that id. */
   hasCommand: (id: string) => boolean;
+  completionVisible: () => boolean;
 };
 
 export type Editor = {
@@ -89,6 +90,7 @@ export type EditorOptions = {
   onFocus?: () => void;
   /** After the caret moves (for the status bar). */
   onCaret?: () => void;
+  onCompletionChange?: () => void;
   plugins?: EditorPlugin[];
   /**
    * The app's key bindings (docs/adr/0034), asked before the editor's own
@@ -169,6 +171,16 @@ export const createEditor = (o: EditorOptions): Editor => {
     o.onCaret?.();
   };
 
+  const moveToLineEnd = () => {
+    if (view.composing()) return false;
+    const pos = core.doc().lineAt(core.sel().head).to;
+    core.select({ anchor: pos, head: pos }, true);
+    view.syncSelection();
+    view.revealCaret();
+    o.onCaret?.();
+    return true;
+  };
+
   const KEYS: { id?: string; key: string; run: () => boolean }[] = [
     { id: "file.save", key: "Mod-s", run: () => (o.onSave(), true) },
     { id: "editor.undo", key: "Mod-z", run: () => (core.undo() && view.revealCaret(), true) },
@@ -177,12 +189,17 @@ export const createEditor = (o: EditorOptions): Editor => {
     { id: "editor.selectAll", key: "Mod-a", run: () => (selectAll(), true) },
     { id: "editor.find", key: "Mod-f", run: () => (openSearch(), true) },
     { id: "editor.complete", key: "Ctrl-Space", run: () => (scheduleComplete(true), true) },
+    { id: "editor.dismissCompletion", key: "Escape", run: () => {
+      if (!completion || view.composing()) return false;
+      closeCompletion();
+      return true;
+    } },
+    { id: "editor.moveToLineEnd", key: "Ctrl-e", run: moveToLineEnd },
     { id: "editor.indent", key: "Tab", run: () => (doIndent(1), true) },
     { id: "editor.outdent", key: "Shift-Tab", run: () => (doIndent(-1), true) },
     {
       key: "Escape",
       run: () => {
-        if (completion) return closeCompletion(), true;
         if (hoverEl) return hideHover(), true;
         if (search) return closeSearch(), true;
         return false;
@@ -194,7 +211,7 @@ export const createEditor = (o: EditorOptions): Editor => {
     if (completion && completion.list.key(e)) return true;
     if (o.keys) {
       if (o.keys(e)) return true;
-      return KEYS.some((k) => k.key === "Escape" && matchKey(k.key, e) && k.run());
+      return KEYS.some((k) => !k.id && k.key === "Escape" && matchKey(k.key, e) && k.run());
     }
     for (const p of plugins) for (const k of p.keys ?? []) if (matchKey(k.key, e) && k.run()) return true;
     for (const k of KEYS) if (matchKey(k.key, e) && k.run()) return true;
@@ -213,17 +230,20 @@ export const createEditor = (o: EditorOptions): Editor => {
   // ---- completion ----
 
   const closeCompletion = () => {
+    const wasVisible = completion !== null;
     completion?.list.close();
     completion = null;
     clearTimeout(completeTimer);
+    completeSeq++;
+    if (wasVisible) o.onCompletionChange?.();
   };
 
   const scheduleComplete = (explicit: boolean) => {
     const p = plugins.find((x) => x.complete);
     if (!p) return;
     clearTimeout(completeTimer);
+    const seq = ++completeSeq;
     completeTimer = window.setTimeout(async () => {
-      const seq = ++completeSeq;
       const pos = core.sel().head;
       const r = await p.complete!(pos, explicit).catch(() => null);
       if (seq !== completeSeq || core.sel().head !== pos || view.composing()) return;
@@ -241,6 +261,7 @@ export const createEditor = (o: EditorOptions): Editor => {
           view.revealCaret();
         }),
       };
+      o.onCompletionChange?.();
     }, explicit ? 0 : 120);
   };
 
@@ -432,6 +453,7 @@ export const createEditor = (o: EditorOptions): Editor => {
       return k ? k.run() : false;
     },
     hasCommand: (id) => plugins.some((p) => p.keys?.some((k) => k.id === id)) || KEYS.some((x) => x.id === id),
+    completionVisible: () => completion !== null,
     diagnostics: () =>
       currentDiags().map((d) => {
         const l = core.doc().lineAt(d.from);

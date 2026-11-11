@@ -7,7 +7,39 @@ import type { KeyEvent } from "./ed/keys.ts";
 /** One stroke, canonical: the modifiers in the order Mod, Ctrl, Shift, Alt, then the key ("Mod-Shift-k", "g", "F1"). */
 export type Stroke = string;
 /** A command's binding read into strokes. */
-export type Bound = { id: string; strokes: Stroke[] };
+export type BindingContext = "editor" | "completionVisible" | "completionHidden";
+export type KeyContext = "outside" | "completionVisible" | "completionHidden";
+export type Binding = string | { key: string; context: BindingContext };
+export type Bound = { id: string; strokes: Stroke[]; context?: BindingContext; available?: KeyContext[] };
+export type Cmd = { id: string; keys?: Binding[]; scope?: "editor"; keyContexts?: readonly BindingContext[] };
+export const isBinding = (value: unknown): value is Binding => {
+  if (typeof value === "string") return true;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const { key, context } = value as Record<string, unknown>;
+  return typeof key === "string" &&
+    (context === "editor" || context === "completionVisible" || context === "completionHidden");
+};
+const ALL_CONTEXTS: KeyContext[] = ["outside", "completionVisible", "completionHidden"];
+const EDITOR_CONTEXTS: KeyContext[] = ["completionVisible", "completionHidden"];
+export const bindingContext = (binding: Binding): "all" | BindingContext =>
+  typeof binding === "string" ? "all" : binding.context;
+export const bindingKey = (binding: Binding): string =>
+  typeof binding === "string" ? binding : binding.key;
+const stateSet = (context: "all" | BindingContext): KeyContext[] =>
+  context === "all" ? ALL_CONTEXTS : context === "editor" ? EDITOR_CONTEXTS : [context];
+const allowedStates = (command: Cmd | undefined, context: "all" | BindingContext): KeyContext[] => {
+  const scope = command?.scope === "editor" ? EDITOR_CONTEXTS : ALL_CONTEXTS;
+  const conditions = command?.keyContexts?.length
+    ? command.keyContexts.flatMap(stateSet)
+    : ALL_CONTEXTS;
+  return stateSet(context).filter((state) => scope.includes(state) && conditions.includes(state));
+};
+export const allowedContexts = (command: Cmd): ("all" | BindingContext)[] =>
+  (["all", "editor", "completionVisible", "completionHidden"] as const)
+    .filter((context) => allowedStates(command, context).length > 0);
+export const overlapKey = (id: string, strokes: Stroke[], context: "all" | BindingContext = "all") =>
+  `${id} ${strokes.join(" ")}${context === "all" ? "" : ` @${context}`}`;
+
 /** The strokes pressed so far of a sequence, and when the last one was pressed. */
 export type Pending = { strokes: Stroke[]; at: number } | null;
 
@@ -57,8 +89,8 @@ export const canonical = (s: string): Stroke | null => {
 };
 
 /** A binding ("Mod-k Mod-s", "Leader g c") read into strokes with Leader replaced; null when unreadable. */
-export const readBinding = (b: string, leader: Stroke): Stroke[] | null => {
-  const words = b.trim().split(/\s+/).filter(Boolean);
+export const readBinding = (b: Binding, leader: Stroke): Stroke[] | null => {
+  const words = bindingKey(b).trim().split(/\s+/).filter(Boolean);
   if (!words.length) return null;
   const strokes = words.map((w) => (w === "Leader" ? leader : canonical(w)));
   return strokes.every((s): s is Stroke => s !== null) ? strokes : null;
@@ -86,51 +118,65 @@ export const leaderOf = (v: unknown): Stroke => {
   return s && !unusableFirst(s) && !reservedKey(s) ? s : DEFAULT_LEADER;
 };
 
-type Cmd = { id: string; keys?: string[] };
-
 /** Every command's bindings: the user's where set (an empty list unbinds), the defaults otherwise. */
-export const effectiveBindings = (cmds: Cmd[], user: Record<string, string[]>, leader: Stroke): Bound[] =>
-  cmds.flatMap((c) => (user[c.id] ?? c.keys ?? []).flatMap((b) => {
-    const strokes = readBinding(b, leader);
-    return strokes ? [{ id: c.id, strokes }] : [];
+export const effectiveBindings = (cmds: Cmd[], user: Record<string, Binding[]>, leader: Stroke): Bound[] =>
+  [...cmds].sort((left, right) => Number(right.id in user) - Number(left.id in user))
+    .flatMap((command) => (user[command.id] ?? command.keys ?? []).flatMap((binding) => {
+    const strokes = readBinding(binding, leader);
+    if (!strokes) return [];
+    const context = bindingContext(binding);
+    const available = allowedStates(command, context);
+    return available.length ? [{ id: command.id, strokes, ...(context === "all" ? {} : { context }), available }] : [];
   }));
 
-/** The bindings as written in config.json, with unknown ids and bindings that cannot be used dropped. */
-export const cleanBindings = (raw: unknown, known: Set<string>): Record<string, string[]> => {
+/** The bindings as written in config.json, with unknown ids and malformed contexts dropped. */
+export const cleanBindings = (raw: unknown, known: Set<string> | Cmd[]): Record<string, Binding[]> => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const commands = Array.isArray(known) ? known : null;
+  const ids: Set<string> = commands ? new Set(commands.map((command) => command.id)) : known as Set<string>;
   return Object.fromEntries(
-    Object.entries(raw as Record<string, unknown>).flatMap(([id, v]) => {
-      if (!known.has(id) || !Array.isArray(v)) return [];
-      const ok = v.flatMap((b) => {
-        if (typeof b !== "string") return [];
-        const words = b.trim().split(/\s+/);
-        // checked with the default leader; a Leader stroke is always usable
-        const strokes = readBinding(b, DEFAULT_LEADER);
-        if (!strokes || !usable(strokes)) return [];
-        return [words.map((w) => (w === "Leader" ? w : canonical(w)!)).join(" ")];
+    Object.entries(raw as Record<string, unknown>).flatMap(([id, value]) => {
+      if (!ids.has(id) || !Array.isArray(value)) return [];
+      const command = commands?.find((candidate) => candidate.id === id);
+      const bindings: Binding[] = value.flatMap((item) => {
+        if (!isBinding(item)) return [];
+        const context = bindingContext(item);
+        const key = bindingKey(item);
+        const words = key.trim().split(/\s+/);
+        const strokes = readBinding(item, DEFAULT_LEADER);
+        if (!strokes || (!usable(strokes) && !(id === "editor.dismissCompletion" && strokes.length === 1 && strokes[0] === "Escape")) || !allowedStates(command, context).length)
+          return [];
+        const canonicalKey = words.map((word) => word === "Leader" ? word : canonical(word)!).join(" ");
+        return [typeof item === "string" ? canonicalKey : { key: canonicalKey, context: item.context }];
       });
-      return [[id, ok]];
+      return [[id, bindings]];
     }),
   );
 };
 
 const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+const sameBindings = (a: Binding[], b: Binding[]) =>
+  a.length === b.length && a.every((binding, index) =>
+    bindingKey(binding) === bindingKey(b[index]) && bindingContext(binding) === bindingContext(b[index]));
 
 /** The user's bindings after setting a command's (null: back to the default); only what differs from the default is kept. */
-export const setBinding = (user: Record<string, string[]>, cmds: Cmd[], id: string, keys: string[] | null): Record<string, string[]> => {
+export const setBinding = (user: Record<string, Binding[]>, cmds: Cmd[], id: string, keys: Binding[] | null): Record<string, Binding[]> => {
   const { [id]: _, ...rest } = user;
   const def = cmds.find((c) => c.id === id)?.keys ?? [];
-  return keys === null || same(keys, def) ? rest : { ...rest, [id]: keys };
+  return keys === null || sameBindings(keys, def) ? rest : { ...rest, [id]: keys };
 };
 
 const startsWith = (long: Stroke[], short: Stroke[]) => short.length < long.length && short.every((s, i) => s === long[i]);
 
 /** The other commands bound to the same strokes, and those whose binding starts this one or starts with it. */
-export const conflicts = (bound: Bound[], strokes: Stroke[], id: string) => {
-  const others = bound.filter((b) => b.id !== id);
+export const conflicts = (bound: Bound[], strokes: Stroke[], id: string, context: "all" | BindingContext = "all", cmds?: Cmd[]) => {
+  const current = allowedStates(cmds?.find((command) => command.id === id), context);
+  const others = bound.filter((binding) => binding.id !== id &&
+    (binding.available ?? ALL_CONTEXTS).some((state) => current.includes(state)));
   return {
-    same: [...new Set(others.filter((b) => same(b.strokes, strokes)).map((b) => b.id))],
-    prefix: [...new Set(others.filter((b) => startsWith(b.strokes, strokes) || startsWith(strokes, b.strokes)).map((b) => b.id))],
+    same: [...new Set(others.filter((binding) => same(binding.strokes, strokes)).map((binding) => binding.id))],
+    prefix: [...new Set(others.filter((binding) =>
+      startsWith(binding.strokes, strokes) || startsWith(strokes, binding.strokes)).map((binding) => binding.id))],
   };
 };
 
@@ -138,7 +184,7 @@ export const conflicts = (bound: Bound[], strokes: Stroke[], id: string) => {
 const exact = (table: Bound[], strokes: Stroke[]) => table.filter((b) => same(b.strokes, strokes)).map((b) => b.id).slice(0, 1);
 
 /** What the waiting sequence runs when the time is up: an exact match, or nothing. */
-export const expire = (table: Bound[], pending: Pending): string[] => (pending ? exact(table, pending.strokes) : []);
+export const expire = (table: Bound[], pending: Pending, context?: KeyContext): string[] => (pending ? exact(context ? table.filter((binding) => (binding.available ?? ALL_CONTEXTS).includes(context)) : table, pending.strokes) : []);
 
 export type Step = {
   pending: Pending;
@@ -154,11 +200,12 @@ export type Step = {
  * One key press. `stroke` is null for a modifier alone or while the input
  * method composes, which stops the waiting and passes the key on.
  */
-export const press = (table: Bound[], pending: Pending, stroke: Stroke | null, now: number, timeout: number): Step => {
+export const press = (table: Bound[], pending: Pending, stroke: Stroke | null, now: number, timeout: number, context?: KeyContext): Step => {
+  if (context) table = table.filter((binding) => (binding.available ?? ALL_CONTEXTS).includes(context));
   // the time ran out without the timer firing: settle the waiting sequence first
   if (pending && now - pending.at > timeout) {
     const before = expire(table, pending);
-    const r = press(table, null, stroke, now, timeout);
+    const r = press(table, null, stroke, now, timeout, context);
     return { ...r, run: [...before, ...r.run] };
   }
   if (stroke === null) return { pending: null, run: [], take: false, retry: false };
@@ -168,7 +215,7 @@ export const press = (table: Bound[], pending: Pending, stroke: Stroke | null, n
   if (!cands.length) {
     if (!pending) return { pending: null, run: [], take: false, retry: false };
     // the sequence is dropped and the key counts on its own
-    return { ...press(table, null, stroke, now, timeout), retry: true };
+    return { ...press(table, null, stroke, now, timeout, context), retry: true };
   }
   if (cands.some((b) => b.strokes.length > strokes.length)) return { pending: { strokes, at: now }, run: [], take: true, retry: false };
   return { pending: null, run: exact(table, strokes), take: true, retry: false };
@@ -178,11 +225,19 @@ export const press = (table: Bound[], pending: Pending, stroke: Stroke | null, n
 export const writtenBinding = (strokes: Stroke[], leader: Stroke): string => strokes.map((s, i) => (i === 0 && s === leader ? "Leader" : s)).join(" ");
 
 /** The user's bindings with `strokes` taken away from the other commands (replacing, docs/adr/0034). */
-export const takeAway = (user: Record<string, string[]>, cmds: Cmd[], ids: string[], strokes: Stroke[], leader: Stroke): Record<string, string[]> =>
-  ids.reduce((u, id) => {
-    const keys = u[id] ?? cmds.find((c) => c.id === id)?.keys ?? [];
-    return setBinding(u, cmds, id, keys.filter((b) => readBinding(b, leader)?.join(" ") !== strokes.join(" ")));
+export const takeAway = (user: Record<string, Binding[]>, cmds: Cmd[], ids: string[], strokes: Stroke[], leader: Stroke, context: "all" | BindingContext = "all", destinationId?: string): Record<string, Binding[]> =>
+  ids.reduce((updated, id) => {
+    const command = cmds.find((candidate) => candidate.id === id);
+    const source = updated[id] ?? command?.keys ?? [];
+    const target = allowedStates(cmds.find((candidate) => candidate.id === destinationId), context);
+    const kept = source.filter((binding) => {
+      if (!same(readBinding(binding, leader) ?? [], strokes)) return true;
+      const sourceStates = allowedStates(command, bindingContext(binding));
+      return !sourceStates.some((state) => target.includes(state));
+    });
+    return setBinding(updated, cmds, id, kept);
   }, user);
+
 
 /**
  * Every binding that starts another's or is started by one (docs/adr/0040),
@@ -191,8 +246,11 @@ export const takeAway = (user: Record<string, string[]>, cmds: Cmd[], ids: strin
 export const overlaps = (bound: Bound[]): Map<string, string[]> => {
   const out = new Map<string, string[]>();
   for (const b of bound) {
-    const others = conflicts(bound, b.strokes, b.id).prefix;
-    if (others.length) out.set(`${b.id} ${b.strokes.join(" ")}`, others);
+    const others = [...new Set(bound.filter((other) => other.id !== b.id &&
+      (b.available ?? ALL_CONTEXTS).some((state) => (other.available ?? ALL_CONTEXTS).includes(state)) &&
+      (startsWith(other.strokes, b.strokes) || startsWith(b.strokes, other.strokes)))
+      .map((other) => other.id))];
+    if (others.length) out.set(overlapKey(b.id, b.strokes, b.context ?? "all"), others);
   }
   return out;
 };

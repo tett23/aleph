@@ -206,3 +206,77 @@ test("overlaps: each binding that starts or is started by another's, by command 
   assert.deepEqual([...overlaps(effectiveBindings(cmds, user, "Ctrl-j")).keys()].filter((k) => k.startsWith("git")), ["git.status Ctrl-j g", "git.commit Ctrl-j g c"]);
   assert.equal(overlaps(effectiveBindings(cmds, { "git.status": ["Leader x"] }, "Mod-;")).has("git.status Mod-; x"), false);
 });
+
+test("ADR 0073 invariant 2: contextual bindings and standalone Escape survive cleaning and reset", () => {
+  const commands = [
+    { id: "editor.dismissCompletion", keys: ["Escape", "Ctrl-e"], keyContexts: ["completionVisible"] as const },
+    { id: "editor.moveToLineEnd", keys: [{ key: "Ctrl-e", context: "completionHidden" as const }], keyContexts: ["editor"] as const },
+  ];
+  const raw = { "editor.dismissCompletion": ["Escape", { key: "Ctrl-e", context: "completionVisible" }, { key: "Ctrl-e", context: "unknown" }] };
+  assert.deepEqual(cleanBindings(raw, commands), { "editor.dismissCompletion": ["Escape", { key: "Ctrl-e", context: "completionVisible" }] });
+  const escOnly = setBinding({}, commands, "editor.dismissCompletion", ["Escape"]);
+  assert.deepEqual(escOnly, { "editor.dismissCompletion": ["Escape"] });
+  assert.deepEqual(setBinding(escOnly, commands, "editor.dismissCompletion", null), {});
+});
+
+test("ADR 0073 invariant 6: disjoint visible and hidden contexts do not conflict", () => {
+  const commands = [
+    { id: "editor.dismissCompletion", keys: ["Ctrl-e"], keyContexts: ["completionVisible"] as const },
+    { id: "editor.moveToLineEnd", keys: [{ key: "Ctrl-e", context: "completionHidden" as const }], keyContexts: ["editor"] as const },
+  ];
+  const bound = effectiveBindings(commands, {}, "Mod-;");
+  assert.deepEqual(conflicts(bound, ["Ctrl-e"], "editor.dismissCompletion", "completionVisible", commands), { same: [], prefix: [] });
+  assert.deepEqual(conflicts(bound, ["Ctrl-e"], "editor.moveToLineEnd", "editor", commands), { same: ["editor.dismissCompletion"], prefix: [] });
+  assert.deepEqual(takeAway({}, commands, ["editor.moveToLineEnd"], ["Ctrl-e"], "Mod-;", "completionVisible", "editor.dismissCompletion"), {});
+  assert.deepEqual(overlaps(bound), new Map());
+});
+
+test("ADR 0073 invariant 2: a user's overlapping key takes priority over a default, including after reload", () => {
+  const commands = [
+    { id: "editor.dismissCompletion", keys: ["Ctrl-e"], keyContexts: ["completionVisible"] as const },
+    { id: "editor.moveToLineEnd", keys: [{ key: "Ctrl-e", context: "completionHidden" as const }], keyContexts: ["editor"] as const },
+    { id: "editor.custom", keys: [] as string[], keyContexts: ["editor"] as const },
+  ];
+  const user = cleanBindings({ "editor.custom": [{ key: "Ctrl-e", context: "completionVisible" }] }, commands);
+  const table = effectiveBindings(commands, user, DEFAULT_LEADER);
+  assert.deepEqual(press(table, null, "Ctrl-e", 0, T, "completionVisible").run, ["editor.custom"]);
+  assert.deepEqual(press(table, null, "Ctrl-e", 0, T, "completionHidden").run, ["editor.moveToLineEnd"]);
+});
+
+test("ADR 0073 invariant 6: replacement removes the overlapping assignment as one unit", () => {
+  const commands = [
+    { id: "editor.dismissCompletion", keys: [] as string[], keyContexts: ["completionVisible"] as const },
+    { id: "editor.moveToLineEnd", keys: [{ key: "Ctrl-e", context: "editor" as const }], keyContexts: ["editor"] as const },
+  ];
+  assert.deepEqual(takeAway({}, commands, ["editor.moveToLineEnd"], ["Ctrl-e"], DEFAULT_LEADER, "completionVisible", "editor.dismissCompletion"), {
+    "editor.moveToLineEnd": [],
+  });
+});
+
+test("ADR 0073 invariant 6: prefix warnings follow context overlap", () => {
+  const commands = [
+    { id: "editor.visible", keys: [{ key: "Ctrl-e", context: "completionVisible" as const }], keyContexts: ["editor"] as const },
+    { id: "editor.hidden", keys: [{ key: "Ctrl-e g", context: "completionHidden" as const }], keyContexts: ["editor"] as const },
+    { id: "editor.all", keys: [{ key: "Ctrl-e g", context: "editor" as const }], keyContexts: ["editor"] as const },
+  ];
+  const table = effectiveBindings(commands, {}, DEFAULT_LEADER);
+  assert.deepEqual(conflicts(table, ["Ctrl-e"], "editor.visible", "completionVisible", commands), { same: [], prefix: ["editor.all"] });
+  assert.deepEqual(conflicts(table, ["Ctrl-e"], "editor.visible", "completionHidden", commands), { same: [], prefix: ["editor.hidden", "editor.all"] });
+});
+
+test("ADR 0073 invariant 6: a pending sequence loses candidates when its context changes", () => {
+  const bindings: Bound[] = [{ id: "editor.visible", strokes: ["Ctrl-e", "g"], available: ["completionVisible"] }];
+  const waiting = press(bindings, null, "Ctrl-e", 0, T, "completionVisible");
+  assert.equal(waiting.take, true);
+  assert.deepEqual(press(bindings, waiting.pending, "g", 1, T, "completionHidden"), { pending: null, run: [], take: false, retry: true });
+  assert.deepEqual(expire(bindings, waiting.pending, "completionHidden"), []);
+});
+
+
+test("ADR 0073 invariant 6: overlap display ignores disjoint defaults even when one command is visible-only", () => {
+  const commands = [
+    { id: "editor.dismissCompletion", keys: ["Ctrl-e"], keyContexts: ["completionVisible"] as const },
+    { id: "editor.moveToLineEnd", keys: [{ key: "Ctrl-e g", context: "completionHidden" as const }], keyContexts: ["editor"] as const },
+  ];
+  assert.deepEqual(overlaps(effectiveBindings(commands, {}, DEFAULT_LEADER)), new Map());
+});

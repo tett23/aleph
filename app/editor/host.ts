@@ -4,7 +4,7 @@
 import { addCommands } from "../commands.ts";
 import type { Ctx } from "../ctx.ts";
 import { createEditor, type Editor } from "../ed/editor.ts";
-import { dispatchKey } from "../keybind.ts";
+import { dispatchKey, keyContextChanged } from "../keybind.ts";
 import { separatorOf } from "../separator.ts";
 import { markdownHook } from "../preview/render.ts";
 import { allDocs, focused, type Doc } from "../store.ts";
@@ -40,6 +40,7 @@ const editorFor = (el: HTMLElement, doc: Doc, ctx: Ctx, _index: number, scroller
       if (path) ctx.store.dispatch({ type: "focusDoc", path });
     },
     onCaret: () => ctx.refresh(["status"]),
+    onCompletionChange: () => keyContextChanged(ctx),
     onDiagnostics: () => ctx.refresh(["problems", "status"]),
     plugins: ctx.editorPlugins.flatMap((f) => f(doc, ctx) ?? []),
     keys: (e) => dispatchKey(ctx, e, true),
