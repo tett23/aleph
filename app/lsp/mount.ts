@@ -9,6 +9,9 @@ import { argPath, rel } from "../path.ts";
 import { allDocs, focused, type Doc, type State } from "../store.ts";
 import { golem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
+import { treeEntries } from "../ui/tree.ts";
+import { sheetsOf } from "../quickopen.ts";
+import { IMAGE_KINDS, kindOf, TEXT_KINDS, workspaceOf } from "../workspace.ts";
 import { startClient, type Client, type LspDiagnostic } from "./client.ts";
 import { applyFileRenamePlans, pathOfFileUri, planFileRename, type Snapshot, type WorkspaceEdit } from "./file-rename.ts";
 import { completionStart, decodeSemanticTokens, editsToChanges, offsetOf, tokenRanges, uriOf, type TextEdit, type TokenRange } from "./protocol.ts";
@@ -29,6 +32,7 @@ const tokens = new Map<string, { version: number; ranges: TokenRange[] }>();
 const views = new Map<string, TextEditor>();
 
 const lspDoc = (d: Doc) => !!d.project && LSP_KINDS.includes(d.kind);
+const renameDoc = (d: Doc) => !!d.project && ["toml", "md", "csv"].includes(d.kind);
 const languageId = (path: string) => (path.endsWith(".emet") ? "emet" : "golem");
 
 // ---- semantic colours and diagnostics in the editor ----
@@ -62,6 +66,12 @@ const clientFor = (ctx: Ctx, project: string): Client | null => {
   const c = clients.get(project);
   if (c && c.state() !== "failed" && c.state() !== "stopped") return c;
   if (Date.now() - (failedAt.get(project) ?? 0) < RETRY_AFTER) return null;
+  const ws = workspaceOf(project, ctx.store.get().workspaces);
+  const wikiSheets = ws && treeEntries().length
+    ? sheetsOf(treeEntries(), ws, ctx.titles)
+        .filter((sheet) => TEXT_KINDS.includes(kindOf(sheet.path)) || IMAGE_KINDS.includes(kindOf(sheet.path)))
+        .map((sheet) => ({ uri: uriOf(sheet.path), title: sheet.title ?? null }))
+    : undefined;
   const n = startClient(project, {
     onDiagnostics: (uri, list) => {
       const path = [...synced.keys()].find((p) => uriOf(p) === uri);
@@ -75,7 +85,7 @@ const clientFor = (ctx: Ctx, project: string): Client | null => {
       failedAt.set(project, Date.now());
       ctx.refresh(["status"]);
     },
-  }, { plotCsv: uriOf(`${project}/plot.csv`) });
+  }, { plotCsv: uriOf(`${project}/plot.csv`), workspaceUri: ws ? uriOf(ws) : undefined, wikiSheets });
   clients.set(project, n);
   void n.ready.then((ok) => {
     if (!ok) failedAt.set(project, Date.now());
@@ -87,7 +97,7 @@ const clientFor = (ctx: Ctx, project: string): Client | null => {
 
 const openOn = (c: Client, path: string, s: Synced) => {
   c.notify("textDocument/didOpen", { textDocument: { uri: uriOf(path), languageId: languageId(path), version: s.version, text: s.text } });
-  void requestTokens(c, path);
+  if (LSP_KINDS.some((kind) => path.endsWith(`.${kind}`))) void requestTokens(c, path);
 };
 
 const requestTokens = async (c: Client, path: string) => {
@@ -113,7 +123,7 @@ const flush = (path: string) => {
 
 /** Keeps the servers in step with the open sheets: open, change, save, close. */
 const sync = (ctx: Ctx, s: State, prev: State | null) => {
-  const now = new Map(allDocs(s).filter(lspDoc).map((d) => [d.path, d]));
+  const now = new Map(allDocs(s).filter((d) => lspDoc(d) || renameDoc(d)).map((d) => [d.path, d]));
   for (const [path, st] of synced) {
     if (now.has(path)) continue;
     clearTimeout(st.timer);
@@ -145,7 +155,7 @@ const sync = (ctx: Ctx, s: State, prev: State | null) => {
         const c = clientFor(ctx, project);
         if (c?.state() !== "ready") return;
         c.notify("textDocument/didChange", { textDocument: { uri: uriOf(path), version: st.version }, contentChanges: [{ text: st.text }] });
-        void requestTokens(c, path);
+        if (lspDoc(d)) void requestTokens(c, path);
       }, CHANGE_DELAY);
     }
     const before = prev ? allDocs(prev).find((x) => x.path === path) : undefined;

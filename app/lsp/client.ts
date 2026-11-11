@@ -33,7 +33,7 @@ const TOKEN_MODIFIERS = ["declaration", "definition", "readonly", "static", "dep
 
 let serial = 0;
 
-export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string }): Client => {
+export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string; workspaceUri?: string; wikiSheets?: { uri: string; title: string | null }[] }): Client => {
   const id = `p${++serial}`;
   let seq = 0;
   let state: ClientState = "starting";
