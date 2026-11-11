@@ -31,8 +31,13 @@ const entryOf = (path: string, list = treeEntries()): { dir: boolean; children: 
   return null;
 };
 
-/** The files of the tree at or under a path. */
-const filesUnder = (path: string) => flatten(treeEntries()).filter((e) => under(e.path, path)).map((e) => e.path);
+/** A visible hidden folder can be absent from the default tree. */
+export const entryForTrash = async (path: string) =>
+  entryOf(path) ?? (await api.listTree(dirname(path), { showHidden: true, showIgnored: true })).find((entry) => entry.path === path) ?? null;
+
+/** Read the folder itself to include hidden and ignored descendants in its chapters and notes. */
+export const filesUnder = async (path: string) =>
+  flatten(await api.listTree(path, { showHidden: true, showIgnored: true })).map((entry) => entry.path);
 
 const listEntries = async (): Promise<Entry[]> => {
   const dir = await api.trashDir();
@@ -54,8 +59,8 @@ export const moveToTrash = async (ctx: Ctx, path: string): Promise<boolean> => {
   const s = ctx.store.get();
   const ws = workspaceOf(path, s.workspaces);
   if (!ws || s.workspaces.includes(path) || path.endsWith("/plot.csv")) return ctx.toast("ワークスペースとプロットはゴミ箱に移せません"), false;
-  const isDir = !!entryOf(path)?.dir;
-  const files = isDir ? filesUnder(path) : [path];
+  const isDir = !!(await entryForTrash(path))?.dir;
+  const files = isDir ? await filesUnder(path) : [path];
   const isProject = isDir && ctx.projects.includes(path);
   if (isProject && !(await confirmDialog(`プロジェクト「${basename(path)}」（${files.length} ファイル）をゴミ箱に移しますか`, "移す"))) return false;
   if (isDir && !isProject && !(await confirmDialog(`フォルダ「${basename(path)}」の ${files.length} ファイルをゴミ箱に移しますか`, "移す"))) return false;

@@ -28,6 +28,7 @@ It edits these formats:
 
 Right-click a sheet, folder, or project in the file tree to rename it. Open sheets follow the new path.
 Right-click a project or folder to add a folder or an empty sheet of a chosen type. Right-click a Markdown sheet to convert that sheet to gm.
+The file tree shows chapters in their actual folders. The settings can show hidden files or hide files matched by `.gitignore`.
 
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
 

@@ -12,7 +12,7 @@ import { allDocs, focused } from "../store.ts";
 import { flatten, kindOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
 import { golem } from "../tools.ts";
 import { ask, choiceDialog, menu, toast, type MenuItem } from "./dom.ts";
-import { item } from "./settings.ts";
+import { item, toggle } from "./settings.ts";
 import { revealItems } from "../reveal.ts";
 import { canRenameTreeItem, renameTarget } from "../tree-rename.ts";
 import { createdPath, SHEET_KINDS } from "../tree-create.ts";
@@ -35,8 +35,9 @@ const ICONS: Record<string, string> = {
 };
 
 let entries: Entry[] = [];
-/** The workspace as the tree last read it. */
-export const treeEntries = () => entries;
+let baseEntries: Entry[] = [];
+/** The workspace's default tree, used by search, links and trash independently of display settings. */
+export const treeEntries = () => baseEntries;
 const chapters = new Map<string, string[]>();
 
 /** Items of a row's right-click menu, by the parts that add them (bookmarks, the trash). */
@@ -48,8 +49,11 @@ export const treeReloaded: ((ctx: Ctx) => void | Promise<void>)[] = [];
 /** Reads the workspace again: the tree, the projects, their chapters and the sheets' titles. */
 export const reloadTree = async (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
-  entries = ws ? await api.listTree(ws).catch(() => []) : [];
-  const projects = new Set(ws ? projectsIn(ws, entries) : []);
+  baseEntries = ws ? await api.listTree(ws).catch(() => []) : [];
+  entries = ws && (ctx.config?.showHiddenFiles || ctx.config?.showGitignoredFiles === false)
+    ? await api.listTree(ws, { showHidden: ctx.config?.showHiddenFiles ?? false, showIgnored: ctx.config?.showGitignoredFiles ?? true }).catch(() => [])
+    : baseEntries;
+  const projects = new Set(ws ? projectsIn(ws, baseEntries) : []);
   // projects of every workspace, for the cross-project panels
   for (const w of ctx.store.get().workspaces) if (w !== ws) projectsIn(w, await api.listTree(w).catch(() => [])).forEach((p) => projects.add(p));
   ctx.projects = [...projects];
@@ -58,7 +62,7 @@ export const reloadTree = async (ctx: Ctx) => {
     [...projects].map(async (p) => chapters.set(p, manifestChapters(await api.readText(`${p}/manifest.toml`).catch(() => "")).map((r) => `${p}/${r}`))),
   );
   await Promise.all(
-    flatten(entries)
+    [...new Map([...flatten(baseEntries), ...flatten(entries)].map((entry) => [entry.path, entry])).values()]
       .filter((e) => ["gm", "md"].includes(kindOf(e.path)))
       .map(async (e) => {
         const t = titleOf(kindOf(e.path), await api.readText(e.path).catch(() => ""));
@@ -94,7 +98,7 @@ const rowsNow = (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
   const expanded = new Set(ctx.store.get().expanded);
   const of = (p: string) => chapters.get(p) ?? [];
-  return ws ? workspaceRows(ws, entries, expanded, of) : treeRows(entries, expanded, of);
+  return ws ? workspaceRows(ws, entries, expanded, of, new Set(ctx.projects)) : treeRows(entries, expanded, of);
 };
 
 const draw = (el: HTMLElement, ctx: Ctx) => {
@@ -308,6 +312,24 @@ export const mountTree = (ctx: Ctx) => {
   // after saving a manifest or a style, chapters and grids are read again
   ctx.onRename.push((from) => {
     if (from.endsWith("/style.toml")) forgetGrid(dirname(from));
+  });
+
+  ctx.settings.push({
+    id: "tree-visibility",
+    label: "ファイルツリー",
+    group: "オプション",
+    render: (c) =>
+      item("隠しファイルを表示", "名前が . で始まるファイルとフォルダを表示する", toggle("showHiddenFiles", c.config.showHiddenFiles)) +
+      item(".gitignore 対象のファイルを表示", "ワークスペースの .gitignore に従う", toggle("showGitignoredFiles", c.config.showGitignoredFiles)),
+    onClick: async (el, c) => {
+      const setting = el.closest<HTMLElement>("[data-toggle]")?.dataset.toggle;
+      if (setting !== "showHiddenFiles" && setting !== "showGitignoredFiles") return false;
+      c.config[setting] = !c.config[setting];
+      await c.saveConfig();
+      await reloadTree(c);
+      c.refresh(["left"]);
+      return true;
+    },
   });
 
   ctx.settings.push({

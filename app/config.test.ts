@@ -98,3 +98,9 @@ test("the settings Rust wrote replace only the paths it keeps (docs/adr/0050)", 
   assert.equal(c.shemPath, "/s");
   assert.equal(c.theme, "dark", "the rest is the webview's");
 });
+
+test("ADR 0067 invariant 2: visibility defaults and invalid types", () => {
+  assert.deepEqual([normalize({}).showHiddenFiles, normalize({}).showGitignoredFiles], [false, true]);
+  assert.deepEqual([normalize({ showHiddenFiles: "yes", showGitignoredFiles: 0 }).showHiddenFiles, normalize({ showHiddenFiles: "yes", showGitignoredFiles: 0 }).showGitignoredFiles], [false, true]);
+  assert.deepEqual([normalize({ showHiddenFiles: true, showGitignoredFiles: false }).showHiddenFiles, normalize({ showHiddenFiles: true, showGitignoredFiles: false }).showGitignoredFiles], [true, false]);
+});
