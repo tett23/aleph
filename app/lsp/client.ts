@@ -33,7 +33,7 @@ const TOKEN_MODIFIERS = ["declaration", "definition", "readonly", "static", "dep
 
 let serial = 0;
 
-export const startClient = (root: string, h: Handlers): Client => {
+export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string }): Client => {
   const id = `p${++serial}`;
   let seq = 0;
   let state: ClientState = "starting";
@@ -103,6 +103,7 @@ export const startClient = (root: string, h: Handlers): Client => {
       processId: null,
       rootUri: uriOf(root),
       workspaceFolders: [{ uri: uriOf(root), name: root.split("/").pop() }],
+      initializationOptions: aleph ? { aleph } : undefined,
       capabilities: {
         general: { positionEncodings: ["utf-16"] },
         workspace: { fileOperations: { willRename: true, didRename: true }, workspaceEdit: { documentChanges: true } },

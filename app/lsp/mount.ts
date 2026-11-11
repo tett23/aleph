@@ -75,7 +75,7 @@ const clientFor = (ctx: Ctx, project: string): Client | null => {
       failedAt.set(project, Date.now());
       ctx.refresh(["status"]);
     },
-  });
+  }, { plotCsv: uriOf(`${project}/plot.csv`) });
   clients.set(project, n);
   void n.ready.then((ok) => {
     if (!ok) failedAt.set(project, Date.now());
