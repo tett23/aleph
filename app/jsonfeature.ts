@@ -8,7 +8,6 @@ import { checkJson, formatJson, formatThenSave, isJsonKind, type Flavor } from "
 import type { Doc } from "./store.ts";
 
 const CHECK_DELAY = 300;
-const editors = new Map<string, { t: TextEditor; flavor: Flavor }>();
 
 /** Formats a sheet as one undoable change; "error" when the document has a grammar error. */
 const formatIn = (t: TextEditor, flavor: Flavor): "changed" | "same" | "error" => {
@@ -26,12 +25,10 @@ const notice = (r: "changed" | "same" | "error") => (r === "error" ? "JSON ã«èª
 const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
   if (!isJsonKind(doc.kind)) return null;
   const flavor = doc.kind;
-  const path = doc.path;
   let t: TextEditor | null = null;
   return {
     attach: (te) => {
       t = te;
-      editors.set(path, { t: te, flavor });
       let timer = 0;
       const check = () => te.setDiagnostics(checkJson(te.core.text(), flavor));
       check();
@@ -42,7 +39,6 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
       return () => {
         clearTimeout(timer);
         off();
-        if (editors.get(path)?.t === te) editors.delete(path);
       };
     },
     keys: [
@@ -52,7 +48,7 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
         run: () => {
           if (!t) return false;
           const te = t;
-          void formatThenSave({ formatOnSave: ctx.config.formatOnSave, format: () => formatIn(te, flavor), save: () => ctx.save([path], { explicit: true }), notify: ctx.toast });
+          void formatThenSave({ formatOnSave: ctx.config.formatOnSave, format: () => formatIn(te, flavor), save: () => ctx.save([doc.path], { explicit: true }), notify: ctx.toast });
           return true;
         },
       },

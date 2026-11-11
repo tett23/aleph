@@ -226,16 +226,15 @@ type Item = { label: string; detail?: string; insertText?: string };
 
 const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
   if (!lspDoc(doc)) return null;
-  const path = doc.path;
   let editor: TextEditor | null = null;
-  const current = () => allDocs(ctx.store.get()).find((d) => d.path === path) ?? doc;
+  const current = () => allDocs(ctx.store.get()).find((d) => d.path === doc.path) ?? doc;
   return {
     attach: (t) => {
       editor = t;
-      views.set(path, t);
-      queueMicrotask(() => paint(path));
+      views.set(doc.path, t);
+      queueMicrotask(() => paint(doc.path));
       return () => {
-        if (views.get(path) === t) views.delete(path);
+        if (views.get(doc.path) === t) views.delete(doc.path);
       };
     },
     keys: [
@@ -244,6 +243,7 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
       { id: "editor.format", key: "Shift-Alt-f", run: () => (void formatNow(ctx, current()), true) },
     ],
     hover: async (pos) => {
+      const path = doc.path;
       const c = readyClient(path);
       if (!c || !editor) return null;
       flush(path);
@@ -251,6 +251,7 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
       return hoverText(r?.contents).trim() || null;
     },
     complete: async (pos, explicit) => {
+      const path = doc.path;
       const c = readyClient(path);
       if (!c || !editor) return null;
       const line = editor.core.doc().lineAt(pos);
@@ -271,6 +272,13 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
 
 export const mountLsp = (ctx: Ctx) => {
   ctx.editorPlugins.push(pluginFor);
+  ctx.onRename.push((from, to) => {
+    for (const [path, view] of [...views]) {
+      if (path !== from && !path.startsWith(from + "/")) continue;
+      views.delete(path);
+      views.set(to + path.slice(from.length), view);
+    }
+  });
   ctx.store.subscribe((s, prev) => sync(ctx, s, prev));
   sync(ctx, ctx.store.get(), null);
 

@@ -107,19 +107,20 @@ const editCalendar = (labels: string[]): Promise<string[] | null> =>
     ta.focus();
   });
 
-export type PlotView = { reload: () => Promise<void>; destroy: () => void };
+export type PlotView = { reload: () => Promise<void>; flush: () => Promise<void>; setProject: (project: string) => void; destroy: () => void };
 
 export const openPlotWindow = (project: string) =>
   new WebviewWindow(`plot-${Date.now()}`, { url: `index.html?view=plot&project=${encodeURIComponent(project)}`, title: `プロット — ${basename(project)}`, width: 1300, height: 800 });
 
-export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFile?: (rel: string) => void; standalone?: boolean } = {}): PlotView => {
+export const mountPlot = (parent: HTMLElement, initialProject: string, opts: { onOpenFile?: (rel: string) => void; standalone?: boolean } = {}): PlotView => {
+  let project = initialProject;
   // a file that leaves the project is not opened (docs/adr/0048)
   const openFile = (f: string) => {
     const r = underRoot(project, f.trim());
     if (r) opts.onOpenFile?.(r);
   };
-  const csvPath = `${project}/plot.csv`;
-  const calPath = `${project}/plot-calendar.txt`;
+  const csvPath = () => `${project}/plot.csv`;
+  const calPath = () => `${project}/plot-calendar.txt`;
   let rows: PlotRow[] = [];
   let extras: string[] = [];
   let calendarFile: string[] = [];
@@ -128,16 +129,23 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
   let filter: string | null = null;
   let gz = Math.min(4, Math.max(0.4, uiState().get("ganttZoom", 1)));
   let timer = 0;
+  let writing: Promise<void> = Promise.resolve();
   const el = h(`<div class="plot"></div>`);
   parent.replaceChildren(el);
 
   const subplots = () => [...new Set(rows.flatMap((r) => namesCell(r.subplots)))];
+  const writeRows = () => {
+    writing = writing.catch(() => {}).then(async () => {
+      await api.writeText(csvPath(), writePlot(rows, extras));
+      await emit("aleph:plot-saved", { project, from: getCurrentWindow().label }).catch(() => {});
+    });
+    return writing;
+  };
   const save = () => {
     clearTimeout(timer);
-    timer = window.setTimeout(async () => {
+    timer = window.setTimeout(() => {
       timer = 0;
-      await api.writeText(csvPath, writePlot(rows, extras));
-      await emit("aleph:plot-saved", { project, from: getCurrentWindow().label }).catch(() => {});
+      void writeRows();
     }, 400);
   };
   const setGz = (z: number) => {
@@ -268,7 +276,7 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
       const next = await editCalendar(calendarOf(rows, calendarFile));
       if (next === null) return;
       calendarFile = next;
-      await api.writeText(calPath, next.join("\n") + "\n");
+      await api.writeText(calPath(), next.join("\n") + "\n");
     } else if (d.act === "window") return void openPlotWindow(project);
     else if (d.open) return openFile(d.open);
     else if (t.classList.contains("bar")) {
@@ -357,8 +365,8 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
   );
 
   const reload = async () => {
-    ({ rows, extras } = parsePlot(await api.readText(csvPath).catch(() => "")));
-    calendarFile = (await api.readText(calPath).catch(() => ""))
+    ({ rows, extras } = parsePlot(await api.readText(csvPath()).catch(() => "")));
+    calendarFile = (await api.readText(calPath()).catch(() => ""))
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
@@ -367,9 +375,18 @@ export const mountPlot = (parent: HTMLElement, project: string, opts: { onOpenFi
   void reload();
   return {
     reload,
+    flush: async () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = 0;
+        await writeRows();
+      }
+      await writing;
+    },
+    setProject: (to) => { project = to; },
     destroy: () => {
       clearTimeout(timer);
-      if (timer) void api.writeText(csvPath, writePlot(rows, extras));
+      if (timer) void writeRows();
       el.remove();
     },
   };

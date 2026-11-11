@@ -26,6 +26,8 @@ It edits these formats:
 - Mermaid
 - Images (PNG, JPEG, GIF, WebP), for viewing
 
+Right-click a sheet, folder, or project in the file tree to rename it. Open sheets follow the new path.
+
 ## Status
 
 The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, the conversion from Markdown, and plugins.

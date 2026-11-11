@@ -18,9 +18,12 @@ import { kindOf, projectOf, workspaceOf } from "./workspace.ts";
 // ---- where a sheet's metadata lives ----
 
 /** The root whose .aleph/notes.json holds the sheet's metadata: its project, else its workspace. */
-const rootOf = (ctx: Ctx, path: string): string | null => projectOf(path, ctx.projects) ?? workspaceOf(path, ctx.store.get().workspaces);
+const rootOf = (ctx: Ctx, path: string): string | null =>
+  allDocs(ctx.store.get()).find((doc) => doc.path === path)?.project ?? projectOf(path, ctx.projects) ?? workspaceOf(path, ctx.store.get().workspaces);
 
 const metas = new Map<string, Meta>();
+const pendingMetaSaves = new Map<string, number>();
+const writingMeta = new Set<Promise<void>>();
 /** A root's metadata, read once (the keywords panel shares it, docs/adr/0028). */
 export const loadMeta = async (root: string) => {
   if (!metas.has(root)) metas.set(root, parseMeta(await api.readText(`${root}/.aleph/notes.json`).catch(() => "")));
@@ -31,9 +34,21 @@ export const putMeta = async (root: string, m: Meta) => {
   metas.set(root, m);
   await saveMeta(root);
 };
-const saveMeta = async (root: string) => {
-  await api.makeDir(`${root}/.aleph`).catch(() => {});
-  await api.writeText(`${root}/.aleph/notes.json`, writeMeta(metas.get(root) ?? {}));
+const saveMeta = (root: string) => {
+  const write = (async () => {
+    await api.makeDir(`${root}/.aleph`).catch(() => {});
+    await api.writeText(`${root}/.aleph/notes.json`, writeMeta(metas.get(root) ?? {}));
+  })();
+  writingMeta.add(write);
+  void write.then(() => writingMeta.delete(write), () => writingMeta.delete(write));
+  return write;
+};
+const queueMetaSave = (root: string) => {
+  clearTimeout(pendingMetaSaves.get(root));
+  pendingMetaSaves.set(root, window.setTimeout(() => {
+    pendingMetaSaves.delete(root);
+    void saveMeta(root);
+  }, 400));
 };
 
 // ---- counting, with each project's paragraph separator ----
@@ -142,11 +157,9 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
         : ""
     }
     <div class="sec"><h5>ノート</h5><textarea class="note" data-note placeholder="このシートのメモ">${esc(m.note)}</textarea></div>`;
-  let t = 0;
   const update = (f: (x: typeof m) => typeof m) => {
     meta[key] = f(metaFor(meta, key));
-    clearTimeout(t);
-    t = window.setTimeout(() => void saveMeta(root), 400);
+    queueMetaSave(root);
   };
   el.oninput = (e) => {
     const x = e.target as HTMLInputElement;
@@ -198,6 +211,13 @@ const drawOutline = (el: HTMLElement, ctx: Ctx) => {
 };
 
 export const mountAttach = (ctx: Ctx) => {
+  ctx.beforeRename.push(async () => {
+    await Promise.all([...writingMeta]);
+    const roots = [...pendingMetaSaves.keys()];
+    for (const root of roots) clearTimeout(pendingMetaSaves.get(root));
+    pendingMetaSaves.clear();
+    await Promise.all(roots.map(saveMeta));
+  });
   ctx.right.attach = { icon: "paperclip", title: "添付", render: (el) => drawAttach(el, ctx) };
   ctx.right.outline = { icon: "list", title: "アウトライン", render: (el) => drawOutline(el, ctx) };
 
@@ -230,8 +250,23 @@ export const mountAttach = (ctx: Ctx) => {
     }
   });
 
-  // a renamed sheet keeps its metadata
+  // A renamed sheet or folder keeps its metadata. A project carries notes.json with it.
   ctx.onRename.push(async (from, to, c) => {
+    const roots = c.projects.filter((project) => project === from || project.startsWith(`${from}/`));
+    if (roots.length) {
+      for (const oldRoot of roots) {
+        const newRoot = to + oldRoot.slice(from.length);
+        const meta = metas.get(oldRoot);
+        if (meta) metas.set(newRoot, meta);
+        metas.delete(oldRoot);
+        if (pendingMetaSaves.has(oldRoot)) {
+          clearTimeout(pendingMetaSaves.get(oldRoot));
+          pendingMetaSaves.delete(oldRoot);
+          queueMetaSave(newRoot);
+        }
+      }
+      if (roots.includes(from)) return;
+    }
     const root = rootOf(c, from);
     if (!root || rootOf(c, to) !== root) return;
     const m = await loadMeta(root);

@@ -105,6 +105,7 @@ const start = async () => {
     titles,
     debug: await debugBuild(),
     projects: [],
+    beforeRename: [],
     onRename: [],
     onNewProject: [],
     editors: new Map(),

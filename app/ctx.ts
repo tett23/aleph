@@ -75,6 +75,8 @@ export type Ctx = {
   projects: string[];
   /** Run after `golem new` made a project (to copy fonts from the library). */
   onNewProject: ((project: string, ctx: Ctx) => void | Promise<void>)[];
+  /** Flushes writes that would otherwise target an old path after a rename. */
+  beforeRename: ((from: string, to: string, ctx: Ctx) => void | Promise<void>)[];
   /** Run after a file is renamed in Aleph. */
   onRename: ((from: string, to: string, ctx: Ctx) => void | Promise<void>)[];
   /** The editors of the open sheets, by path. */

@@ -18,6 +18,20 @@ fn shown(name: &str, dir: bool) -> bool {
     !name.starts_with('.') && !(dir && HIDDEN_DIRS.contains(&name))
 }
 
+#[cfg(unix)]
+fn same_file(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (std::fs::metadata(a), std::fs::metadata(b)) {
+        (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
+        _ => false,
+    }
+}
+
+#[cfg(not(unix))]
+fn same_file(a: &Path, b: &Path) -> bool {
+    a.canonicalize().ok() == b.canonicalize().ok()
+}
+
 /// How deep the tree goes (docs/adr/0045).
 pub const MAX_DEPTH: usize = 64;
 
@@ -66,6 +80,75 @@ pub fn not_link(path: &Path) -> std::io::Result<()> {
         ))),
         _ => Ok(()),
     }
+}
+
+/// Renames one entry within its parent, without replacing an existing entry.
+/// The registered workspace root itself cannot be moved by this operation.
+pub fn rename_path(from: &Path, to: &Path, workspace: &Path) -> std::io::Result<()> {
+    let invalid = |message: &str| std::io::Error::new(std::io::ErrorKind::InvalidInput, message);
+    let name = to.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+    if name.is_empty() || name == "." || name == ".." || name.contains('/') || name.contains('\\') {
+        return Err(invalid("名前には一つの名前だけを指定してください"));
+    }
+    not_link(from)?;
+    let from = from.canonicalize()?;
+    let workspace = workspace.canonicalize()?;
+    let parent = to
+        .parent()
+        .ok_or_else(|| invalid("親フォルダがありません"))?
+        .canonicalize()?;
+    if from == workspace || !from.starts_with(&workspace) || from.parent() != Some(parent.as_path())
+    {
+        return Err(invalid(
+            "ワークスペース内の同じフォルダで名前を変えてください",
+        ));
+    }
+    let project = from
+        .ancestors()
+        .take_while(|p| p.starts_with(&workspace))
+        .filter(|p| p.join("manifest.toml").is_file())
+        .last();
+    if project.is_some_and(|root| {
+        from.parent().is_some_and(|parent| same_file(parent, root))
+            && ["plot.csv", "manifest.toml", "style.toml"]
+                .iter()
+                .any(|name| same_file(&from, &root.join(name)))
+    }) {
+        return Err(invalid("プロジェクトの設定ファイルは名前を変えられません"));
+    }
+    let to = parent.join(name);
+    if std::fs::symlink_metadata(&to).is_ok() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "同じ名前の項目があります",
+        ));
+    }
+    rename_without_replacing(&from, &to)
+}
+
+#[cfg(target_os = "macos")]
+fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
+    use std::ffi::CString;
+    use std::os::raw::{c_char, c_int, c_uint};
+    use std::os::unix::ffi::OsStrExt;
+
+    extern "C" {
+        fn renamex_np(from: *const c_char, to: *const c_char, flags: c_uint) -> c_int;
+    }
+    const RENAME_EXCL: c_uint = 0x0000_0004;
+    let from = CString::new(from.as_os_str().as_bytes())?;
+    let to = CString::new(to.as_os_str().as_bytes())?;
+    // RENAME_EXCL makes the existence check atomic with the rename on macOS.
+    if unsafe { renamex_np(from.as_ptr(), to.as_ptr(), RENAME_EXCL) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::rename(from, to)
 }
 
 pub fn write_text(path: &Path, content: &str) -> std::io::Result<()> {
@@ -192,6 +275,120 @@ pub mod testdir {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn adr_0070_1_protects_only_the_project_root_files() {
+        let d = testdir::fresh("rename-protected");
+        let project = d.join("project");
+        write_text(&project.join("manifest.toml"), "manifest.toml").unwrap();
+        for name in ["plot.csv", "manifest.toml", "style.toml"] {
+            write_text(&project.join(name), name).unwrap();
+            assert!(rename_path(
+                &project.join(name),
+                &project.join(format!("new-{name}")),
+                &d
+            )
+            .is_err());
+            assert_eq!(std::fs::read_to_string(project.join(name)).unwrap(), name);
+            if name != "manifest.toml" {
+                write_text(&project.join("draft").join(name), name).unwrap();
+                rename_path(
+                    &project.join("draft").join(name),
+                    &project.join("draft").join(format!("new-{name}")),
+                    &d,
+                )
+                .unwrap();
+            }
+        }
+        let alternate_case = project.join("PLOT.CSV");
+        if alternate_case.exists() {
+            assert!(rename_path(&alternate_case, &project.join("renamed.csv"), &d).is_err());
+            assert_eq!(
+                std::fs::read_to_string(project.join("plot.csv")).unwrap(),
+                "plot.csv"
+            );
+        }
+        write_text(&project.join("draft/manifest.toml"), "nested").unwrap();
+        write_text(&project.join("draft/style.toml"), "style").unwrap();
+        rename_path(
+            &project.join("draft/style.toml"),
+            &project.join("draft/body.toml"),
+            &d,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn adr_0070_3_cancelled_or_invalid_destination_never_changes_contents() {
+        let d = testdir::fresh("rename-invalid");
+        write_text(&d.join("a.gm"), "first").unwrap();
+        write_text(&d.join("b.gm"), "second").unwrap();
+        for to in [
+            d.join("a.gm"),
+            d.join("b.gm"),
+            d.join("../outside.gm"),
+            d.join("sub/x.gm"),
+        ] {
+            assert!(rename_path(&d.join("a.gm"), &to, &d).is_err());
+        }
+        assert_eq!(std::fs::read_to_string(d.join("a.gm")).unwrap(), "first");
+        assert_eq!(std::fs::read_to_string(d.join("b.gm")).unwrap(), "second");
+    }
+
+    #[test]
+    fn adr_0070_3_cannot_overwrite_a_protected_destination() {
+        let d = testdir::fresh("rename-target");
+        write_text(&d.join("project/manifest.toml"), "manifest").unwrap();
+        write_text(&d.join("project/plot.csv"), "plot").unwrap();
+        write_text(&d.join("project/draft.csv"), "draft").unwrap();
+        assert!(rename_path(
+            &d.join("project/draft.csv"),
+            &d.join("project/plot.csv"),
+            &d
+        )
+        .is_err());
+        assert_eq!(
+            std::fs::read_to_string(d.join("project/plot.csv")).unwrap(),
+            "plot"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.join("project/draft.csv")).unwrap(),
+            "draft"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn adr_0070_3_rename_flag_refuses_a_destination_created_after_validation() {
+        let d = testdir::fresh("rename-race");
+        write_text(&d.join("source.gm"), "source").unwrap();
+        write_text(&d.join("destination.gm"), "destination").unwrap();
+        assert!(rename_without_replacing(&d.join("source.gm"), &d.join("destination.gm")).is_err());
+        assert_eq!(
+            std::fs::read_to_string(d.join("source.gm")).unwrap(),
+            "source"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.join("destination.gm")).unwrap(),
+            "destination"
+        );
+    }
+
+    #[test]
+    fn adr_0070_4_folder_rename_keeps_descendant_files() {
+        let d = testdir::fresh("rename-folder");
+        write_text(&d.join("project/manifest.toml"), "project").unwrap();
+        write_text(&d.join("project/chapters/part/one.gm"), "draft").unwrap();
+        rename_path(&d.join("project"), &d.join("novel"), &d).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(d.join("novel/chapters/part/one.gm")).unwrap(),
+            "draft"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.join("novel/manifest.toml")).unwrap(),
+            "project"
+        );
+    }
 
     #[test]
     fn tree_hides_dot_and_build_directories_and_sorts_directories_first() {
