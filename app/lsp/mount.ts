@@ -322,6 +322,7 @@ export const mountLsp = (ctx: Ctx) => {
     }
     const client = clientFor(c, project);
     if (!client || !(await client.ready) || !client.supportsFileRename()) throw new Error("Golem LSP の参照更新が利用できません");
+    if (!wikiReady.get(project)) c.notify({ message: "シートの一覧を取得できないため、Golem LSP による Wiki リンクの参照更新は利用できません", level: "warning" });
     const files = [{ oldUri: uriOf(from), newUri: uriOf(to) }];
     const allowedRoot = wikiReady.get(project) ? workspaceOf(project, c.store.get().workspaces) ?? project : project;
     const read = async (path: string) => c.editors.get(path)?.text() ?? await api.readText(path);
