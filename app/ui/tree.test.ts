@@ -3,7 +3,7 @@ import test from "node:test";
 import { createServer } from "vite";
 import type { Ctx } from "../ctx.ts";
 
-test("ADR 0070 invariants 1-3: tree handlers protect root files and rename only the activated row", async () => {
+test("ADR 0070 invariants 1-3 and ADR 0066 invariants 1-2: tree handlers act on the clicked row", async () => {
   const listeners = new Map<string, (event: unknown) => void>();
   let answer = "";
   let menuElement: FakeElement | null = null;
@@ -68,7 +68,7 @@ test("ADR 0070 invariants 1-3: tree handlers protect root files and rename only 
     const ctx = {
       left: {}, settings: [], beforeRename: [], onRename: [], projects: ["/w/book"], decor: [], titles: new Map(), editors: new Map(),
       store: { get: () => state, dispatch: () => {} },
-      save: async () => {}, refresh: () => {},
+      save: async () => {}, refresh: () => {}, toast: () => {},
     } as unknown as Ctx;
     mountTree(ctx);
     const tree = element();
@@ -103,6 +103,39 @@ test("ADR 0070 invariants 1-3: tree handlers protect root files and rename only 
 
     await tree.ondblclick!(eventFor("/w/book/chapters", true));
     assert.equal(renamed.length, 2);
+
+    let manifest = 'chapters = ["a.gm"]\n';
+    let exported: { path: string; live: string | null }[] = [];
+    api.listTree = async () => [{ path: "/w/book", name: "book", dir: true, children: [
+      { path: "/w/book/manifest.toml", name: "manifest.toml", dir: false, children: [] },
+      { path: "/w/book/a.gm", name: "a.gm", dir: false, children: [] },
+      { path: "/w/book/b.gm", name: "b.gm", dir: false, children: [] },
+    ] }];
+    api.readText = async (path: string) => path.endsWith("manifest.toml") ? manifest : "# Sheet\n";
+    api.writeText = async (path: string, text: string) => { if (path.endsWith("manifest.toml")) manifest = text; };
+    api.exportChapters = async (parts: typeof exported) => { exported = parts; return true; };
+    (state as { selected: string[]; expanded: string[] }).selected = ["/w/book/b.gm", "/w/book/a.gm"];
+    (state as { expanded: string[] }).expanded = ["/w/book"];
+    await (await server.ssrLoadModule("/app/ui/tree.ts")).reloadTree(ctx);
+    const menuFor = (path: string) => treeMenus.flatMap((f: (p: string, d: boolean, c: Ctx) => { label?: string; run?: () => void }[]) => f(path, false, ctx));
+    const exportItem = menuFor("/w/book/a.gm").find((item: { label?: string }) => item.label === "選択した原稿を書き出す");
+    assert.ok(exportItem?.run, "ADR 0066 invariant 2: selected gm files have an export action");
+    exportItem.run();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(exported.map((part) => part.path), ["/w/book/a.gm", "/w/book/b.gm"]);
+    assert.deepEqual((state as { selected: string[] }).selected, ["/w/book/b.gm", "/w/book/a.gm"]);
+    (ctx.store as unknown as { dispatch: (action: { type: string; paths?: string[] }) => void }).dispatch = (action) => {
+      if (action.type === "select") (state as { selected: string[] }).selected = action.paths ?? [];
+    };
+    listeners.get("contextmenu")?.({ target: { closest: () => Object.assign(element(), { dataset: { file: "/w/book/b.gm" } }) }, preventDefault: () => {} });
+    assert.deepEqual((state as { selected: string[] }).selected, ["/w/book/b.gm", "/w/book/a.gm"]);
+    listeners.get("contextmenu")?.({ target: { closest: () => Object.assign(element(), { dataset: { file: "/w/book/manifest.toml" } }) }, preventDefault: () => {} });
+    assert.deepEqual((state as { selected: string[] }).selected, ["/w/book/manifest.toml"]);
+    const removeItem = menuFor("/w/book/a.gm").find((item: { label?: string }) => item.label === "chapters から削除");
+    assert.ok(removeItem?.run, "ADR 0066 invariant 1: the clicked registered chapter can be removed");
+    removeItem.run();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(manifest, "chapters = []\n");
   } finally {
     await server.close();
     Object.assign(globalThis, { document: previousDocument });

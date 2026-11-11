@@ -1,6 +1,7 @@
 //! Aleph's Rust side: files, external processes and the bridges the frontend
 //! needs (docs/adr/0003). Each concern is a module with its own tests.
 
+mod chapter_export;
 mod fsevents;
 mod fsops;
 mod guard;
@@ -332,6 +333,42 @@ fn plugins_path(app: &AppHandle) -> R<PathBuf> {
 #[tauri::command]
 fn plugins_dir(app: AppHandle) -> R<String> {
     Ok(plugins_path(&app)?.to_string_lossy().into())
+}
+
+#[derive(serde::Deserialize)]
+struct ExportPart {
+    path: String,
+    live: Option<String>,
+}
+
+/// The save panel grants exactly one write outside the registered workspaces.
+#[tauri::command]
+async fn export_chapters(app: AppHandle, parts: Vec<ExportPart>) -> R<bool> {
+    if parts.is_empty() {
+        return Err("書き出す章を選んでください".into());
+    }
+    for part in &parts {
+        may(&app, &part.path, RD)?;
+    }
+    let chosen = picked(
+        app.dialog()
+            .file()
+            .set_title("選択した原稿を書き出す")
+            .add_filter("Golem document", &["gm"])
+            .blocking_save_file(),
+    );
+    let Some(destination) = chosen else {
+        return Ok(false);
+    };
+    let inputs = parts
+        .into_iter()
+        .map(|part| chapter_export::Part {
+            path: PathBuf::from(part.path),
+            live: part.live,
+        })
+        .collect::<Vec<_>>();
+    chapter_export::write_selection(Some(&destination), &inputs).map_err(err)?;
+    Ok(true)
 }
 
 // ---- choices the writer makes in native dialogs (docs/adr/0042, docs/adr/0050) ----
@@ -1078,6 +1115,7 @@ pub fn run_app() {
         .invoke_handler(tauri::generate_handler![
             watch_roots,
             reveal_path,
+            export_chapters,
             debug_build,
             config_load,
             config_save,

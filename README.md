@@ -27,6 +27,7 @@ It edits these formats:
 - Images (PNG, JPEG, GIF, WebP), for viewing
 
 Right-click a sheet, folder, or project in the file tree to rename it. Open sheets follow the new path.
+Right-click a Golem document to add it to or remove it from the project chapters. Selected Golem documents can be exported as one file in tree order.
 
 ## Status
 

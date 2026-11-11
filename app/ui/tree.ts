@@ -6,10 +6,11 @@ import type { Ctx } from "../ctx.ts";
 import { forgetGrid } from "../docs.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
-import { addChapter, manifestChapters } from "../manifest.ts";
-import { basename, dirname, stem } from "../path.ts";
+import { addChapter, manifestChapters, removeChapters } from "../manifest.ts";
+import { selectedGmInTreeOrder } from "../chapter-export.ts";
+import { basename, dirname, rel, stem } from "../path.ts";
 import { allDocs, focused } from "../store.ts";
-import { flatten, kindOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
+import { flatten, kindOf, projectOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
 import { golem } from "../tools.ts";
 import { ask, menu, toast, type MenuItem } from "./dom.ts";
 import { item } from "./settings.ts";
@@ -224,6 +225,46 @@ export const runTreeAct = async (ctx: Ctx, act: string) => {
   }
 };
 
+/** The requested gm alone is added to or removed from its project's manifest. */
+const toggleChapter = async (ctx: Ctx, path: string, project: string) => {
+  const manifestPath = `${project}/manifest.toml`;
+  try {
+    const open = allDocs(ctx.store.get()).find((doc) => doc.path === manifestPath);
+    if (open) {
+      await ctx.save([manifestPath]);
+      if (allDocs(ctx.store.get()).some((doc) => doc.path === manifestPath && doc.text !== doc.saved)) return;
+    }
+    const source = await api.readText(manifestPath);
+    const relative = rel(project, path);
+    const registered = manifestChapters(source).includes(relative);
+    const updated = registered ? removeChapters(source, [relative]).src : addChapter(source, relative);
+    await api.writeText(manifestPath, updated);
+    if (open) {
+      const editor = ctx.editors.get(manifestPath);
+      if (editor?.edit) editor.edit.apply([{ from: 0, to: editor.text().length, insert: updated }], "manifest");
+      else ctx.store.dispatch({ type: "edit", path: manifestPath, text: updated });
+      ctx.store.dispatch({ type: "saved", path: manifestPath, text: updated });
+    }
+    await reloadTree(ctx);
+    ctx.refresh(["left"]);
+  } catch (error) {
+    notifyError(`manifest.toml の更新に失敗しました: ${String(error)}`);
+  }
+};
+
+const exportSelected = async (ctx: Ctx, paths: string[]) => {
+  try {
+    const opened = new Map(allDocs(ctx.store.get()).map((doc) => [doc.path, doc]));
+    const parts = paths.map((path) => ({
+      path,
+      live: opened.has(path) ? (ctx.editors.get(path)?.text() ?? opened.get(path)!.text) : null,
+    }));
+    if (await api.exportChapters(parts)) ctx.toast(`${paths.length} 件の原稿を書き出しました`);
+  } catch (error) {
+    notifyError(`原稿の書き出しに失敗しました: ${String(error)}`);
+  }
+};
+
 export const mountTree = (ctx: Ctx) => {
   ctx.left.files = {
     icon: "files",
@@ -267,11 +308,30 @@ export const mountTree = (ctx: Ctx) => {
       : [],
   );
 
+  treeMenus.push((path, dir) => {
+    if (dir) return [];
+    const items: MenuItem[] = [];
+    const project = projectOf(path, ctx.projects);
+    if (kindOf(path) === "gm" && project) {
+      const registered = (chapters.get(project) ?? []).includes(path);
+      items.push({ label: registered ? "chapters から削除" : "chapters に追加", run: () => void toggleChapter(ctx, path, project) });
+    }
+    const selected = ctx.store.get().selected;
+    const paths = selected.includes(path) ? selected : [path];
+    const shown = rowsNow(ctx).flatMap((row) => row.t === "file" ? [row.entry.path] : []);
+    const ordered = selectedGmInTreeOrder(shown, paths);
+    if (ordered) items.push({ label: "選択した原稿を書き出す", run: () => void exportSelected(ctx, ordered) });
+    return items;
+  });
+
   // a row's right-click: the items the other parts add
   document.addEventListener("contextmenu", (e) => {
     const row = (e.target as HTMLElement).closest<HTMLElement>(".tree [data-file]:not([data-plot]), .tree [data-dir]");
     const path = row?.dataset.file ?? row?.dataset.dir;
     if (!row || !path) return;
+    if (row.dataset.file && !ctx.store.get().selected.includes(path)) {
+      ctx.store.dispatch({ type: "select", paths: [path], anchor: path });
+    }
     const items = treeMenus.flatMap((f) => f(path, row.dataset.dir !== undefined, ctx));
     if (!items.length) return;
     e.preventDefault();

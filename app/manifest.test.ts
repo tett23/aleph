@@ -1,4 +1,7 @@
 import { test } from "node:test";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { addChapter, manifestChapters, removeChapters, restoreChapters } from "./manifest.ts";
 
@@ -91,4 +94,61 @@ test("several chapters of one folder are taken out together and put back (docs/a
   const r = removeChapters(src, ["part1/a.gm", "part1/b.gm"]);
   assert.equal(r.src, 'chapters = ["x.gm"]\n');
   assert.equal(restoreChapters(r.src, r.removed), src);
+});
+
+test("ADR 0066 invariant 1: chapter toggle removes duplicate nested references without changing neighbours", () => {
+  const src = 'chapters = [\n  "a.gm",\n  ["x.gm", { file = "x.gm", paragraph-separator = "line" }],\n  { file = "b.gm", paragraph-separator = "line" },\n]\n';
+  const removed = removeChapters(src, ["x.gm"]).src;
+  assert.deepEqual(manifestChapters(removed), ["a.gm", "b.gm"]);
+  assert.match(removed, /\{ file = "b.gm", paragraph-separator = "line" \}/);
+  assert.deepEqual(manifestChapters(addChapter(removed, "x.gm")), ["a.gm", "b.gm", "x.gm"]);
+});
+
+test("ADR 0066 invariant 1: removing a sibling on the same line preserves the other chapter", () => {
+  const source = 'chapters = [\n  "a.gm", "b.gm", # both on the same line\n  { file = "c.gm", paragraph-separator = "line" },\n]\n';
+  const removed = removeChapters(source, ["a.gm"]).src;
+  assert.deepEqual(manifestChapters(removed), ["b.gm", "c.gm"]);
+  assert.match(removed, /paragraph-separator = "line"/);
+});
+
+test("ADR 0066 invariant 1: adding after a commented item keeps valid comma placement", () => {
+  const source = 'chapters = [\n  "a.gm" # keep this comment\n]\n';
+  const added = addChapter(source, "b.gm");
+  assert.match(added, /"a.gm", # keep this comment/);
+  assert.deepEqual(manifestChapters(added), ["a.gm", "b.gm"]);
+});
+
+test("ADR 0066 invariant 1: a multiline array closing on the last item line stays valid", () => {
+  const source = 'chapters = [\n  "a.gm"]\n';
+  const added = addChapter(source, "b.gm");
+  assert.deepEqual(manifestChapters(added), ["a.gm", "b.gm"]);
+  assert.match(added, /"b.gm"\]/);
+});
+
+
+test("ADR 0066 invariant 1: a temporary project keeps gm contents and the adjacent chapter", () => {
+  const dir = mkdtempSync(join(tmpdir(), "aleph-0066-"));
+  try {
+    const gm = join(dir, "chapter.gm");
+    const manifest = join(dir, "manifest.toml");
+    writeFileSync(gm, "# Original\n");
+    writeFileSync(manifest, 'chapters = ["chapter.gm", { file = "other.gm", paragraph-separator = "line" }]\n');
+    writeFileSync(manifest, removeChapters(readFileSync(manifest, "utf8"), ["chapter.gm"]).src);
+    assert.deepEqual(manifestChapters(readFileSync(manifest, "utf8")), ["other.gm"]);
+    assert.match(readFileSync(manifest, "utf8"), /paragraph-separator = "line"/);
+    assert.equal(readFileSync(gm, "utf8"), "# Original\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("ADR 0066 invariant 1: deleting the only item with a trailing comma leaves an empty array", () => {
+  const removed = removeChapters('chapters = ["a.gm",]\n', ["a.gm"]).src;
+  assert.equal(removed, "chapters = []\n");
+  assert.equal(addChapter(removed, "a.gm"), 'chapters = ["a.gm"]\n');
+});
+
+test("ADR 0066 invariant 1: adding to an empty multiline array keeps its lines", () => {
+  const source = "chapters = [\n]\n";
+  assert.equal(addChapter(source, "a.gm"), 'chapters = [\n  "a.gm"\n]\n');
 });
