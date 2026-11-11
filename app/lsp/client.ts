@@ -17,8 +17,10 @@ export type Client = {
   ready: Promise<boolean>;
   state: () => ClientState;
   legend: () => Legend | null;
+  supportsFileRename: () => boolean;
   request: <T>(method: string, params: unknown) => Promise<T>;
   notify: (method: string, params: unknown) => void;
+  notifyAndWait: (method: string, params: unknown) => Promise<void>;
   stop: () => void;
 };
 
@@ -32,25 +34,32 @@ const TOKEN_MODIFIERS = ["declaration", "definition", "readonly", "static", "dep
 
 let serial = 0;
 
-export const startClient = (root: string, h: Handlers): Client => {
+export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string; workspaceUri?: string; wikiSheets?: { uri: string; title: string | null }[] }): Client => {
   const id = `p${++serial}`;
   let seq = 0;
   let state: ClientState = "starting";
   let legend: Legend | null = null;
+  let supportsFileRename = false;
   const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>();
   const unlisten: (() => void)[] = [];
-  const send = (msg: object) => api.lspSend(id, JSON.stringify({ jsonrpc: "2.0", ...msg })).catch(() => {});
+  let sent = Promise.resolve();
+  const send = (msg: object) => {
+    const task = sent.then(() => api.lspSend(id, JSON.stringify({ jsonrpc: "2.0", ...msg })));
+    sent = task.catch(() => {});
+    return task;
+  };
   const request = <T>(method: string, params: unknown) =>
     new Promise<T>((resolve, reject) => {
       if (state === "failed" || state === "stopped") return reject(new Error("LSP is not running"));
       const n = ++seq;
       pending.set(n, { resolve: resolve as (v: unknown) => void, reject });
-      void send({ id: n, method, params });
+      void send({ id: n, method, params }).catch((error) => { pending.delete(n); reject(error); });
       setTimeout(() => pending.has(n) && (pending.delete(n), reject(new Error(`${method}: timeout`))), 10000);
     });
   const notify = (method: string, params: unknown) => {
-    if (state === "ready") void send({ method, params });
+    if (state === "ready") void send({ method, params }).catch(() => {});
   };
+  const notifyAndWait = (method: string, params: unknown) => state === "ready" ? send({ method, params }) : Promise.reject(new Error("LSP is not running"));
   const end = (s: ClientState) => {
     state = s;
     pending.forEach((p) => p.reject(new Error("LSP ended")));
@@ -63,8 +72,10 @@ export const startClient = (root: string, h: Handlers): Client => {
     ready: Promise.resolve(false),
     state: () => state,
     legend: () => legend,
+    supportsFileRename: () => supportsFileRename,
     request,
     notify,
+    notifyAndWait,
     stop: () => {
       if (state === "stopped") return;
       end("stopped");
@@ -82,7 +93,7 @@ export const startClient = (root: string, h: Handlers): Client => {
           if (msg.error) p?.reject(msg.error);
           else p?.resolve(msg.result);
         } else if (msg.method === "textDocument/publishDiagnostics") h.onDiagnostics(msg.params.uri, msg.params.diagnostics ?? []);
-        else if (msg.id !== undefined && msg.method) void send({ id: msg.id, result: null }); // server requests get an empty answer
+        else if (msg.id !== undefined && msg.method) void send({ id: msg.id, result: null }).catch(() => {}); // server requests get an empty answer
       }),
       await listen(`lsp-${id}-exit`, () => {
         if (state === "stopped") return;
@@ -91,12 +102,14 @@ export const startClient = (root: string, h: Handlers): Client => {
       }),
     );
     await api.lspStart(id, root);
-    const init = await request<{ capabilities: { semanticTokensProvider?: { legend: Legend } } }>("initialize", {
+    const init = await request<{ capabilities: { semanticTokensProvider?: { legend: Legend }; workspace?: { fileOperations?: { willRename?: unknown; didRename?: unknown } } } }>("initialize", {
       processId: null,
       rootUri: uriOf(root),
       workspaceFolders: [{ uri: uriOf(root), name: root.split("/").pop() }],
+      initializationOptions: aleph ? { aleph } : undefined,
       capabilities: {
         general: { positionEncodings: ["utf-16"] },
+        workspace: { fileOperations: { willRename: true, didRename: true }, workspaceEdit: { documentChanges: true } },
         textDocument: {
           synchronization: { didSave: true, dynamicRegistration: false },
           publishDiagnostics: {},
@@ -108,8 +121,9 @@ export const startClient = (root: string, h: Handlers): Client => {
       },
     });
     legend = init.capabilities.semanticTokensProvider?.legend ?? null;
+    supportsFileRename = !!init.capabilities.workspace?.fileOperations?.willRename && !!init.capabilities.workspace?.fileOperations?.didRename;
     state = "ready";
-    void send({ method: "initialized", params: {} });
+    void send({ method: "initialized", params: {} }).catch(() => {});
     return true;
   })().catch((e) => {
     console.warn("lsp", root, e);
