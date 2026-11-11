@@ -16,6 +16,7 @@ import { golem, shem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { IMAGE_KINDS } from "../workspace.ts";
 import { autoDpi, pageInches } from "./pages.ts";
+import { createPageInputs, pageSaveTiming } from "./page-saves.ts";
 import { createWaiter } from "./wait.ts";
 import { withBuildDir } from "../buildlock.ts";
 import {
@@ -50,8 +51,15 @@ export type Pages = { pdf: string; pngs: string[]; dpi: number; ok: boolean; log
 const pages = new Map<string, Pages>();
 const pageUrls = new Map<string, string[]>();
 /** A build in progress, and what to run after it: null, a full build, or a redraw at a dpi. */
-type PageBuild = { busy: boolean; again: null | { redraw: boolean; dpi?: number } };
+type PageBuild = { busy: boolean; again: null | { redraw: boolean; dpi?: number; onlyChanged: boolean } };
 const pageBuilds = new Map<string, PageBuild>();
+
+const inputsByProject = new Map<string, ReturnType<typeof createPageInputs>>();
+const pageInputs = (project: string) => {
+  let inputs = inputsByProject.get(project);
+  if (!inputs) inputsByProject.set(project, (inputs = createPageInputs()));
+  return inputs;
+};
 
 const out = (o: { stdout: string; stderr: string }) => (o.stderr || o.stdout).trim();
 
@@ -107,7 +115,7 @@ const publishPages = async (ctx: Ctx, project: string, p: Pages) => {
 const waiter = createWaiter({ now: () => Date.now(), set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => clearTimeout(id) });
 
 /** golem build --target pdf, then shem; with `redraw`, only shem on the PDF already built. */
-const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wantedDpi(ctx, project)) => {
+const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wantedDpi(ctx, project), onlyChanged = false) => {
   // a build now (the button, the first one) takes the place of one waiting for the input to stop
   if (!redraw) waiter.cancel(project);
   const b = pageBuilds.get(project) ?? { busy: false, again: null };
@@ -115,32 +123,48 @@ const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wante
   // a full build asked for meanwhile wins over a redraw
   if (b.busy) {
     const fullPending = b.again !== null && !b.again.redraw;
-    if (!fullPending) b.again = { redraw, dpi };
+    if (!fullPending || (!redraw && !onlyChanged)) b.again = { redraw, dpi, onlyChanged };
+    return;
+  }
+  const inputs = pageInputs(project);
+  if (onlyChanged && !inputs.changed()) {
+    ctx.refresh(["side"]);
     return;
   }
   b.busy = true;
   ctx.refresh(["side"]);
   try {
+    let snapshot: Map<string, string> | undefined;
     const prev = pages.get(project);
     let pdf = redraw ? prev?.pdf : undefined;
     let log = "";
     if (!pdf) {
-      const o = await withBuildDir(project, () => golem(ctx, project, ["build", "--target", "pdf"]));
+      const o = await withBuildDir(project, async () => {
+        if (onlyChanged && !inputs.changed()) return null;
+        snapshot = inputs.snapshot();
+        return golem(ctx, project, ["build", "--target", "pdf"]);
+      });
+      if (!o) return;
       log = o.code === 0 ? "" : out(o) || "golem build に失敗しました";
       pdf = o.code === 0 ? (await api.listDir(`${project}/build/pdf`)).find((f) => f.endsWith(".pdf")) : undefined;
       if (o.code === 0 && !pdf) log = "build/pdf に PDF がありません";
     }
     if (!pdf) pages.set(project, { ...(prev ?? { pdf: "", pngs: [], dpi }), ok: false, log });
-    else await publishPages(ctx, project, await rasterize(ctx, project, pdf, dpi));
+    else {
+      const result = await rasterize(ctx, project, pdf, dpi);
+      await publishPages(ctx, project, result);
+      if (result.ok && snapshot) inputs.publish(snapshot);
+    }
   } catch (e) {
     pages.set(project, { ...(pages.get(project) ?? { pdf: "", pngs: [], dpi }), ok: false, log: String(e) });
-  }
-  b.busy = false;
-  ctx.refresh(["side"]);
-  if (b.again) {
-    const next = b.again;
-    b.again = null;
-    void buildPages(ctx, project, next.redraw, next.redraw ? next.dpi : undefined);
+  } finally {
+    b.busy = false;
+    ctx.refresh(["side"]);
+    if (b.again) {
+      const next = b.again;
+      b.again = null;
+      void buildPages(ctx, project, next.redraw, next.redraw ? next.dpi : undefined, next.onlyChanged);
+    }
   }
 };
 
@@ -319,7 +343,24 @@ export const mountPreview = (ctx: Ctx) => {
   for (const k of IMAGE_KINDS) ctx.kindViews[k] = (el, doc) => imageView(el, doc);
 
   // after a save: the text is built again; the pages too when the setting says so, once the input has stopped (docs/adr/0056)
-  ctx.store.subscribe((s, prev) => {
+  ctx.store.subscribe((s, prev, action) => {
+    if (action.type === "saved") {
+      const before = allDocs(prev).find((d) => d.path === action.path);
+      if (before?.project) {
+        const project = before.project;
+        const eligible = ctx.config.rebuildOnSave && (pages.has(project) || effectiveSide(before.kind, s.side) === "pages");
+        if (before.saved !== action.text && (eligible || inputsByProject.has(project))) {
+          pageInputs(project).save(action.path, before.saved, action.text);
+        }
+        const timing = pageSaveTiming(action.pageSave ?? "automatic", action.beforeFormat ?? before.saved, action.text, eligible);
+        const run = () => void buildPages(ctx, project, false, undefined, true);
+        if (timing === "now") run();
+        if (timing === "wait") {
+          waiter.request(project, run);
+          ctx.refresh(["side"]);
+        }
+      }
+    }
     for (const d of allDocs(s)) {
       const before = allDocs(prev).find((x) => x.path === d.path);
       if (before && d.project && before.text !== d.text) waiter.edited(d.project);
@@ -327,11 +368,6 @@ export const mountPreview = (ctx: Ctx) => {
       if (d.path.endsWith("/style.toml")) styles.delete(d.project ?? "");
       if (!d.project) continue;
       if (d.kind === "gm") void buildHtml(ctx, d.project, chaptersShown(s).map((x) => x.path));
-      if (ctx.config.rebuildOnSave && (pages.has(d.project) || effectiveSide(d.kind, s.side) === "pages")) {
-        const project = d.project;
-        waiter.request(project, () => void buildPages(ctx, project));
-        ctx.refresh(["side"]);
-      }
     }
     if (s.vertical !== prev.vertical || s.open !== prev.open) void sendPlain(ctx);
   });

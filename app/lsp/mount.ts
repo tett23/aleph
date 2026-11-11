@@ -192,7 +192,7 @@ const readyClient = (path: string) => {
 // ---- formatting ----
 
 /** Formats a sheet in its editor as one change (undone by one ⌘Z); returns whether anything changed. */
-export const format = async (ctx: Ctx, doc: Doc): Promise<boolean | null> => {
+export const format = async (ctx: Ctx, doc: Doc, duringSave = false): Promise<boolean | null | "skipped"> => {
   const view = views.get(doc.path);
   const c = readyClient(doc.path);
   if (view && c) {
@@ -207,7 +207,8 @@ export const format = async (ctx: Ctx, doc: Doc): Promise<boolean | null> => {
   }
   // without the server: golem fmt on the saved file, read back into the editor
   if (!doc.project) return null;
-  await ctx.save([doc.path], { explicit: true });
+  const written = await ctx.save([doc.path], { explicit: true, intermediate: duringSave });
+  if (!written.has(doc.path)) return "skipped";
   // not while a build reads the project (docs/adr/0062)
   const project = doc.project;
   const out = await withBuildDir(project, () => golem(ctx, project, ["fmt", argPath(rel(project, doc.path))])).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
@@ -220,19 +221,21 @@ export const format = async (ctx: Ctx, doc: Doc): Promise<boolean | null> => {
   const current = ed?.text() ?? doc.text;
   if (text === current) return false;
   ed?.setText(text);
-  ctx.store.dispatch({ type: "saved", path: doc.path, text });
+  ctx.store.dispatch({ type: "saved", path: doc.path, text, pageSave: duringSave ? "intermediate" : undefined });
   return true;
 };
 
-const formatNow = async (ctx: Ctx, doc: Doc) => {
-  const r = await format(ctx, doc);
+const formatNow = async (ctx: Ctx, doc: Doc, duringSave = false) => {
+  const r = await format(ctx, doc, duringSave);
+  if (r === "skipped") return false;
   if (r !== null) ctx.toast(r ? "整形しました" : "変更はありません");
+  return true;
 };
 
 /** ⌘S: format first (when the setting is on, with the same notices as ⌥⇧F), then save. */
 const formatAndSave = async (ctx: Ctx, doc: Doc) => {
-  if (ctx.config.formatOnSave) await formatNow(ctx, doc);
-  await ctx.save([doc.path], { explicit: true });
+  if (ctx.config.formatOnSave && !(await formatNow(ctx, doc, true))) return;
+  await ctx.save([doc.path], { explicit: true, beforeFormat: doc.saved });
 };
 
 // ---- hover and completion ----

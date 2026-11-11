@@ -90,7 +90,7 @@ export type Ctx = {
   /** Views that replace the editor for a kind (pdf, images, tables), drawing one sheet. */
   kindViews: Record<string, (el: HTMLElement, doc: Doc, ctx: Ctx) => Editor>;
   /** Saves the open sheets (those given, or all with changes). */
-  save: (paths?: string[], opts?: { explicit?: boolean }) => Promise<void>;
+  save: (paths?: string[], opts?: { explicit?: boolean; intermediate?: boolean; beforeFormat?: string }) => Promise<Set<string>>;
   /** HEAD's text of a file, for the change marks; null when not in HEAD. */
   baseText: (doc: Doc) => Promise<string | null | false>;
   /** Draws the panels and the status bar again (after a change outside the store). */

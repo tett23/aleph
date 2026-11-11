@@ -32,6 +32,8 @@ Right-click a project or folder to add a folder or an empty sheet of a chosen ty
 The file tree shows chapters in their actual folders. The settings can show hidden files or hide files matched by `.gitignore`.
 Right-click a Golem document to add it to or remove it from the project chapters. Selected Golem documents can be exported as one file in tree order.
 
+With page refresh on save enabled, ⌘S refreshes the PDF preview immediately when the saved content changes. Autosave waits for five seconds of idle time and skips rendering if the pages already match.
+
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
 
 ## Status

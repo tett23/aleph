@@ -113,15 +113,23 @@ const start = async () => {
     kindViews: {},
     save: async (paths, opts) => {
       // the basic save: write the sheets with changes (docs/adr/0011 adds autosave and the rest)
+      const written = new Set<string>();
       for (const d of allDocs(store.get())) {
+        if (written.has(d.path)) continue;
         if (paths && !paths.includes(d.path)) continue;
         const text = ctx.editors.get(d.path)?.text() ?? d.text;
         if (text === d.saved && !opts?.explicit) continue;
         // not over a change made outside since the last read or write (docs/adr/0063)
         if (!(await mayWrite(ctx, d, !!opts?.explicit))) continue;
         await api.writeText(d.path, text);
-        store.dispatch({ type: "saved", path: d.path, text });
+        written.add(d.path);
+        store.dispatch({
+          type: "saved", path: d.path, text,
+          pageSave: opts?.intermediate ? "intermediate" : opts?.explicit ? "explicit" : undefined,
+          beforeFormat: opts?.beforeFormat,
+        });
       }
+      return written;
     },
     baseText: async (d) => {
       // no git: nothing to compare with, so no marks (docs/adr/0060)
