@@ -132,6 +132,8 @@ const renameTreeItem = async (ctx: Ctx, from: string) => {
   if (name === null) return;
   const to = renameTarget(from, name);
   if (!to) return;
+  let prepared: Awaited<ReturnType<NonNullable<Ctx["prepareRename"]>>> = null;
+  let renamed = false;
   try {
     if (await api.exists(to)) return toast(`${name} はもうあります`);
     const open = allDocs(ctx.store.get())
@@ -141,12 +143,26 @@ const renameTreeItem = async (ctx: Ctx, from: string) => {
     // mayWrite can decline a save when an external edit conflicts with it.
     if (allDocs(ctx.store.get()).some((d) => open.includes(d.path) && (ctx.editors.get(d.path)?.text() ?? d.text) !== d.saved)) return;
     for (const f of ctx.beforeRename) await f(from, to, ctx);
+    if (ctx.prepareRename) {
+      try {
+        prepared = await ctx.prepareRename(from, to, ctx);
+      } catch (error) {
+        const selected = await choiceDialog("参照を更新できませんでした", String(error), ["中止", "参照を更新せず改名"]);
+        if (selected !== 1) return;
+      }
+    }
     await api.rename(from, to);
+    renamed = true;
+    prepared?.renamed();
     ctx.store.dispatch({ type: "rename", from, to });
     for (const f of ctx.onRename) await f(from, to, ctx);
     await reloadTree(ctx);
     ctx.refresh(["left"]);
   } catch (error) {
+    if (!renamed && prepared) {
+      try { await prepared.rollback(); }
+      catch (undoError) { notifyError(`参照の編集を戻せませんでした: ${String(undoError)}`); }
+    }
     notifyError(String(error));
   }
 };

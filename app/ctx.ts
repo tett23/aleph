@@ -77,6 +77,8 @@ export type Ctx = {
   onNewProject: ((project: string, ctx: Ctx) => void | Promise<void>)[];
   /** Flushes writes that would otherwise target an old path after a rename. */
   beforeRename: ((from: string, to: string, ctx: Ctx) => void | Promise<void>)[];
+  /** Prepare reference edits after the other flushes, and undo them if the disk rename fails. */
+  prepareRename?: (from: string, to: string, ctx: Ctx) => Promise<{ rollback: () => Promise<void>; renamed: () => void } | null>;
   /** Run after a file is renamed in Aleph. */
   onRename: ((from: string, to: string, ctx: Ctx) => void | Promise<void>)[];
   /** The editors of the open sheets, by path. */

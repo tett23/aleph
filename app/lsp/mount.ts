@@ -10,6 +10,7 @@ import { allDocs, focused, type Doc, type State } from "../store.ts";
 import { golem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { startClient, type Client, type LspDiagnostic } from "./client.ts";
+import { applyFileRenamePlans, pathOfFileUri, planFileRename, type Snapshot, type WorkspaceEdit } from "./file-rename.ts";
 import { completionStart, decodeSemanticTokens, editsToChanges, offsetOf, tokenRanges, uriOf, type TextEdit, type TokenRange } from "./protocol.ts";
 
 export const LSP_KINDS = ["gm", "emet"];
@@ -272,6 +273,39 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
 
 export const mountLsp = (ctx: Ctx) => {
   ctx.editorPlugins.push(pluginFor);
+  ctx.prepareRename = async (from, to, c) => {
+    const project = c.projects.find((p) => from === p || from.startsWith(`${p}/`));
+    if (!project) return null;
+    if (from === project) {
+      return { rollback: async () => {}, renamed: () => { clients.get(project)?.stop(); clients.delete(project); } };
+    }
+    const client = clientFor(c, project);
+    if (!client || !(await client.ready) || !client.supportsFileRename()) throw new Error("Golem LSP の参照更新が利用できません");
+    for (const [path, s] of synced) if (s.project === project) flush(path);
+    const files = [{ oldUri: uriOf(from), newUri: uriOf(to) }];
+    const response = await client.request<WorkspaceEdit | null>("workspace/willRenameFiles", { files });
+    const snapshots = new Map<string, Snapshot>();
+    for (const item of response?.documentChanges ?? []) {
+      if (!("textDocument" in item)) continue;
+      const path = pathOfFileUri(item.textDocument.uri);
+      const doc = allDocs(c.store.get()).find((d) => d.path === path);
+      const text = doc ? (c.editors.get(path)?.text() ?? doc.text) : await api.readText(path);
+      snapshots.set(path, { text, version: synced.get(path)?.version ?? null });
+    }
+    const plans = planFileRename(project, response, snapshots);
+    const read = async (path: string) => c.editors.get(path)?.text() ?? await api.readText(path);
+    const rollback = await applyFileRenamePlans(plans, {
+      read,
+      write: async (path, text, plan) => {
+        const editor = c.editors.get(path);
+        if (!editor) return api.writeText(path, text);
+        if (!editor.edit) throw new Error(`参照元をテキストとして編集できません: ${path}`);
+        editor.edit.apply(text === plan.after ? plan.changes : [{ from: 0, to: plan.after.length, insert: plan.before }], "rename-links");
+      },
+    });
+    for (const plan of plans) flush(plan.path);
+    return { rollback, renamed: () => client.notify("workspace/didRenameFiles", { files }) };
+  };
   ctx.onRename.push((from, to) => {
     for (const [path, view] of [...views]) {
       if (path !== from && !path.startsWith(from + "/")) continue;
