@@ -28,6 +28,10 @@ const clear = (path: string) => {
   notifications().dismissKey(keyOf(path));
 };
 
+export const finishWrite = (path: string) => {
+  if (stopped.has(path)) clear(path);
+};
+
 /** Puts `text` in the sheet (one edit, caret kept) and makes `saved` the disk's. */
 const put = (ctx: Ctx, d: Doc, text: string, disk: string) => {
   const ed = ctx.editors.get(d.path);
@@ -52,10 +56,12 @@ const useDisk = async (ctx: Ctx, path: string) => {
   clear(path);
 };
 
+const confirmOverwrite = (path: string) => confirmDialog(`${basename(path)} を Aleph の内容で上書きします。ほかのアプリでの変更はなくなります`, "上書きする");
+
 /** Aleph's text written over the disk's, after asking. */
 const overwrite = async (ctx: Ctx, path: string) => {
   const d = docOf(ctx, path);
-  if (!d || !(await confirmDialog(`${basename(path)} を Aleph の内容で上書きします。ほかのアプリでの変更はなくなります`, "上書きする"))) return;
+  if (!d || !(await confirmOverwrite(path))) return;
   await write(ctx, path, textOf(ctx, d));
 };
 
@@ -153,12 +159,11 @@ export const mayWrite = async (ctx: Ctx, d: Doc, explicit: boolean): Promise<boo
     if (!explicit) return false;
     const name = basename(d.path);
     if (why === "gone") {
-      if (await confirmDialog(`${name} はディスクにありません。この内容で作りなおします`, "作りなおす")) await write(ctx, d.path, textOf(ctx, d));
-      return false;
+      return confirmDialog(`${name} はディスクにありません。この内容で作りなおします`, "作りなおす");
     }
     const i = await choiceDialog(`${name} の保存は止めています`, "ほかのアプリでの変更と食い違っています。どうしますか。", ["ほかのアプリの内容にする", "Aleph の内容で上書きする", "食い違いを直す"]);
     if (i === 0) await useDisk(ctx, d.path);
-    if (i === 1) await overwrite(ctx, d.path);
+    if (i === 1) return confirmOverwrite(d.path);
     if (i === 2) await settle(ctx, d.path);
     return false;
   }

@@ -1,7 +1,7 @@
 // Loading sheets and opening them (docs/adr/0004).
 import { api } from "./api.ts";
-import type { At, Ctx, OpenOpts } from "./ctx.ts";
-import type { Doc, Grid } from "./store.ts";
+import type { At, Ctx, OpenOpts, SaveOptions } from "./ctx.ts";
+import { allDocs, type Doc, type Grid } from "./store.ts";
 import { IMAGE_KINDS, kindOf, projectOf, readGrid, workspaceOf } from "./workspace.ts";
 
 const grids = new Map<string, Grid>();
@@ -29,4 +29,27 @@ export const openPaths = async (ctx: Ctx, paths: string[], at?: At, opts?: OpenO
   const docs = await Promise.all(paths.map((p) => loadDoc(p, ctx)));
   ctx.pendingAt = at ?? null;
   ctx.store.dispatch({ type: "open", docs, newTab: opts?.newTab });
+};
+
+/** Publish a saved action only after the write succeeds. A declined write has no save event. */
+export const saveSheets = async (
+  ctx: Pick<Ctx, "store" | "editors">,
+  paths: string[] | undefined,
+  opts: SaveOptions | undefined,
+  write: (doc: Doc, text: string) => Promise<boolean>,
+) => {
+  const written = new Set<string>();
+  for (const doc of allDocs(ctx.store.get())) {
+    if (written.has(doc.path) || (paths && !paths.includes(doc.path))) continue;
+    const text = ctx.editors.get(doc.path)?.text() ?? doc.text;
+    if (text === doc.saved && !opts?.explicit) continue;
+    if (!(await write(doc, text))) continue;
+    written.add(doc.path);
+    ctx.store.dispatch({
+      type: "saved", path: doc.path, text,
+      pageSave: opts?.pageSave ?? (opts?.explicit ? "explicit" : undefined),
+      beforeFormat: opts?.beforeFormat,
+    });
+  }
+  return written;
 };

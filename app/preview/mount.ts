@@ -16,7 +16,7 @@ import { golem, shem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { IMAGE_KINDS } from "../workspace.ts";
 import { autoDpi, pageInches } from "./pages.ts";
-import { createPageInputs, pageSaveTiming } from "./page-saves.ts";
+import { createPageSaves } from "./page-saves.ts";
 import { createWaiter } from "./wait.ts";
 import { withBuildDir } from "../buildlock.ts";
 import {
@@ -53,13 +53,6 @@ const pageUrls = new Map<string, string[]>();
 /** A build in progress, and what to run after it: null, a full build, or a redraw at a dpi. */
 type PageBuild = { busy: boolean; again: null | { redraw: boolean; dpi?: number; onlyChanged: boolean } };
 const pageBuilds = new Map<string, PageBuild>();
-
-const inputsByProject = new Map<string, ReturnType<typeof createPageInputs>>();
-const pageInputs = (project: string) => {
-  let inputs = inputsByProject.get(project);
-  if (!inputs) inputsByProject.set(project, (inputs = createPageInputs()));
-  return inputs;
-};
 
 const out = (o: { stdout: string; stderr: string }) => (o.stderr || o.stdout).trim();
 
@@ -114,6 +107,8 @@ const publishPages = async (ctx: Ctx, project: string, p: Pages) => {
 // builds after a save wait until the input has stopped for 5 s (docs/adr/0056)
 const waiter = createWaiter({ now: () => Date.now(), set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => clearTimeout(id) });
 
+const pageSaves = createPageSaves(waiter);
+
 /** golem build --target pdf, then shem; with `redraw`, only shem on the PDF already built. */
 const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wantedDpi(ctx, project), onlyChanged = false) => {
   // a build now (the button, the first one) takes the place of one waiting for the input to stop
@@ -126,7 +121,7 @@ const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wante
     if (!fullPending || (!redraw && !onlyChanged)) b.again = { redraw, dpi, onlyChanged };
     return;
   }
-  const inputs = pageInputs(project);
+  const inputs = pageSaves.inputsFor(project);
   if (onlyChanged && !inputs.changed()) {
     ctx.refresh(["side"]);
     return;
@@ -349,16 +344,8 @@ export const mountPreview = (ctx: Ctx) => {
       if (before?.project) {
         const project = before.project;
         const eligible = ctx.config.rebuildOnSave && (pages.has(project) || effectiveSide(before.kind, s.side) === "pages");
-        if (before.saved !== action.text && (eligible || inputsByProject.has(project))) {
-          pageInputs(project).save(action.path, before.saved, action.text);
-        }
-        const timing = pageSaveTiming(action.pageSave ?? "automatic", action.beforeFormat ?? before.saved, action.text, eligible);
-        const run = () => void buildPages(ctx, project, false, undefined, true);
-        if (timing === "now") run();
-        if (timing === "wait") {
-          waiter.request(project, run);
-          ctx.refresh(["side"]);
-        }
+        pageSaves.saved(project, action, before.saved, eligible, () => void buildPages(ctx, project, false, undefined, true));
+        if (waiter.waiting(project)) ctx.refresh(["side"]);
       }
     }
     for (const d of allDocs(s)) {

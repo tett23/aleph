@@ -64,7 +64,7 @@ export type Action =
   | { type: "restoreTabs"; panes: { tabs: Omit<Tab, "id">[]; active: number }[]; pane: number }
   | { type: "focus"; index: number }
   | { type: "edit"; path: string; text: string }
-  | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "intermediate"; beforeFormat?: string }
+  | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "automatic" | "intermediate"; beforeFormat?: string }
   | { type: "rename"; from: string; to: string }
   | { type: "select"; paths: string[]; anchor?: string | null }
   | { type: "left"; panel: LeftPanel }
