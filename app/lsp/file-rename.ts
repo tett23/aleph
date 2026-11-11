@@ -1,10 +1,36 @@
 // Validate the WorkspaceEdit returned before a tree rename (Golem ADR 0338).
-import { applyChanges, editsToChanges, type Change, type Position, type TextEdit } from "./protocol.ts";
+import { applyChanges, editsToChanges, uriOf, type Change, type Position, type TextEdit } from "./protocol.ts";
 
 export type Snapshot = { text: string; version: number | null };
 export type TextDocumentEdit = { textDocument: { uri: string; version: number | null }; edits: TextEdit[] };
 export type WorkspaceEdit = { documentChanges?: (TextDocumentEdit | { kind: string; oldUri?: string; newUri?: string })[] };
 export type FileEditPlan = { path: string; before: string; after: string; version: number | null; changes: Change[] };
+
+type WikiBuffer = { path: string; text: string };
+
+/** Keep open Wiki sheets outside the project in this project's LSP VFS during a rename. */
+export const openRenameWikiBuffers = (notify: (method: string, params: unknown) => void, initial: WikiBuffer[]) => {
+  const states = new Map(initial.map(({ path, text }) => [path, { text, version: 1 }]));
+  for (const [path, state] of states) notify("textDocument/didOpen", { textDocument: { uri: uriOf(path), languageId: "markdown", version: state.version, text: state.text } });
+  return {
+    refresh: (buffers: WikiBuffer[]): Map<string, Snapshot> => {
+      const current = new Map(buffers.map(({ path, text }) => [path, text]));
+      for (const [path, state] of states) {
+        const text = current.get(path);
+        if (text === undefined) throw new Error(`Open Wiki sheet disappeared: ${path}`);
+        if (text === state.text) continue;
+        state.text = text;
+        state.version++;
+        notify("textDocument/didChange", { textDocument: { uri: uriOf(path), version: state.version }, contentChanges: [{ text }] });
+      }
+      return new Map(states);
+    },
+    close: () => {
+      for (const path of states.keys()) notify("textDocument/didClose", { textDocument: { uri: uriOf(path) } });
+      states.clear();
+    },
+  };
+};
 
 export const pathOfFileUri = (uri: string): string => {
   const parsed = new URL(uri);
