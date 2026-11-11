@@ -29,7 +29,6 @@ It edits these formats:
 Right-click a sheet, folder, or project in the file tree to rename it. Open sheets follow the new path.
 Right-click a project or folder to add a folder or an empty sheet of a chosen type. Right-click a Markdown sheet to convert that sheet to gm.
 
-
 ## Status
 
 The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, the conversion from Markdown, and plugins.
