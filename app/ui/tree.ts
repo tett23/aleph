@@ -34,8 +34,9 @@ const ICONS: Record<string, string> = {
 };
 
 let entries: Entry[] = [];
-/** The workspace as the tree last read it. */
-export const treeEntries = () => entries;
+let baseEntries: Entry[] = [];
+/** The workspace's default tree, used by search, links and trash independently of display settings. */
+export const treeEntries = () => baseEntries;
 const chapters = new Map<string, string[]>();
 
 /** Items of a row's right-click menu, by the parts that add them (bookmarks, the trash). */
@@ -47,11 +48,11 @@ export const treeReloaded: ((ctx: Ctx) => void | Promise<void>)[] = [];
 /** Reads the workspace again: the tree, the projects, their chapters and the sheets' titles. */
 export const reloadTree = async (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
-  const full = ws ? await api.listTree(ws).catch(() => []) : [];
+  baseEntries = ws ? await api.listTree(ws).catch(() => []) : [];
   entries = ws && (ctx.config?.showHiddenFiles || ctx.config?.showGitignoredFiles === false)
     ? await api.listTree(ws, { showHidden: ctx.config?.showHiddenFiles ?? false, showIgnored: ctx.config?.showGitignoredFiles ?? true }).catch(() => [])
-    : full;
-  const projects = new Set(ws ? projectsIn(ws, full) : []);
+    : baseEntries;
+  const projects = new Set(ws ? projectsIn(ws, baseEntries) : []);
   // projects of every workspace, for the cross-project panels
   for (const w of ctx.store.get().workspaces) if (w !== ws) projectsIn(w, await api.listTree(w).catch(() => [])).forEach((p) => projects.add(p));
   ctx.projects = [...projects];
@@ -60,7 +61,7 @@ export const reloadTree = async (ctx: Ctx) => {
     [...projects].map(async (p) => chapters.set(p, manifestChapters(await api.readText(`${p}/manifest.toml`).catch(() => "")).map((r) => `${p}/${r}`))),
   );
   await Promise.all(
-    flatten(entries)
+    [...new Map([...flatten(baseEntries), ...flatten(entries)].map((entry) => [entry.path, entry])).values()]
       .filter((e) => ["gm", "md"].includes(kindOf(e.path)))
       .map(async (e) => {
         const t = titleOf(kindOf(e.path), await api.readText(e.path).catch(() => ""));
