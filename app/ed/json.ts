@@ -366,7 +366,7 @@ export const formatThenSave = async (o: {
   /** A save the writer asked for (⌘S); an autosave (false) never formats (docs/adr/0021). */
   explicit?: boolean;
   format: () => "changed" | "same" | "error";
-  save: () => Promise<void>;
+  save: () => Promise<unknown>;
   notify: (message: string) => void;
 }) => {
   if (o.formatOnSave && o.explicit !== false) {

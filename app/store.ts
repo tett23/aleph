@@ -64,7 +64,7 @@ export type Action =
   | { type: "restoreTabs"; panes: { tabs: Omit<Tab, "id">[]; active: number }[]; pane: number }
   | { type: "focus"; index: number }
   | { type: "edit"; path: string; text: string }
-  | { type: "saved"; path: string; text: string }
+  | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "automatic" | "intermediate"; beforeFormat?: string }
   | { type: "rename"; from: string; to: string }
   | { type: "select"; paths: string[]; anchor?: string | null }
   | { type: "left"; panel: LeftPanel }
@@ -377,18 +377,18 @@ export const dirty = (d: Doc) => d.text !== d.saved;
 export type Store = {
   get: () => State;
   dispatch: (a: Action) => void;
-  subscribe: (f: (s: State, prev: State) => void) => () => void;
+  subscribe: (f: (s: State, prev: State, action: Action) => void) => () => void;
 };
 
 export const createStore = (init: State = initialState()): Store => {
   let state = init;
-  const subs = new Set<(s: State, prev: State) => void>();
+  const subs = new Set<(s: State, prev: State, action: Action) => void>();
   return {
     get: () => state,
     dispatch: (a) => {
       const prev = state;
       state = reduce(state, a);
-      if (state !== prev) subs.forEach((f) => f(state, prev));
+      if (state !== prev) subs.forEach((f) => f(state, prev, a));
     },
     subscribe: (f) => (subs.add(f), () => subs.delete(f)),
   };

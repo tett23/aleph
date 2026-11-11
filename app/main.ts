@@ -9,15 +9,15 @@ import { startPreviewWindow } from "./preview/window.ts";
 import { mountPlotFeature, startPlotWindow } from "./plot/mount.ts";
 import { listen } from "@tauri-apps/api/event";
 import type { Ctx } from "./ctx.ts";
-import { allDocs, createStore, initialState, type State } from "./store.ts";
+import { createStore, initialState, type State } from "./store.ts";
 import { confirmDialog, toast } from "./ui/dom.ts";
 import { notify } from "./ui/notices.ts";
-import { mayWrite, mountWatch } from "./watchmount.ts";
+import { finishWrite, mayWrite, mountWatch } from "./watchmount.ts";
 import { guardLinks } from "./links.ts";
 import { item } from "./ui/settings.ts";
 import { debugBuild } from "./build.ts";
 import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
-import { openPaths } from "./docs.ts";
+import { openPaths, saveSheets } from "./docs.ts";
 import { mountTree, reloadTree } from "./ui/tree.ts";
 import { git, gitOk, mountTools } from "./tools.ts";
 import { startRecorder } from "./ed/recorder.ts";
@@ -111,18 +111,12 @@ const start = async () => {
     editors: new Map(),
     editorPlugins: [],
     kindViews: {},
-    save: async (paths, opts) => {
-      // the basic save: write the sheets with changes (docs/adr/0011 adds autosave and the rest)
-      for (const d of allDocs(store.get())) {
-        if (paths && !paths.includes(d.path)) continue;
-        const text = ctx.editors.get(d.path)?.text() ?? d.text;
-        if (text === d.saved && !opts?.explicit) continue;
-        // not over a change made outside since the last read or write (docs/adr/0063)
-        if (!(await mayWrite(ctx, d, !!opts?.explicit))) continue;
-        await api.writeText(d.path, text);
-        store.dispatch({ type: "saved", path: d.path, text });
-      }
-    },
+    save: (paths, opts) => saveSheets(ctx, paths, opts, async (doc, text) => {
+      if (!(await mayWrite(ctx, doc, !!opts?.explicit))) return false;
+      await api.writeText(doc.path, text);
+      finishWrite(doc.path);
+      return true;
+    }),
     baseText: async (d) => {
       // no git: nothing to compare with, so no marks (docs/adr/0060)
       if (!(await gitOk())) return false;
