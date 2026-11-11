@@ -20,6 +20,7 @@ export type Client = {
   supportsFileRename: () => boolean;
   request: <T>(method: string, params: unknown) => Promise<T>;
   notify: (method: string, params: unknown) => void;
+  notifyAndWait: (method: string, params: unknown) => Promise<void>;
   stop: () => void;
 };
 
@@ -58,6 +59,7 @@ export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string
   const notify = (method: string, params: unknown) => {
     if (state === "ready") void send({ method, params }).catch(() => {});
   };
+  const notifyAndWait = (method: string, params: unknown) => state === "ready" ? send({ method, params }) : Promise.reject(new Error("LSP is not running"));
   const end = (s: ClientState) => {
     state = s;
     pending.forEach((p) => p.reject(new Error("LSP ended")));
@@ -73,6 +75,7 @@ export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string
     supportsFileRename: () => supportsFileRename,
     request,
     notify,
+    notifyAndWait,
     stop: () => {
       if (state === "stopped") return;
       end("stopped");

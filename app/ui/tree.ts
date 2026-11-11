@@ -134,6 +134,7 @@ const renameTreeItem = async (ctx: Ctx, from: string) => {
   if (!to) return;
   let prepared: Awaited<ReturnType<NonNullable<Ctx["prepareRename"]>>> = null;
   let renamed = false;
+  ctx.renameReferencesHandled = false;
   try {
     if (await api.exists(to)) return toast(`${name} はもうあります`);
     const open = allDocs(ctx.store.get())
@@ -153,7 +154,7 @@ const renameTreeItem = async (ctx: Ctx, from: string) => {
     }
     await api.rename(from, to);
     renamed = true;
-    prepared?.renamed();
+    await prepared?.renamed();
     ctx.store.dispatch({ type: "rename", from, to });
     for (const f of ctx.onRename) await f(from, to, ctx);
     await reloadTree(ctx);

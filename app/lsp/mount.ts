@@ -9,7 +9,7 @@ import { argPath, rel } from "../path.ts";
 import { allDocs, focused, type Doc, type State } from "../store.ts";
 import { golem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
-import { treeEntries } from "../ui/tree.ts";
+import { treeEntries, treeReloaded } from "../ui/tree.ts";
 import { sheetsOf } from "../quickopen.ts";
 import { IMAGE_KINDS, kindOf, TEXT_KINDS, workspaceOf } from "../workspace.ts";
 import { startClient, type Client, type LspDiagnostic } from "./client.ts";
@@ -24,6 +24,8 @@ const RETRY_AFTER = 60 * 1000;
 type Synced = { project: string; version: number; text: string; timer: number };
 
 const clients = new Map<string, Client>();
+const wikiReady = new Map<string, boolean>();
+const wikiSignature = new Map<string, string>();
 const failedAt = new Map<string, number>();
 const idle = new Map<string, number>();
 const synced = new Map<string, Synced>();
@@ -86,6 +88,8 @@ const clientFor = (ctx: Ctx, project: string): Client | null => {
       ctx.refresh(["status"]);
     },
   }, { plotCsv: uriOf(`${project}/plot.csv`), workspaceUri: ws ? uriOf(ws) : undefined, wikiSheets });
+  wikiReady.set(project, wikiSheets !== undefined);
+  wikiSignature.set(project, JSON.stringify(wikiSheets));
   clients.set(project, n);
   void n.ready.then((ok) => {
     if (!ok) failedAt.set(project, Date.now());
@@ -282,6 +286,20 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
 // ---- the status bar and the settings ----
 
 export const mountLsp = (ctx: Ctx) => {
+  treeReloaded.push((c) => {
+    for (const [project, client] of [...clients]) {
+      const ws = workspaceOf(project, c.store.get().workspaces);
+      const sheets = ws && treeEntries().length
+        ? sheetsOf(treeEntries(), ws, c.titles)
+            .filter((sheet) => TEXT_KINDS.includes(kindOf(sheet.path)) || IMAGE_KINDS.includes(kindOf(sheet.path)))
+            .map((sheet) => ({ uri: uriOf(sheet.path), title: sheet.title ?? null }))
+        : undefined;
+      if (wikiSignature.get(project) === JSON.stringify(sheets)) continue;
+      client.stop();
+      clients.delete(project);
+      clientFor(c, project);
+    }
+  });
   ctx.editorPlugins.push(pluginFor);
   ctx.prepareRename = async (from, to, c) => {
     const project = c.projects.find((p) => from === p || from.startsWith(`${p}/`));
@@ -314,7 +332,11 @@ export const mountLsp = (ctx: Ctx) => {
       },
     });
     for (const plan of plans) flush(plan.path);
-    return { rollback, renamed: () => client.notify("workspace/didRenameFiles", { files }) };
+    return { rollback, renamed: async () => {
+      c.renameReferencesHandled = wikiReady.get(project) === true;
+      try { await client.notifyAndWait("workspace/didRenameFiles", { files }); }
+      catch { c.notify({ message: "改名後に Golem LSP との接続が切れました。再接続時に索引を作り直します", level: "warning" }); }
+    } };
   };
   ctx.onRename.push((from, to) => {
     for (const [path, view] of [...views]) {
