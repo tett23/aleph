@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyFileRenamePlans, planFileRename, type FileEditPlan } from "./file-rename.ts";
+import { applyFileRenamePlans, openRenameWikiBuffers, planFileRename, type FileEditPlan } from "./file-rename.ts";
 import { uriOf } from "./protocol.ts";
 
 const root = "/w/book";
@@ -69,4 +69,14 @@ test("Golem ADR 0338 R3: rollback leaves a concurrently changed document alone",
   files.set("a", "newer user edit");
   await assert.rejects(rollback, /Could not roll back all rename edits/);
   assert.equal(files.get("a"), "newer user edit");
+});
+
+test("Golem ADR 0338 R2: open Wiki sheets outside the project use their current VFS text and version", () => {
+  const messages: { method: string; params: unknown }[] = [];
+  const path = "/w/notes/links.md";
+  const buffers = openRenameWikiBuffers((method, params) => messages.push({ method, params }), [{ path, text: "[[old]]" }]);
+  assert.deepEqual(buffers.refresh([{ path, text: "[[old]]" }]).get(path), { text: "[[old]]", version: 1 });
+  assert.deepEqual(buffers.refresh([{ path, text: "[[new]]" }]).get(path), { text: "[[new]]", version: 2 });
+  buffers.close();
+  assert.deepEqual(messages.map((message) => message.method), ["textDocument/didOpen", "textDocument/didChange", "textDocument/didClose"]);
 });

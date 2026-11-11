@@ -13,7 +13,7 @@ import { treeEntries, treeReloaded } from "../ui/tree.ts";
 import { sheetsOf } from "../quickopen.ts";
 import { IMAGE_KINDS, kindOf, TEXT_KINDS, workspaceOf } from "../workspace.ts";
 import { startClient, type Client, type LspDiagnostic } from "./client.ts";
-import { applyFileRenamePlans, pathOfFileUri, planFileRename, type Snapshot, type WorkspaceEdit } from "./file-rename.ts";
+import { applyFileRenamePlans, openRenameWikiBuffers, pathOfFileUri, planFileRename, type Snapshot, type WorkspaceEdit } from "./file-rename.ts";
 import { completionStart, decodeSemanticTokens, editsToChanges, offsetOf, tokenRanges, uriOf, type TextEdit, type TokenRange } from "./protocol.ts";
 
 export const LSP_KINDS = ["gm", "emet"];
@@ -325,6 +325,10 @@ export const mountLsp = (ctx: Ctx) => {
     if (!wikiReady.get(project)) c.notify({ message: "シートの一覧を取得できないため、Golem LSP による Wiki リンクの参照更新は利用できません", level: "warning" });
     const files = [{ oldUri: uriOf(from), newUri: uriOf(to) }];
     const allowedRoot = wikiReady.get(project) ? workspaceOf(project, c.store.get().workspaces) ?? project : project;
+    const wikiBuffers = () => allDocs(c.store.get())
+      .filter((d) => d.kind === "md" && d.path.startsWith(`${allowedRoot}/`) && synced.get(d.path)?.project !== project)
+      .map((d) => ({ path: d.path, text: c.editors.get(d.path)?.text() ?? d.text }));
+    const externalWiki = openRenameWikiBuffers((method, params) => client.notify(method, params), wikiReady.get(project) ? wikiBuffers() : []);
     const read = async (path: string) => c.editors.get(path)?.text() ?? await api.readText(path);
     const io = {
       read,
@@ -335,32 +339,45 @@ export const mountLsp = (ctx: Ctx) => {
         editor.edit.apply(text === plan.after ? plan.changes : [{ from: 0, to: plan.after.length, insert: plan.before }], "rename-links");
       },
     } satisfies Parameters<typeof applyFileRenamePlans>[1];
-    for (let attempt = 0; attempt < 3; attempt++) {
-      for (const [path, s] of synced) if (s.project === project) flushLatest(c, path);
-      const response = await client.request<WorkspaceEdit | null>("workspace/willRenameFiles", { files });
-      const snapshots = new Map<string, Snapshot>();
-      for (const item of response?.documentChanges ?? []) {
-        if (!("textDocument" in item)) continue;
-        const path = pathOfFileUri(item.textDocument.uri);
-        const doc = allDocs(c.store.get()).find((d) => d.path === path);
-        const text = doc ? (c.editors.get(path)?.text() ?? doc.text) : await api.readText(path);
-        snapshots.set(path, { text, version: synced.get(path)?.version ?? null });
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        for (const [path, s] of synced) if (s.project === project) flushLatest(c, path);
+        externalWiki.refresh(wikiBuffers());
+        const response = await client.request<WorkspaceEdit | null>("workspace/willRenameFiles", { files });
+        const wikiSnapshots = externalWiki.refresh(wikiBuffers());
+        const snapshots = new Map<string, Snapshot>();
+        for (const item of response?.documentChanges ?? []) {
+          if (!("textDocument" in item)) continue;
+          const path = pathOfFileUri(item.textDocument.uri);
+          const doc = allDocs(c.store.get()).find((d) => d.path === path);
+          const text = doc ? (c.editors.get(path)?.text() ?? doc.text) : await api.readText(path);
+          snapshots.set(path, { text, version: wikiSnapshots.get(path)?.version ?? synced.get(path)?.version ?? null });
+        }
+        try {
+          const plans = planFileRename(allowedRoot, response, snapshots);
+          const rollback = await applyFileRenamePlans(plans, io);
+          for (const plan of plans) flushLatest(c, plan.path);
+          return {
+            rollback: async () => { try { await rollback(); } finally { externalWiki.close(); } },
+            renamed: async () => {
+              c.renameReferencesHandled = wikiReady.get(project) === true;
+              try {
+                externalWiki.refresh(wikiBuffers());
+                await client.notifyAndWait("workspace/didRenameFiles", { files });
+              } catch { c.notify({ message: "改名後に Golem LSP との接続が切れました。再接続時に索引を作り直します", level: "warning" }); }
+              finally { externalWiki.close(); }
+            },
+          };
+        } catch (error) {
+          if (attempt < 2 && error instanceof Error && /^(Stale edit version|The source document changed):/.test(error.message)) continue;
+          throw error;
+        }
       }
-      try {
-        const plans = planFileRename(allowedRoot, response, snapshots);
-        const rollback = await applyFileRenamePlans(plans, io);
-        for (const plan of plans) flushLatest(c, plan.path);
-        return { rollback, renamed: async () => {
-          c.renameReferencesHandled = wikiReady.get(project) === true;
-          try { await client.notifyAndWait("workspace/didRenameFiles", { files }); }
-          catch { c.notify({ message: "改名後に Golem LSP との接続が切れました。再接続時に索引を作り直します", level: "warning" }); }
-        } };
-      } catch (error) {
-        if (attempt < 2 && error instanceof Error && /^(Stale edit version|The source document changed):/.test(error.message)) continue;
-        throw error;
-      }
+      throw new Error("参照元の変更が続いたため改名できませんでした");
+    } catch (error) {
+      externalWiki.close();
+      throw error;
     }
-    throw new Error("参照元の変更が続いたため改名できませんでした");
   };
   ctx.onRename.push((from, to) => {
     for (const [path, view] of [...views]) {
