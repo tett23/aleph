@@ -27,6 +27,7 @@ It edits these formats:
 - Images (PNG, JPEG, GIF, WebP), for viewing
 
 Right-click a sheet, folder, or project in the file tree to rename it. Open sheets follow the new path.
+The file tree shows chapters in their actual folders. The settings can show hidden files or hide files matched by `.gitignore`.
 
 ## Status
 

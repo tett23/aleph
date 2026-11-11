@@ -15,7 +15,7 @@ export type Tool = "golem" | "shem";
 export const api = {
   configLoad: () => invoke<string>("config_load"),
   configSave: (json: string) => invoke<void>("config_save", { json }),
-  listTree: (root: string) => invoke<Entry[]>("list_tree", { root }),
+  listTree: (root: string, options?: { showHidden: boolean; showIgnored: boolean }) => invoke<Entry[]>("list_tree", { root, showHidden: options?.showHidden ?? false, showIgnored: options?.showIgnored ?? true }),
   readText: (path: string) => invoke<string>("read_text", { path }),
   /** The English words spelled wrong, by macOS (docs/adr/0030). */
   spellCheck: (words: string[]) => invoke<string[]>("spell_check", { words }),

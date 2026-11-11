@@ -42,29 +42,23 @@ export type Row =
   | { t: "dir"; entry: Entry; depth: number; project: boolean }
   | { t: "file"; entry: Entry; depth: number; project: string | null; plot: boolean };
 
-/**
- * The rows of the tree. In a project, the chapters come first in the manifest's order,
- * then the rest; plot.csv is the plot. `chaptersOf` gives a project's chapter paths.
- */
-export const treeRows = (entries: Entry[], expanded: Set<string>, chaptersOf: (project: string) => string[], depth = 0, project: string | null = null): Row[] =>
+/** The manifest orders chapter siblings at their real parent, ahead of the plot at the project root. */
+export const treeRows = (entries: Entry[], expanded: Set<string>, chaptersOf: (project: string) => string[], depth = 0, project: string | null = null, knownProjects?: ReadonlySet<string>): Row[] =>
   entries.flatMap((e): Row[] => {
     if (!e.dir) return shownFile(e) ? [{ t: "file", entry: e, depth, project, plot: project !== null && e.path === `${project}/plot.csv` }] : [];
-    const proj = project === null && isProject(e);
+    const proj = project === null && (knownProjects ? knownProjects.has(e.path) : isProject(e));
+    const root = proj ? e.path : project;
     const head: Row = { t: "dir", entry: e, depth, project: proj };
     if (!expanded.has(e.path)) return [head];
-    if (!proj) return [head, ...treeRows(e.children, expanded, chaptersOf, depth + 1, project)];
-    const chapters = chaptersOf(e.path);
-    const byPath = new Map(flatten(e.children).map((c) => [c.path, c]));
-    const chapterRows: Row[] = chapters.flatMap((p) => {
-      const c = byPath.get(p);
-      return c ? [{ t: "file", entry: c, depth: depth + 1, project: e.path, plot: false }] : [];
-    });
-    const strip = (es: Entry[]): Entry[] =>
-      es.filter((c) => !chapters.includes(c.path)).map((c) => (c.dir ? { ...c, children: strip(c.children) } : c));
-    const rest = strip(e.children)
-      .filter((c) => !(c.dir && c.children.length === 0 && c.name === "chapters"))
-      .sort((a, b) => Number(b.name === "plot.csv") - Number(a.name === "plot.csv"));
-    return [head, ...chapterRows, ...treeRows(rest, expanded, chaptersOf, depth + 1, e.path)];
+    const chapters = root ? chaptersOf(root) : [];
+    const rank = (child: Entry): number => {
+      const index = chapters.indexOf(child.path);
+      if (index >= 0 && !child.dir) return index;
+      if (e.path === root && child.path === `${root}/plot.csv`) return chapters.length;
+      return chapters.length + 1;
+    };
+    const children = [...e.children].sort((a, b) => rank(a) - rank(b));
+    return [head, ...treeRows(children, expanded, chaptersOf, depth + 1, root, knownProjects)];
   });
 
 /** The text of a heading line without Golem's commands, expressions and comments (rough). */
@@ -124,7 +118,9 @@ export const selectChapters = (gmRows: string[], current: string[], anchor: stri
 };
 
 /** The tree's rows of a workspace; a root project shows as its own row, always open, with its chapters first. */
-export const workspaceRows = (root: string, entries: Entry[], expanded: Set<string>, chaptersOf: (project: string) => string[]): Row[] => {
+export const workspaceRows = (root: string, entries: Entry[], expanded: Set<string>, chaptersOf: (project: string) => string[], knownProjects?: ReadonlySet<string>): Row[] => {
   const top = rootEntry(root, entries);
-  return isProject(top) ? treeRows([top], new Set([...expanded, root]), chaptersOf) : treeRows(entries, expanded, chaptersOf);
+  return (knownProjects ? knownProjects.has(root) : isProject(top))
+    ? treeRows([top], new Set([...expanded, root]), chaptersOf, 0, null, knownProjects)
+    : treeRows(entries, expanded, chaptersOf, 0, null, knownProjects);
 };

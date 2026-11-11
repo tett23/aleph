@@ -12,7 +12,7 @@ import { allDocs, focused } from "../store.ts";
 import { flatten, kindOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
 import { golem } from "../tools.ts";
 import { ask, menu, toast, type MenuItem } from "./dom.ts";
-import { item } from "./settings.ts";
+import { item, toggle } from "./settings.ts";
 import { revealItems } from "../reveal.ts";
 import { canRenameTreeItem, renameTarget } from "../tree-rename.ts";
 
@@ -47,8 +47,11 @@ export const treeReloaded: ((ctx: Ctx) => void | Promise<void>)[] = [];
 /** Reads the workspace again: the tree, the projects, their chapters and the sheets' titles. */
 export const reloadTree = async (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
-  entries = ws ? await api.listTree(ws).catch(() => []) : [];
-  const projects = new Set(ws ? projectsIn(ws, entries) : []);
+  const full = ws ? await api.listTree(ws).catch(() => []) : [];
+  entries = ws && (ctx.config?.showHiddenFiles || ctx.config?.showGitignoredFiles === false)
+    ? await api.listTree(ws, { showHidden: ctx.config?.showHiddenFiles ?? false, showIgnored: ctx.config?.showGitignoredFiles ?? true }).catch(() => [])
+    : full;
+  const projects = new Set(ws ? projectsIn(ws, full) : []);
   // projects of every workspace, for the cross-project panels
   for (const w of ctx.store.get().workspaces) if (w !== ws) projectsIn(w, await api.listTree(w).catch(() => [])).forEach((p) => projects.add(p));
   ctx.projects = [...projects];
@@ -93,7 +96,7 @@ const rowsNow = (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
   const expanded = new Set(ctx.store.get().expanded);
   const of = (p: string) => chapters.get(p) ?? [];
-  return ws ? workspaceRows(ws, entries, expanded, of) : treeRows(entries, expanded, of);
+  return ws ? workspaceRows(ws, entries, expanded, of, new Set(ctx.projects)) : treeRows(entries, expanded, of);
 };
 
 const draw = (el: HTMLElement, ctx: Ctx) => {
@@ -281,6 +284,24 @@ export const mountTree = (ctx: Ctx) => {
   // after saving a manifest or a style, chapters and grids are read again
   ctx.onRename.push((from) => {
     if (from.endsWith("/style.toml")) forgetGrid(dirname(from));
+  });
+
+  ctx.settings.push({
+    id: "tree-visibility",
+    label: "ファイルツリー",
+    group: "オプション",
+    render: (c) =>
+      item("隠しファイルを表示", "名前が . で始まるファイルとフォルダを表示する", toggle("showHiddenFiles", c.config.showHiddenFiles)) +
+      item(".gitignore 対象のファイルを表示", "ワークスペースの .gitignore に従う", toggle("showGitignoredFiles", c.config.showGitignoredFiles)),
+    onClick: async (el, c) => {
+      const setting = el.closest<HTMLElement>("[data-toggle]")?.dataset.toggle;
+      if (setting !== "showHiddenFiles" && setting !== "showGitignoredFiles") return false;
+      c.config[setting] = !c.config[setting];
+      await c.saveConfig();
+      await reloadTree(c);
+      c.refresh(["left"]);
+      return true;
+    },
   });
 
   ctx.settings.push({

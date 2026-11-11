@@ -18,6 +18,8 @@ export type Config = {
   codeFontSize: number;
   lineHeight: number;
   showInvisibles: boolean;
+  showHiddenFiles: boolean;
+  showGitignoredFiles: boolean;
   formatOnSave: boolean;
   autosaveSeconds: number;
   rebuildOnSave: boolean;
@@ -51,6 +53,8 @@ export const defaults = (): Config => ({
   codeFontSize: 13,
   lineHeight: 1.75,
   showInvisibles: false,
+  showHiddenFiles: false,
+  showGitignoredFiles: true,
   formatOnSave: true,
   autosaveSeconds: 10,
   rebuildOnSave: true,
@@ -90,6 +94,8 @@ export const normalize = (raw: unknown): Config => {
     codeFontSize: clamp(r.codeFontSize, 9, 28, d.codeFontSize),
     lineHeight: clamp(r.lineHeight, 1, 3, d.lineHeight),
     showInvisibles: bool(r.showInvisibles, d.showInvisibles),
+    showHiddenFiles: bool(r.showHiddenFiles, d.showHiddenFiles),
+    showGitignoredFiles: bool(r.showGitignoredFiles, d.showGitignoredFiles),
     formatOnSave: bool(r.formatOnSave, d.formatOnSave),
     autosaveSeconds: clamp(r.autosaveSeconds, 2, 600, d.autosaveSeconds),
     rebuildOnSave: bool(r.rebuildOnSave, d.rebuildOnSave),
