@@ -276,6 +276,7 @@ export const mountWikilinks = (ctx: Ctx) => {
 
   // a renamed file: the links that named it by path or by file name follow, after asking
   ctx.onRename.push(async (from, to, c) => {
+    if (c.renameReferencesHandled) return;
     const ws = wsOf(c);
     if (!sheets.some((s) => s.path === from)) return;
     const plans = [...texts]
