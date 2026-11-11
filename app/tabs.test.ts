@@ -136,6 +136,22 @@ test("edits, saves and renames reach the sheets of every tab", () => {
   assert.deepEqual(allDocs(s).map((d) => d.path), [A, "/w/e/x.md"]);
 });
 
+test("ADR 0070 invariant 4: renaming an ancestor keeps descendant edits, tabs, and plot paths", () => {
+  let s = run([
+    { type: "open", docs: [{ ...doc("/w/book/chapters/01.gm"), project: "/w/book" }] },
+    { type: "edit", path: "/w/book/chapters/01.gm", text: "unfinished" },
+    { type: "plot", project: "/w/book", newTab: true },
+    { type: "rename", from: "/w/book", to: "/w/novel" },
+  ]);
+  assert.equal(s.panes[0].tabs[0].open[0].path, "/w/novel/chapters/01.gm");
+  assert.equal(s.panes[0].tabs[0].open[0].text, "unfinished");
+  assert.equal(s.panes[0].tabs[0].open[0].project, "/w/novel");
+  assert.equal(s.panes[0].tabs[1].plot, "/w/novel");
+  s = run([{ type: "rename", from: "/w/novel/chapters", to: "/w/novel/drafts" }], s);
+  assert.equal(s.panes[0].tabs[0].open[0].path, "/w/novel/drafts/01.gm");
+  assert.equal(s.panes[0].tabs[0].open[0].text, "unfinished");
+});
+
 test("the tabs are written to ui and read back; missing sheets are dropped", () => {
   const s = run([
     { type: "open", docs: [doc(ch1), doc(ch2)] },

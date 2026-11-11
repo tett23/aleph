@@ -23,6 +23,10 @@ test("renaming moves the key", () => {
   const m = { "chapters/01.gm": { note: "x", done: [] } };
   assert.deepEqual(renameKey(m, "chapters/01.gm", "chapters/01-霧笛.gm"), { "chapters/01-霧笛.gm": { note: "x", done: [] } });
   assert.deepEqual(renameKey(m, "nope.gm", "x.gm"), m);
+  assert.deepEqual(renameKey({ "chapters/01.gm": { note: "one", done: [] }, "chapters/sub/02.gm": { note: "two", done: [] } }, "chapters", "drafts"), {
+    "drafts/01.gm": { note: "one", done: [] },
+    "drafts/sub/02.gm": { note: "two", done: [] },
+  });
 });
 
 test("the goal: the one set by hand, else the plot's planned characters, else none", () => {

@@ -49,9 +49,12 @@ export const writeMeta = (m: Meta): string =>
 export const metaFor = (m: Meta, key: string): SheetMeta => m[key] ?? { note: "", done: [] };
 
 export const renameKey = (m: Meta, from: string, to: string): Meta => {
-  if (!(from in m)) return m;
-  const { [from]: v, ...rest } = m;
-  return { ...rest, [to]: v };
+  const entries = Object.entries(m);
+  if (!entries.some(([key]) => key === from || key.startsWith(`${from}/`))) return m;
+  return Object.fromEntries(entries.map(([key, value]) => [
+    key === from ? to : key.startsWith(`${from}/`) ? to + key.slice(from.length) : key,
+    value,
+  ]));
 };
 
 /** The goal set by hand wins; else the plot's planned characters of the sheet. */
