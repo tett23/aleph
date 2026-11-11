@@ -728,3 +728,7 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .modal.small.choice { width: 560px; }
 .modal.small .mbuttons .btn { white-space: nowrap; }
 .modal.small .mmsg { font-size: 12.5px; color: var(--text-2); line-height: 1.6; white-space: pre-wrap; }
+
+.buildlog { margin: 6px 12px; user-select: text; -webkit-user-select: text; }
+.buildlog dt { font-weight: 600; }
+.buildlog dd { margin: 2px 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: monospace; }

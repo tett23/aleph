@@ -4,7 +4,8 @@
 import { addCommands } from "./commands.ts";
 import type { Ctx } from "./ctx.ts";
 import { golemResults } from "./diag/mount.ts";
-import { buildProblems } from "./projectbuildmount.ts";
+import { renderBuildLog } from "./buildlog.ts";
+import { buildLogs, buildProblems } from "./projectbuildmount.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
 import { countProblems, DEFAULT_HEIGHT, fromGolem, groupProblems, panelHeight, type Problem } from "./problems.ts";
@@ -16,7 +17,7 @@ import type { Note } from "./notify.ts";
 const SHOW = "showProblems";
 const HEIGHT = "problemsHeight";
 const TAB = "problemsTab";
-type Tab = "problems" | "notes";
+type Tab = "problems" | "notes" | "build";
 
 const SEV: Record<Problem["severity"], [string, string]> = {
   error: ["circle-x", "エラー"],
@@ -62,9 +63,11 @@ const noteRow = (n: Note) =>
 export const mountProblems = (ctx: Ctx) => {
   let el: HTMLElement | null = null;
   const shown = () => uiState().get(SHOW, false);
-  const tab = (): Tab => (uiState().get<string>(TAB, "problems") === "notes" ? "notes" : "problems");
+  let buildSelected = false;
+  const tab = (): Tab => buildSelected ? "build" : uiState().get<string>(TAB, "problems") === "notes" ? "notes" : "problems";
   const setTab = (t: Tab) => {
-    uiState().set(TAB, t);
+    buildSelected = t === "build";
+    if (!buildSelected) uiState().set(TAB, t);
     ctx.refresh(["problems"]);
   };
   const column = () => el?.parentElement?.clientHeight ?? 800;
@@ -82,7 +85,9 @@ export const mountProblems = (ctx: Ctx) => {
     const s = ctx.store.get();
     const list = allProblems(ctx);
     const groups = groupProblems(list, focused(s)?.path ?? null, s.workspace);
-    const t = tab();
+    const project = focused(s)?.project;
+    const log = project && buildLogs.get(project);
+    const t = tab() === "build" && !log ? "problems" : tab();
     const ns = notifications();
     // seeing the tab clears its count
     if (t === "notes") ns.seen();
@@ -90,11 +95,11 @@ export const mountProblems = (ctx: Ctx) => {
     const badge = un.count ? `<span class="nbadge${un.error ? " err" : ""}">${un.count}</span>` : "";
     const history = ns.history();
     host.innerHTML = `<div class="pgrip" data-grip></div>
-      <div class="phead2"><span class="ptab${t === "problems" ? " on" : ""}" data-tab="problems">問題</span>${countsHtml(countProblems(groups.flatMap((g) => g.items)))}<span class="ptab${t === "notes" ? " on" : ""}" data-tab="notes">通知${badge}</span><span class="grow"></span>${
+      <div class="phead2"><span class="ptab${t === "problems" ? " on" : ""}" data-tab="problems">問題</span>${countsHtml(countProblems(groups.flatMap((g) => g.items)))}<span class="ptab${t === "notes" ? " on" : ""}" data-tab="notes">通知${badge}</span>${log ? `<span class="ptab${t === "build" ? " on" : ""}" data-tab="build">ビルドログ</span>` : ""}<span class="grow"></span>${
         t === "notes" && history.length ? `<span class="btn small" data-clear>履歴を消す</span>` : ""
       }<span class="iconbtn" data-close title="閉じる（⇧⌘M）">${icon("x", 13)}</span></div>
       <div class="pbody2" tabindex="-1">${
-        t === "notes"
+        t === "build" && log ? renderBuildLog(log) : t === "notes"
           ? history.length
             ? history.map(noteRow).join("")
             : `<div class="empty">通知はありません</div>`
@@ -110,7 +115,7 @@ export const mountProblems = (ctx: Ctx) => {
       if (t.closest("[data-close]")) return void (e.preventDefault(), setShown(false));
       if (t.closest("[data-grip]")) return drag(e);
       const tb = t.closest<HTMLElement>("[data-tab]")?.dataset.tab;
-      if (tb === "problems" || tb === "notes") return void (e.preventDefault(), setTab(tb));
+      if (tb === "problems" || tb === "notes" || tb === "build") return void (e.preventDefault(), setTab(tb));
       if (t.closest("[data-clear]")) return void (e.preventDefault(), notifications().clearHistory());
       const na = t.closest<HTMLElement>("[data-na]");
       if (na) return void (e.preventDefault(), notifications().press(Number(na.dataset.nid), Number(na.dataset.na)));
@@ -150,7 +155,12 @@ export const mountProblems = (ctx: Ctx) => {
   // the history and its count follow every notification while the panel is open
   notifications().subscribe(() => shown() && ctx.refresh(["problems"]));
   // opened from the status bar (the counts, lint and preflight); open stays open
-  ctx.statusActions.problems = () => setShown(true);
+  const openTab = (tab: Tab) => {
+    setTab(tab);
+    setShown(true);
+  };
+  ctx.statusActions.problems = () => openTab("problems");
+  ctx.statusActions.build = () => openTab("build");
 
   // the focused sheet's counts, every source's, also for kinds without a server
   ctx.status.push((s) => {
@@ -174,10 +184,6 @@ export const mountProblems = (ctx: Ctx) => {
     label: "通知の履歴を表示",
     icon: "info",
     when: () => true,
-    run: () => {
-      uiState().set(TAB, "notes");
-      setShown(true);
-      ctx.refresh(["problems"]);
-    },
+    run: () => openTab("notes"),
   });
 };
