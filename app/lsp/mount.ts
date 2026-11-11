@@ -125,6 +125,19 @@ const flush = (path: string) => {
   c.notify("textDocument/didChange", { textDocument: { uri: uriOf(path), version: s.version }, contentChanges: [{ text: s.text }] });
 };
 
+/** Capture the editor's current text even when its store update has not run. */
+const flushLatest = (ctx: Ctx, path: string) => {
+  const current = ctx.editors.get(path)?.text();
+  const state = synced.get(path);
+  if (current !== undefined && state && current !== state.text) {
+    clearTimeout(state.timer);
+    state.timer = 0;
+    state.text = current;
+    state.version++;
+    clients.get(state.project)?.notify("textDocument/didChange", { textDocument: { uri: uriOf(path), version: state.version }, contentChanges: [{ text: current }] });
+  } else flush(path);
+};
+
 /** Keeps the servers in step with the open sheets: open, change, save, close. */
 const sync = (ctx: Ctx, s: State, prev: State | null) => {
   const now = new Map(allDocs(s).filter((d) => lspDoc(d) || renameDoc(d)).map((d) => [d.path, d]));
@@ -309,7 +322,7 @@ export const mountLsp = (ctx: Ctx) => {
     }
     const client = clientFor(c, project);
     if (!client || !(await client.ready) || !client.supportsFileRename()) throw new Error("Golem LSP の参照更新が利用できません");
-    for (const [path, s] of synced) if (s.project === project) flush(path);
+    for (const [path, s] of synced) if (s.project === project) flushLatest(c, path);
     const files = [{ oldUri: uriOf(from), newUri: uriOf(to) }];
     const response = await client.request<WorkspaceEdit | null>("workspace/willRenameFiles", { files });
     const snapshots = new Map<string, Snapshot>();
@@ -320,7 +333,8 @@ export const mountLsp = (ctx: Ctx) => {
       const text = doc ? (c.editors.get(path)?.text() ?? doc.text) : await api.readText(path);
       snapshots.set(path, { text, version: synced.get(path)?.version ?? null });
     }
-    const plans = planFileRename(project, response, snapshots);
+    const allowedRoot = wikiReady.get(project) ? workspaceOf(project, c.store.get().workspaces) ?? project : project;
+    const plans = planFileRename(allowedRoot, response, snapshots);
     const read = async (path: string) => c.editors.get(path)?.text() ?? await api.readText(path);
     const rollback = await applyFileRenamePlans(plans, {
       read,
@@ -331,7 +345,7 @@ export const mountLsp = (ctx: Ctx) => {
         editor.edit.apply(text === plan.after ? plan.changes : [{ from: 0, to: plan.after.length, insert: plan.before }], "rename-links");
       },
     });
-    for (const plan of plans) flush(plan.path);
+    for (const plan of plans) flushLatest(c, plan.path);
     return { rollback, renamed: async () => {
       c.renameReferencesHandled = wikiReady.get(project) === true;
       try { await client.notifyAndWait("workspace/didRenameFiles", { files }); }
