@@ -22,6 +22,7 @@ export const api = {
   readBytes: (path: string) => invoke<ArrayBuffer>("read_bytes", { path }),
   writeText: (path: string, content: string) => invoke<void>("write_text", { path, content }),
   exists: (path: string) => invoke<boolean>("exists", { path }),
+  createEntry: (path: string, dir: boolean) => invoke<void>("create_entry", { path, dir }),
   makeDir: (path: string) => invoke<void>("make_dir", { path }),
   rename: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
   copyFile: (from: string, to: string) => invoke<void>("copy_file", { from, to }),

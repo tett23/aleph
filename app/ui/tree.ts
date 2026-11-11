@@ -11,10 +11,11 @@ import { basename, dirname, stem } from "../path.ts";
 import { allDocs, focused } from "../store.ts";
 import { flatten, kindOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
 import { golem } from "../tools.ts";
-import { ask, menu, toast, type MenuItem } from "./dom.ts";
+import { ask, choiceDialog, menu, toast, type MenuItem } from "./dom.ts";
 import { item } from "./settings.ts";
 import { revealItems } from "../reveal.ts";
 import { canRenameTreeItem, renameTarget } from "../tree-rename.ts";
+import { createdPath, SHEET_KINDS } from "../tree-create.ts";
 
 const ICONS: Record<string, string> = {
   gm: "file-text",
@@ -145,6 +146,25 @@ const renameTreeItem = async (ctx: Ctx, from: string) => {
   }
 };
 
+/** Creates exactly one child of the row that opened the menu. */
+const createAt = async (ctx: Ctx, parent: string, dir: boolean) => {
+  const name = await ask(dir ? "新しいフォルダの名前" : "新しいシートの名前");
+  if (name === null) return;
+  const kindIndex = dir ? null : await choiceDialog("シートの種類", "", [...SHEET_KINDS]);
+  if (!dir && kindIndex === null) return;
+  const path = createdPath(parent, name, kindIndex === null ? null : SHEET_KINDS[kindIndex]);
+  if (!path) return toast("名前には一つの名前だけを指定してください");
+  try {
+    await api.createEntry(path, dir);
+    await reloadTree(ctx);
+    ctx.store.dispatch({ type: "expand", path: parent, on: true });
+    ctx.refresh(["left"]);
+    if (!dir) await ctx.open([path]);
+  } catch (error) {
+    notifyError(String(error));
+  }
+};
+
 /** Adds a folder the writer picks in a native dialog that Rust opens (docs/adr/0050). */
 export const addWorkspace = async (ctx: Ctx) => {
   const written = await api.addWorkspace();
@@ -266,6 +286,13 @@ export const mountTree = (ctx: Ctx) => {
       ? [{ label: "名前を変える", icon: icon("pencil", 14), run: () => void renameTreeItem(ctx, p) }]
       : [],
   );
+
+  treeMenus.push((p, dir) => dir
+    ? [
+        { label: "フォルダを追加", icon: icon("folder-plus", 14), run: () => void createAt(ctx, p, true) },
+        { label: "シートを追加", icon: icon("square-pen", 14), run: () => void createAt(ctx, p, false) },
+      ]
+    : []);
 
   // a row's right-click: the items the other parts add
   document.addEventListener("contextmenu", (e) => {

@@ -27,6 +27,8 @@ It edits these formats:
 - Images (PNG, JPEG, GIF, WebP), for viewing
 
 Right-click a sheet, folder, or project in the file tree to rename it. Open sheets follow the new path.
+Right-click a project or folder to add a folder or an empty sheet of a chosen type. Right-click a Markdown sheet to convert that sheet to gm.
+
 
 ## Status
 

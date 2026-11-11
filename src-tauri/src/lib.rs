@@ -240,6 +240,12 @@ fn make_dir(app: AppHandle, path: String) -> R<()> {
 }
 
 #[tauri::command]
+fn create_entry(app: AppHandle, path: String, dir: bool) -> R<()> {
+    may(&app, &path, WR)?;
+    fsops::create_entry(Path::new(&path), dir).map_err(err)
+}
+
+#[tauri::command]
 fn rename_path(app: AppHandle, from: String, to: String) -> R<()> {
     let config = kept_config(&app);
     let source = Path::new(&from).canonicalize().map_err(err)?;
@@ -1089,6 +1095,7 @@ pub fn run_app() {
             write_text,
             exists,
             make_dir,
+            create_entry,
             rename_path,
             copy_file,
             list_dir,
