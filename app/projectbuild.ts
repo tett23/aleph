@@ -45,7 +45,7 @@ export type BuildResult = { failed: boolean; seconds: number; items: Diagnostic[
 /** golem build's standard error: the diagnostics, or a failure shown by the output's first 20 lines. */
 export const readBuildResult = (code: number, stderr: string, stdout: string): Omit<BuildResult, "seconds"> => {
   const r = parseDiagnostics(stderr);
-  if (r.raw === null) return { failed: false, items: r.items };
+  if (r.raw === null) return { failed: code !== 0 && !r.items.some((d) => d.severity === "error"), items: r.items };
   const text = (stderr.trim() || stdout.trim()).split("\n").slice(0, 20).join("\n");
   return { failed: true, items: [{ code: "", severity: "error", message: text || `golem build が失敗しました（終了コード ${code}）` }] };
 };

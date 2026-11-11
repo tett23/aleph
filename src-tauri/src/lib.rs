@@ -196,15 +196,33 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> R<T> + Send + 'static) 
 }
 
 #[tauri::command]
-async fn list_tree(app: AppHandle, root: String) -> Vec<fsops::Entry> {
-    blocking(move || Ok(tree_now(&app, &root)))
-        .await
-        .unwrap_or_default()
+async fn list_tree(
+    app: AppHandle,
+    root: String,
+    show_hidden: Option<bool>,
+    show_ignored: Option<bool>,
+) -> Vec<fsops::Entry> {
+    blocking(move || {
+        Ok(tree_now(
+            &app,
+            &root,
+            show_hidden.unwrap_or(false),
+            show_ignored.unwrap_or(true),
+        ))
+    })
+    .await
+    .unwrap_or_default()
 }
 
-fn tree_now(app: &AppHandle, root: &str) -> Vec<fsops::Entry> {
+fn tree_now(
+    app: &AppHandle,
+    root: &str,
+    show_hidden: bool,
+    show_ignored: bool,
+) -> Vec<fsops::Entry> {
     match may(app, root, RD) {
-        Ok(()) => fsops::tree(Path::new(root)),
+        Ok(()) if !show_hidden && show_ignored => fsops::tree(Path::new(root)),
+        Ok(()) => fsops::tree_with_visibility(Path::new(root), show_hidden, show_ignored),
         Err(_) => vec![],
     }
 }
@@ -238,6 +256,12 @@ fn exists(app: AppHandle, path: String) -> bool {
 fn make_dir(app: AppHandle, path: String) -> R<()> {
     may(&app, &path, WR)?;
     std::fs::create_dir_all(path).map_err(err)
+}
+
+#[tauri::command]
+fn create_entry(app: AppHandle, path: String, dir: bool) -> R<()> {
+    may(&app, &path, WR)?;
+    fsops::create_entry(Path::new(&path), dir).map_err(err)
 }
 
 #[tauri::command]
@@ -1127,6 +1151,7 @@ pub fn run_app() {
             write_text,
             exists,
             make_dir,
+            create_entry,
             rename_path,
             copy_file,
             list_dir,

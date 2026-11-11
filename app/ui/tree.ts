@@ -12,10 +12,11 @@ import { basename, dirname, rel, stem } from "../path.ts";
 import { allDocs, focused } from "../store.ts";
 import { flatten, kindOf, projectOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
 import { golem } from "../tools.ts";
-import { ask, menu, toast, type MenuItem } from "./dom.ts";
-import { item } from "./settings.ts";
+import { ask, choiceDialog, menu, toast, type MenuItem } from "./dom.ts";
+import { item, toggle } from "./settings.ts";
 import { revealItems } from "../reveal.ts";
 import { canRenameTreeItem, renameTarget } from "../tree-rename.ts";
+import { createdPath, SHEET_KINDS } from "../tree-create.ts";
 
 const ICONS: Record<string, string> = {
   gm: "file-text",
@@ -35,8 +36,9 @@ const ICONS: Record<string, string> = {
 };
 
 let entries: Entry[] = [];
-/** The workspace as the tree last read it. */
-export const treeEntries = () => entries;
+let baseEntries: Entry[] = [];
+/** The workspace's default tree, used by search, links and trash independently of display settings. */
+export const treeEntries = () => baseEntries;
 const chapters = new Map<string, string[]>();
 
 /** Items of a row's right-click menu, by the parts that add them (bookmarks, the trash). */
@@ -48,8 +50,11 @@ export const treeReloaded: ((ctx: Ctx) => void | Promise<void>)[] = [];
 /** Reads the workspace again: the tree, the projects, their chapters and the sheets' titles. */
 export const reloadTree = async (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
-  entries = ws ? await api.listTree(ws).catch(() => []) : [];
-  const projects = new Set(ws ? projectsIn(ws, entries) : []);
+  baseEntries = ws ? await api.listTree(ws).catch(() => []) : [];
+  entries = ws && (ctx.config?.showHiddenFiles || ctx.config?.showGitignoredFiles === false)
+    ? await api.listTree(ws, { showHidden: ctx.config?.showHiddenFiles ?? false, showIgnored: ctx.config?.showGitignoredFiles ?? true }).catch(() => [])
+    : baseEntries;
+  const projects = new Set(ws ? projectsIn(ws, baseEntries) : []);
   // projects of every workspace, for the cross-project panels
   for (const w of ctx.store.get().workspaces) if (w !== ws) projectsIn(w, await api.listTree(w).catch(() => [])).forEach((p) => projects.add(p));
   ctx.projects = [...projects];
@@ -58,7 +63,7 @@ export const reloadTree = async (ctx: Ctx) => {
     [...projects].map(async (p) => chapters.set(p, manifestChapters(await api.readText(`${p}/manifest.toml`).catch(() => "")).map((r) => `${p}/${r}`))),
   );
   await Promise.all(
-    flatten(entries)
+    [...new Map([...flatten(baseEntries), ...flatten(entries)].map((entry) => [entry.path, entry])).values()]
       .filter((e) => ["gm", "md"].includes(kindOf(e.path)))
       .map(async (e) => {
         const t = titleOf(kindOf(e.path), await api.readText(e.path).catch(() => ""));
@@ -94,7 +99,7 @@ const rowsNow = (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
   const expanded = new Set(ctx.store.get().expanded);
   const of = (p: string) => chapters.get(p) ?? [];
-  return ws ? workspaceRows(ws, entries, expanded, of) : treeRows(entries, expanded, of);
+  return ws ? workspaceRows(ws, entries, expanded, of, new Set(ctx.projects)) : treeRows(entries, expanded, of);
 };
 
 const draw = (el: HTMLElement, ctx: Ctx) => {
@@ -141,6 +146,25 @@ const renameTreeItem = async (ctx: Ctx, from: string) => {
     for (const f of ctx.onRename) await f(from, to, ctx);
     await reloadTree(ctx);
     ctx.refresh(["left"]);
+  } catch (error) {
+    notifyError(String(error));
+  }
+};
+
+/** Creates exactly one child of the row that opened the menu. */
+const createAt = async (ctx: Ctx, parent: string, dir: boolean) => {
+  const name = await ask(dir ? "新しいフォルダの名前" : "新しいシートの名前");
+  if (name === null) return;
+  const kindIndex = dir ? null : await choiceDialog("シートの種類", "", [...SHEET_KINDS]);
+  if (!dir && kindIndex === null) return;
+  const path = createdPath(parent, name, kindIndex === null ? null : SHEET_KINDS[kindIndex]);
+  if (!path) return toast("名前には一つの名前だけを指定してください");
+  try {
+    await api.createEntry(path, dir);
+    await reloadTree(ctx);
+    ctx.store.dispatch({ type: "expand", path: parent, on: true });
+    ctx.refresh(["left"]);
+    if (!dir) await ctx.open([path]);
   } catch (error) {
     notifyError(String(error));
   }
@@ -308,6 +332,13 @@ export const mountTree = (ctx: Ctx) => {
       : [],
   );
 
+  treeMenus.push((p, dir) => dir
+    ? [
+        { label: "フォルダを追加", icon: icon("folder-plus", 14), run: () => void createAt(ctx, p, true) },
+        { label: "シートを追加", icon: icon("square-pen", 14), run: () => void createAt(ctx, p, false) },
+      ]
+    : []);
+
   treeMenus.push((path, dir) => {
     if (dir) return [];
     const items: MenuItem[] = [];
@@ -341,6 +372,24 @@ export const mountTree = (ctx: Ctx) => {
   // after saving a manifest or a style, chapters and grids are read again
   ctx.onRename.push((from) => {
     if (from.endsWith("/style.toml")) forgetGrid(dirname(from));
+  });
+
+  ctx.settings.push({
+    id: "tree-visibility",
+    label: "ファイルツリー",
+    group: "オプション",
+    render: (c) =>
+      item("隠しファイルを表示", "名前が . で始まるファイルとフォルダを表示する", toggle("showHiddenFiles", c.config.showHiddenFiles)) +
+      item(".gitignore 対象のファイルを表示", "ワークスペースの .gitignore に従う", toggle("showGitignoredFiles", c.config.showGitignoredFiles)),
+    onClick: async (el, c) => {
+      const setting = el.closest<HTMLElement>("[data-toggle]")?.dataset.toggle;
+      if (setting !== "showHiddenFiles" && setting !== "showGitignoredFiles") return false;
+      c.config[setting] = !c.config[setting];
+      await c.saveConfig();
+      await reloadTree(c);
+      c.refresh(["left"]);
+      return true;
+    },
   });
 
   ctx.settings.push({

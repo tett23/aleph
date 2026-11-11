@@ -141,3 +141,41 @@ test("ADR 0070 invariants 1-3 and ADR 0066 invariants 1-2: tree handlers act on 
     Object.assign(globalThis, { document: previousDocument });
   }
 });
+
+test("ADR 0067 invariant 2: display filters do not change the base tree used by search and trash", async () => {
+  const server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false }, appType: "custom" });
+  try {
+    const { api } = await server.ssrLoadModule("/app/api.ts");
+    const { reloadTree, treeEntries } = await server.ssrLoadModule("/app/ui/tree.ts");
+    const sheet = (path: string) => ({ path, name: path.split("/").at(-1)!, dir: false, children: [] });
+    api.listTree = async (_root: string, options?: { showHidden: boolean; showIgnored: boolean }) =>
+      options?.showHidden ? [sheet("/w/.draft.gm")] : options?.showIgnored === false ? [] : [sheet("/w/ignored.gm")];
+    api.readText = async () => "# Heading\n";
+    const ctx = {
+      config: { showHiddenFiles: true, showGitignoredFiles: false },
+      store: { get: () => ({ workspace: "/w", workspaces: ["/w"] }) },
+      titles: new Map<string, string>(), projects: [],
+    } as unknown as Ctx;
+    await reloadTree(ctx);
+    assert.deepEqual(treeEntries().map((entry: { path: string }) => entry.path), ["/w/ignored.gm"]);
+    assert.equal(ctx.titles.get("/w/.draft.gm"), "Heading");
+    assert.equal(ctx.titles.get("/w/ignored.gm"), "Heading");
+  } finally {
+    await server.close();
+  }
+});
+
+test("ADR 0067 invariant 2: trash identifies a visible hidden folder and all its descendants", async () => {
+  const server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false }, appType: "custom" });
+  try {
+    const { api } = await server.ssrLoadModule("/app/api.ts");
+    const { entryForTrash, filesUnder } = await server.ssrLoadModule("/app/trashpanel.ts");
+    api.listTree = async (root: string) => root === "/w"
+      ? [{ path: "/w/.draft", name: ".draft", dir: true, children: [] }]
+      : [{ path: "/w/.draft/.hidden.gm", name: ".hidden.gm", dir: false, children: [] }, { path: "/w/.draft/ignored.gm", name: "ignored.gm", dir: false, children: [] }];
+    assert.equal((await entryForTrash("/w/.draft"))?.dir, true);
+    assert.deepEqual(await filesUnder("/w/.draft"), ["/w/.draft/.hidden.gm", "/w/.draft/ignored.gm"]);
+  } finally {
+    await server.close();
+  }
+});

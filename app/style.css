@@ -726,5 +726,10 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .modal.merge .result { background: var(--bg-2); border-radius: 6px; padding: 8px 10px; font: 13px/1.7 var(--body); white-space: pre-wrap; max-height: 22%; overflow: auto; flex: none; }
 .modal.merge .mbuttons { display: flex; gap: 8px; justify-content: flex-end; }
 .modal.small.choice { width: 560px; }
+.modal.small.choice .mbuttons { flex-wrap: wrap; }
 .modal.small .mbuttons .btn { white-space: nowrap; }
 .modal.small .mmsg { font-size: 12.5px; color: var(--text-2); line-height: 1.6; white-space: pre-wrap; }
+
+.buildlog { margin: 6px 12px; user-select: text; -webkit-user-select: text; }
+.buildlog dt { font-weight: 600; }
+.buildlog dd { margin: 2px 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: monospace; }

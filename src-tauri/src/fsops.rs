@@ -1,5 +1,7 @@
 //! Files and directories for the frontend.
 
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use ignore::Match;
 use serde::Serialize;
 use std::path::Path;
 
@@ -14,8 +16,8 @@ pub struct Entry {
 /// Directories the tree does not show (docs/adr/0004), besides names starting with '.'.
 const HIDDEN_DIRS: [&str; 4] = ["build", "node_modules", "target", "dist"];
 
-fn shown(name: &str, dir: bool) -> bool {
-    !name.starts_with('.') && !(dir && HIDDEN_DIRS.contains(&name))
+fn shown(name: &str, dir: bool, show_hidden: bool) -> bool {
+    (show_hidden || !name.starts_with('.')) && !(dir && HIDDEN_DIRS.contains(&name))
 }
 
 #[cfg(unix)]
@@ -38,13 +40,34 @@ pub const MAX_DEPTH: usize = 64;
 /// The tree under `p`: directories first, then by name. Symbolic links are
 /// neither followed nor shown (docs/adr/0045).
 pub fn tree(p: &Path) -> Vec<Entry> {
-    tree_at(p, 0)
+    tree_with_visibility(p, false, true)
 }
 
-fn tree_at(p: &Path, level: usize) -> Vec<Entry> {
+pub fn tree_with_visibility(p: &Path, show_hidden: bool, show_ignored: bool) -> Vec<Entry> {
+    tree_at(p, 0, show_hidden, show_ignored, &[])
+}
+
+fn tree_at(
+    p: &Path,
+    level: usize,
+    show_hidden: bool,
+    show_ignored: bool,
+    parents: &[Gitignore],
+) -> Vec<Entry> {
     if level >= MAX_DEPTH {
         return vec![];
     }
+    let ignore_file = p.join(".gitignore");
+    let matcher = (!show_ignored
+        && std::fs::symlink_metadata(&ignore_file)
+            .is_ok_and(|m| m.is_file() && !m.file_type().is_symlink()))
+    .then(|| {
+        let mut builder = GitignoreBuilder::new(p);
+        builder.add(&ignore_file);
+        builder.build().ok()
+    })
+    .flatten();
+    let matchers: Vec<&Gitignore> = matcher.iter().chain(parents.iter().rev()).collect();
     let mut items: Vec<Entry> = std::fs::read_dir(p)
         .map(|rd| {
             rd.filter_map(Result::ok)
@@ -53,9 +76,25 @@ fn tree_at(p: &Path, level: usize) -> Vec<Entry> {
                     let path = e.path();
                     let dir = e.file_type().is_ok_and(|t| t.is_dir());
                     let name = e.file_name().to_string_lossy().to_string();
-                    shown(&name, dir).then(|| Entry {
+                    if !shown(&name, dir, show_hidden) {
+                        return None;
+                    }
+                    if !show_ignored
+                        && matchers
+                            .iter()
+                            .map(|m| m.matched(&path, dir))
+                            .find(|m| !m.is_none())
+                            .is_some_and(|m| matches!(m, Match::Ignore(_)))
+                    {
+                        return None;
+                    }
+                    Some(Entry {
                         children: if dir {
-                            tree_at(&path, level + 1)
+                            let mut ancestors = parents.to_vec();
+                            if let Some(ref m) = matcher {
+                                ancestors.push(m.clone());
+                            }
+                            tree_at(&path, level + 1, show_hidden, show_ignored, &ancestors)
                         } else {
                             vec![]
                         },
@@ -149,6 +188,32 @@ fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
 #[cfg(not(target_os = "macos"))]
 fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
     std::fs::rename(from, to)
+}
+
+pub fn create_entry(path: &Path, dir: bool) -> std::io::Result<()> {
+    let name = path
+        .file_name()
+        .and_then(|part| part.to_str())
+        .unwrap_or_default();
+    if name.is_empty() || name == "." || name == ".." || name.contains('\\') {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "名前には一つの名前だけを指定してください",
+        ));
+    }
+    let parent = path.parent().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "親フォルダがありません")
+    })?;
+    not_link(parent)?;
+    if dir {
+        std::fs::create_dir(path)
+    } else {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .map(|_| ())
+    }
 }
 
 pub fn write_text(path: &Path, content: &str) -> std::io::Result<()> {
@@ -277,6 +342,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn adr_0065_1_and_2_creates_one_entry_and_preserves_existing() {
+        let root = testdir::fresh("tree-create");
+        let nested = root.join("draft");
+        std::fs::create_dir(&nested).unwrap();
+        for parent in [&root, &nested] {
+            let sheet = parent.join("opening.gm");
+            create_entry(&sheet, false).unwrap();
+            assert_eq!(std::fs::read(&sheet).unwrap(), b"");
+            std::fs::write(&sheet, "original").unwrap();
+            assert!(create_entry(&sheet, false).is_err());
+            assert_eq!(std::fs::read_to_string(&sheet).unwrap(), "original");
+            let folder = parent.join("images");
+            create_entry(&folder, true).unwrap();
+            assert!(create_entry(&folder, true).is_err());
+            assert_eq!(
+                std::fs::read_dir(parent).unwrap().count(),
+                if parent == &root { 3 } else { 2 }
+            );
+        }
+        assert!(create_entry(&root.join("missing/child"), false).is_err());
+        assert!(!root.join("missing").exists());
+    }
+
+    #[test]
     fn adr_0070_1_protects_only_the_project_root_files() {
         let d = testdir::fresh("rename-protected");
         let project = d.join("project");
@@ -388,6 +477,66 @@ mod tests {
             std::fs::read_to_string(d.join("novel/manifest.toml")).unwrap(),
             "project"
         );
+    }
+
+    #[test]
+    fn adr_0067_2_visibility_follows_nested_gitignore_and_hidden_conditions() {
+        let d = testdir::fresh("visibility");
+        for (path, text) in [
+            (".gitignore", "ignored/\n*.md\n!keep.md\n"),
+            ("ignored/a.gm", "a"),
+            (".draft.md", "draft"),
+            ("keep.md", "keep"),
+            ("nested/.gitignore", "hide.md\n"),
+            ("nested/hide.md", "hide"),
+            ("nested/keep.gm", "keep"),
+            ("build/a.gm", "fixed"),
+        ] {
+            write_text(&d.join(path), text).unwrap();
+        }
+        let names = |hidden, ignored| {
+            fn paths(entries: &[Entry]) -> Vec<String> {
+                entries
+                    .iter()
+                    .flat_map(|entry| {
+                        let mut out = vec![entry.path.clone()];
+                        out.extend(paths(&entry.children));
+                        out
+                    })
+                    .collect()
+            }
+            paths(&tree_with_visibility(&d, hidden, ignored))
+                .iter()
+                .map(|p| p.strip_prefix(d.to_str().unwrap()).unwrap().to_owned())
+                .collect::<Vec<_>>()
+        };
+        let default = names(false, true);
+        assert!(default.contains(&"/ignored/a.gm".into()));
+        assert!(default.contains(&"/nested/hide.md".into()));
+        assert!(!default.contains(&"/.draft.md".into()));
+        assert!(!default.contains(&"/build".into()));
+        let filtered = names(true, false);
+        assert!(filtered.contains(&"/.gitignore".into()));
+        assert!(!filtered.contains(&"/.draft.md".into()));
+        assert!(!names(false, false).contains(&"/.draft.md".into()));
+        assert!(!names(false, true).contains(&"/.draft.md".into()));
+        assert!(names(true, true).contains(&"/.draft.md".into()));
+        assert!(filtered.contains(&"/keep.md".into()));
+        assert!(!filtered.contains(&"/ignored".into()));
+        assert!(!filtered.contains(&"/nested/hide.md".into()));
+        assert!(!filtered.contains(&"/build".into()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn adr_0067_2_symlinked_gitignore_is_not_read() {
+        use std::os::unix::fs::symlink;
+        let d = testdir::fresh("gitignore-symlink");
+        write_text(&d.join("outside.rules"), "hidden.gm\n").unwrap();
+        write_text(&d.join("ws/hidden.gm"), "text").unwrap();
+        symlink(d.join("outside.rules"), d.join("ws/.gitignore")).unwrap();
+        let paths = tree_with_visibility(&d.join("ws"), false, false);
+        assert!(paths.iter().any(|entry| entry.name == "hidden.gm"));
     }
 
     #[test]

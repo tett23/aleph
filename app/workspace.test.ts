@@ -37,15 +37,15 @@ test("kinds", () => {
 test("tree rows: chapters first in the manifest's order, then the plot, then the rest", () => {
   const rows = treeRows(tree, new Set(["/w/novel", "/w/novel/chapters", "/w/notes"]), () => ["/w/novel/chapters/02.gm", "/w/novel/chapters/01.gm"]);
   const names = rows.map((r) => (r.t === "dir" ? `${r.entry.name}/` : r.entry.name) + (r.t === "file" && r.plot ? "*" : ""));
-  assert.deepEqual(names, ["notes/", "a.md", "novel/", "02.gm", "01.gm", "plot.csv*", "chapters/", "99.gm", "inner/", "manifest.toml", "style.toml", "group/"]);
+  assert.deepEqual(names, ["notes/", "a.md", "novel/", "plot.csv*", "chapters/", "02.gm", "01.gm", "99.gm", "inner/", "manifest.toml", "style.toml", "group/"]);
   const novel = rows.find((r) => r.t === "dir" && r.entry.name === "novel");
   assert.equal(novel?.t === "dir" && novel.project, true);
 });
 
-test("a chapters folder emptied by the chapter rows is hidden", () => {
+test("a chapters folder remains visible when it contains only registered chapters", () => {
   const t = [d("/w/p", [d("/w/p/chapters", [f("/w/p/chapters/01.gm")]), f("/w/p/manifest.toml")])];
   const rows = treeRows(t, new Set(["/w/p", "/w/p/chapters"]), () => ["/w/p/chapters/01.gm"]);
-  assert.deepEqual(rows.map((r) => r.entry.name), ["p", "01.gm", "manifest.toml"]);
+  assert.deepEqual(rows.map((r) => r.entry.name), ["p", "chapters", "01.gm", "manifest.toml"]);
 });
 
 test("files Aleph does not open are not shown", () => {
@@ -113,8 +113,37 @@ test("the tree of a root project: its row first, then its chapters in order", ()
   const rows = workspaceRows("/r", rootTree, new Set(), () => ["/r/chapters/01.gm"]);
   assert.equal(rows[0].t, "dir");
   assert.equal(rows[0].entry.path, "/r");
-  assert.equal(rows[1].entry.path, "/r/chapters/01.gm");
-  assert.equal(rows[1].project, "/r");
+  assert.equal(rows[1].entry.path, "/r/chapters");
+  assert.equal(rows[2].entry.path, "/r/inner");
+  assert.equal(rows[0].project, true);
   assert.ok(rows.slice(1).every((r) => r.depth === 1));
   assert.deepEqual(workspaceRows("/w", tree, new Set(), () => []), treeRows(tree, new Set(), () => []));
+});
+
+test("ADR 0067 invariant 1: registered chapters stay under their actual parent once", () => {
+  const nested = [d("/w/p", [d("/w/p/chapters", [d("/w/p/chapters/part", [f("/w/p/chapters/part/a.gm")])]), f("/w/p/manifest.toml")])];
+  const rows = treeRows(nested, new Set(["/w/p", "/w/p/chapters", "/w/p/chapters/part"]), () => ["/w/p/chapters/part/a.gm"]);
+  assert.deepEqual(rows.map((r) => [r.entry.path, r.depth]), [
+    ["/w/p", 0], ["/w/p/chapters", 1], ["/w/p/chapters/part", 2],
+    ["/w/p/chapters/part/a.gm", 3], ["/w/p/manifest.toml", 1],
+  ]);
+  assert.equal(rows.filter((r) => r.entry.path.endsWith("a.gm")).length, 1);
+  const collapsed = treeRows(nested, new Set(["/w/p"]), () => ["/w/p/chapters/part/a.gm"]);
+  assert.deepEqual(collapsed.map((r) => r.entry.path), ["/w/p", "/w/p/chapters", "/w/p/manifest.toml"]);
+});
+
+test("ADR 0067 invariant 1: registered siblings follow manifest order, then plot", () => {
+  const nested = [d("/w/p", [f("/w/p/b.gm"), f("/w/p/plot.csv"), f("/w/p/a.gm"), f("/w/p/manifest.toml")])];
+  const rows = treeRows(nested, new Set(["/w/p"]), () => ["/w/p/a.gm", "/w/p/b.gm"]);
+  assert.deepEqual(rows.map((r) => r.entry.name), ["p", "a.gm", "b.gm", "plot.csv", "manifest.toml"]);
+});
+
+test("ADR 0067 invariant 1: a known project stays a project when its manifest is hidden by display settings", () => {
+  const visible = [d("/w/book", [f("/w/book/plot.csv"), d("/w/book/chapters", [f("/w/book/chapters/a.gm")])])];
+  const rows = workspaceRows("/w", visible, new Set(["/w/book", "/w/book/chapters"]), () => ["/w/book/chapters/a.gm"], new Set(["/w/book"]));
+  assert.equal(rows[0].t, "dir");
+  assert.equal(rows[0].project, true);
+  assert.equal(rows[1].t, "file");
+  assert.equal(rows[1].plot, true);
+  assert.equal(rows[3].project, "/w/book");
 });
