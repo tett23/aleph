@@ -13,6 +13,7 @@ export type ToolInfo = { path: string; version: string; bundled: string };
 export type Tool = "golem" | "shem";
 
 export const api = {
+  exportChapters: (parts: { path: string; live: string | null }[]) => invoke<boolean>("export_chapters", { parts }),
   configLoad: () => invoke<string>("config_load"),
   configSave: (json: string) => invoke<void>("config_save", { json }),
   listTree: (root: string, options?: { showHidden: boolean; showIgnored: boolean }) => invoke<Entry[]>("list_tree", { root, showHidden: options?.showHidden ?? false, showIgnored: options?.showIgnored ?? true }),

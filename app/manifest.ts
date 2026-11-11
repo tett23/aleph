@@ -91,16 +91,22 @@ export const addChapter = (src: string, rel: string): string => {
   const span = chaptersSpan(src);
   if (!span) return `chapters = [${item}]\n${src}`;
   const inner = src.slice(span.open + 1, span.close);
-  if (!inner.trim()) return src.slice(0, span.open + 1) + item + src.slice(span.close);
+  if (!inner.trim()) {
+    if (inner.includes("\n")) {
+      const lastLine = inner.lastIndexOf("\n") + 1;
+      const closeIndent = inner.slice(lastLine);
+      return src.slice(0, span.open + 1) + inner.slice(0, lastLine) + closeIndent + "  " + item + "\n" + closeIndent + src.slice(span.close);
+    }
+    return src.slice(0, span.open + 1) + item + src.slice(span.close);
+  }
   if (inner.includes("\n")) {
-    // one item per line: add a line with the same indentation, after a comma
-    const lines = inner.split("\n");
-    const last = [...lines].reverse().find((l) => l.trim()) ?? "";
-    const indent = /^\s*/.exec(last)![0] || "  ";
-    const body = inner.replace(/\s*$/, "");
-    const sep = body.trimEnd().endsWith(",") ? "" : ",";
-    const tail = inner.slice(body.length);
-    return src.slice(0, span.open + 1) + body + sep + "\n" + indent + item + (tail.includes("\n") ? tail : "\n") + src.slice(span.close);
+    const items = itemsOf(src, span.open, span.close);
+    const last = items[items.length - 1];
+    if (last && !src.slice(last.end, span.close).includes("\n")) {
+      const tail = src.slice(last.end, span.close);
+      return src.slice(0, last.end) + (tail.trim().startsWith(",") ? tail + " " : ", ") + item + src.slice(span.close);
+    }
+    return put(src, items, items.length, item, span.open, true, false);
   }
   const body = inner.replace(/\s*,?\s*$/, "");
   return src.slice(0, span.open + 1) + body + ", " + item + src.slice(span.close);
@@ -183,7 +189,14 @@ const cut = (src: string, items: Item[], k: number, lines: boolean): string => {
   if (lines) {
     const from = src.lastIndexOf("\n", it.start - 1) + 1;
     const nl = src.indexOf("\n", it.end);
-    return src.slice(0, from) + src.slice(nl < 0 ? src.length : nl + 1);
+    const before = src.slice(from, it.start);
+    const after = src.slice(it.end, nl < 0 ? src.length : nl);
+    if (!before.trim() && /^\s*,?\s*(?:#.*)?$/.test(after))
+      return src.slice(0, from) + src.slice(nl < 0 ? src.length : nl + 1);
+  }
+  if (items.length === 1) {
+    const comma = /^\s*,/.exec(src.slice(it.end));
+    return src.slice(0, it.start) + src.slice(it.end + (comma?.[0].length ?? 0));
   }
   if (k + 1 < items.length) return src.slice(0, it.start) + src.slice(items[k + 1].start);
   if (k > 0) return src.slice(0, items[k - 1].end) + src.slice(it.end);
@@ -191,7 +204,7 @@ const cut = (src: string, items: Item[], k: number, lines: boolean): string => {
 };
 
 /** One item put into a list at `k` (the end when past it). */
-const put = (src: string, items: Item[], k: number, text: string, open: number, lines: boolean): string => {
+const put = (src: string, items: Item[], k: number, text: string, open: number, lines: boolean, trailingComma = true): string => {
   if (lines && items.length) {
     if (k < items.length) {
       const from = src.lastIndexOf("\n", items[k].start - 1) + 1;
@@ -205,8 +218,8 @@ const put = (src: string, items: Item[], k: number, text: string, open: number, 
     const lineEnd = nl < 0 ? src.length : nl;
     const comma = src.slice(last.end, lineEnd).trim().startsWith(",");
     return comma
-      ? src.slice(0, lineEnd + 1) + `${indent}${text},\n` + src.slice(lineEnd + 1)
-      : src.slice(0, last.end) + `,\n${indent}${text}` + src.slice(last.end);
+      ? src.slice(0, lineEnd + 1) + `${indent}${text}${trailingComma ? "," : ""}\n` + src.slice(lineEnd + 1)
+      : src.slice(0, last.end) + "," + src.slice(last.end, lineEnd + 1) + `${indent}${text}\n` + src.slice(lineEnd + 1);
   }
   if (k < items.length) return src.slice(0, items[k].start) + `${text}, ` + src.slice(items[k].start);
   if (items.length) return src.slice(0, items[items.length - 1].end) + `, ${text}` + src.slice(items[items.length - 1].end);
