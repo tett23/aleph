@@ -29,6 +29,7 @@ It edits these formats:
 Right-click a sheet, folder, or project in the file tree to rename it. Open sheets follow the new path.
 When Golem LSP supports file operations, Aleph updates local references before renaming; if reference updates are unavailable, you can cancel or rename without updating them.
 Right-click a project or folder to add a folder or an empty sheet of a chosen type. Right-click a Markdown sheet to convert that sheet to gm.
+To reorder projects in the same folder, right-click a project and choose “一つ上へ” (move up) or “一つ下へ” (move down). Aleph remembers the order for each workspace.
 The file tree shows chapters in their actual folders. The settings can show hidden files or hide files matched by `.gitignore`.
 Right-click a Golem document to add it to or remove it from the project chapters. Selected Golem documents can be exported as one file in tree order.
 
