@@ -15,7 +15,7 @@ const tree = [
 const known = new Set(["/w/collection/A", "/w/collection/B", "/w/drafts/A"]);
 const paths = (entries: Entry[]) => entries.map((e) => e.path);
 
- test("ADR 0074 invariant 1: only adjacent sibling project slots exchange", () => {
+test("ADR 0074 invariant 1: only adjacent sibling project slots exchange", () => {
   assert.deepEqual(projectNeighbors("/w", tree, known, {}, "/w/collection/A"), { up: null, down: "/w/collection/B" });
   const order = moveProject("/w", tree, known, {}, "/w/collection/A", "down");
   assert.deepEqual(paths(orderProjectEntries("/w", tree, known, order)[0].children), ["/w/collection/B", "/w/collection/notes", "/w/collection/A"]);
@@ -24,9 +24,9 @@ const paths = (entries: Entry[]) => entries.map((e) => e.path);
   assert.deepEqual(projectNeighbors("/w", tree, known, order, "/w/drafts/A"), { up: null, down: null });
   assert.deepEqual(projectNeighbors("/w", tree, known, order, "/w"), { up: null, down: null });
   assert.deepEqual(projectNeighbors("/w", [d("/w/folder", [])], new Set(), {}, "/w/folder"), { up: null, down: null });
- });
+});
 
- test("ADR 0074 invariant 2: child rows retain parents, expansion and selection are unchanged", () => {
+test("ADR 0074 invariant 2: child rows retain parents, expansion and selection are unchanged", () => {
   const order = moveProject("/w", tree, known, {}, "/w/collection/A", "down");
   const ordered = orderProjectEntries("/w", tree, known, order);
   const expanded = new Set(["/w/collection", "/w/collection/A", "/w/drafts"]);
@@ -36,9 +36,9 @@ const paths = (entries: Entry[]) => entries.map((e) => e.path);
   assert.equal(rows.filter((r) => r.entry.path === selected[0]).length, 1);
   assert.deepEqual([...expanded], ["/w/collection", "/w/collection/A", "/w/drafts"]);
   assert.deepEqual(selected, ["/w/collection/A/a.gm"]);
- });
+});
 
- test("ADR 0074 invariant 3: config restores each workspace independently and appends new projects", () => {
+test("ADR 0074 invariant 3: config restores each workspace independently and appends new projects", () => {
   const saved = moveProject("/w", tree, known, {}, "/w/collection/A", "down");
   const restored = normalize({ projectOrder: saved }).projectOrder;
   const changed = [d("/w/collection", [project("/w/collection/A"), d("/w/collection/notes", []), project("/w/collection/C")])];
@@ -46,7 +46,7 @@ const paths = (entries: Entry[]) => entries.map((e) => e.path);
   assert.deepEqual(paths(orderProjectEntries("/w", changed, changedKnown, restored)[0].children), ["/w/collection/A", "/w/collection/notes", "/w/collection/C"]);
   const other = [project("/v/A"), project("/v/B")];
   assert.deepEqual(paths(orderProjectEntries("/v", other, new Set(paths(other)), restored)), paths(other));
- });
+});
 
 test("ADR 0074 invariant 1: invisible projects are not menu destinations and inherited keys are ignored", () => {
   const onlyA = [project("/w/collection/A")];

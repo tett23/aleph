@@ -79,6 +79,18 @@ const clamp = (v: unknown, lo: number, hi: number, d: number) =>
 const str = (v: unknown, d: string) => (typeof v === "string" ? v : d);
 const bool = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
 
+const projectOrderOf = (raw: unknown): ProjectOrder => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(Object.entries(raw).flatMap(([workspace, parents]) => {
+    if (!parents || typeof parents !== "object" || Array.isArray(parents)) return [];
+    const validParents = Object.entries(parents).flatMap(([parent, paths]) =>
+      Array.isArray(paths)
+        ? [[parent, [...new Set(paths.filter((path): path is string => typeof path === "string"))]]]
+        : []);
+    return [[workspace, Object.fromEntries(validParents)]];
+  }));
+};
+
 /** A config read from JSON, with unknown keys dropped, wrong types replaced and numbers clamped. */
 export const normalize = (raw: unknown): Config => {
   const d = defaults();
@@ -86,13 +98,7 @@ export const normalize = (raw: unknown): Config => {
   const ms = (r.manuscript && typeof r.manuscript === "object" ? r.manuscript : {}) as Record<string, unknown>;
   return {
     workspaces: Array.isArray(r.workspaces) ? [...new Set(r.workspaces.filter((w): w is string => typeof w === "string" && w !== ""))] : d.workspaces,
-    projectOrder: r.projectOrder && typeof r.projectOrder === "object" && !Array.isArray(r.projectOrder)
-      ? Object.fromEntries(Object.entries(r.projectOrder).flatMap(([workspace, parents]) =>
-          parents && typeof parents === "object" && !Array.isArray(parents)
-            ? [[workspace, Object.fromEntries(Object.entries(parents).flatMap(([parent, paths]) =>
-                Array.isArray(paths) ? [[parent, [...new Set(paths.filter((path): path is string => typeof path === "string"))]]] : []))]]
-            : []))
-      : d.projectOrder,
+    projectOrder: projectOrderOf(r.projectOrder),
     golemPath: str(r.golemPath, d.golemPath),
     shemPath: str(r.shemPath, d.shemPath),
     gitPath: str(r.gitPath, d.gitPath),

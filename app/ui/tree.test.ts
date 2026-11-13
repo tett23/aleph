@@ -4,7 +4,7 @@ import { createServer } from "vite";
 import type { Ctx } from "../ctx.ts";
 import { normalize } from "../config.ts";
 
-test("ADR 0070 invariants 1-3 and ADR 0066 invariants 1-2: tree handlers act on the clicked row", async () => {
+test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tree handlers act on the clicked row", async () => {
   const listeners = new Map<string, (event: unknown) => void>();
   let answer = "";
   let menuElement: FakeElement | null = null;
