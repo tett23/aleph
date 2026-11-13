@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "vite";
 import type { Ctx } from "../ctx.ts";
+import { normalize } from "../config.ts";
 
 test("ADR 0070 invariants 1-3 and ADR 0066 invariants 1-2: tree handlers act on the clicked row", async () => {
   const listeners = new Map<string, (event: unknown) => void>();
@@ -67,6 +68,7 @@ test("ADR 0070 invariants 1-3 and ADR 0066 invariants 1-2: tree handlers act on 
     const state = { workspace: "/w", workspaces: ["/w"], expanded: [], panes: [], open: [], selected: [], plot: null };
     const ctx = {
       left: {}, settings: [], beforeRename: [], onRename: [], projects: ["/w/book"], decor: [], titles: new Map(), editors: new Map(),
+      config: normalize({}), saveConfig: async () => {},
       store: { get: () => state, dispatch: () => {} },
       save: async () => {}, refresh: () => {}, toast: () => {},
     } as unknown as Ctx;
@@ -136,6 +138,23 @@ test("ADR 0070 invariants 1-3 and ADR 0066 invariants 1-2: tree handlers act on 
     removeItem.run();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(manifest, "chapters = []\n");
+
+    // The same menu path used by a real context click updates the order and redraws the tree.
+    api.listTree = async () => [
+      { path: "/w/book", name: "book", dir: true, children: [{ path: "/w/book/manifest.toml", name: "manifest.toml", dir: false, children: [] }] },
+      { path: "/w/notes", name: "notes", dir: true, children: [] },
+      { path: "/w/second", name: "second", dir: true, children: [{ path: "/w/second/manifest.toml", name: "manifest.toml", dir: false, children: [] }] },
+    ];
+    await (await server.ssrLoadModule("/app/ui/tree.ts")).reloadTree(ctx);
+    const projectMenu = treeMenus.flatMap((f: (p: string, d: boolean, c: Ctx) => { label: string; run: () => void }[]) => f("/w/book", true, ctx));
+    assert.equal(projectMenu.some((item: { label: string }) => item.label === "一つ上へ"), false);
+    const down = projectMenu.find((item: { label: string }) => item.label === "一つ下へ");
+    assert.ok(down);
+    down.run();
+    await ctx.left.files!.render(tree as unknown as HTMLElement, ctx);
+    assert.ok(tree.innerHTML.indexOf('data-dir="/w/second"') < tree.innerHTML.indexOf('data-dir="/w/notes"'));
+    assert.ok(tree.innerHTML.indexOf('data-dir="/w/notes"') < tree.innerHTML.indexOf('data-dir="/w/book"'));
+    assert.deepEqual(ctx.config.projectOrder["/w"][""], ["second", "book"]);
   } finally {
     await server.close();
     Object.assign(globalThis, { document: previousDocument });

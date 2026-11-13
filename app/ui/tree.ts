@@ -17,6 +17,7 @@ import { item, toggle } from "./settings.ts";
 import { revealItems } from "../reveal.ts";
 import { canRenameTreeItem, renameTarget } from "../tree-rename.ts";
 import { createdPath, SHEET_KINDS } from "../tree-create.ts";
+import { moveProject, orderProjectEntries, projectNeighbors } from "../project-order.ts";
 
 const ICONS: Record<string, string> = {
   gm: "file-text",
@@ -99,7 +100,8 @@ const rowsNow = (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
   const expanded = new Set(ctx.store.get().expanded);
   const of = (p: string) => chapters.get(p) ?? [];
-  return ws ? workspaceRows(ws, entries, expanded, of, new Set(ctx.projects)) : treeRows(entries, expanded, of);
+  const known = new Set(ctx.projects);
+  return ws ? workspaceRows(ws, orderProjectEntries(ws, entries, known, ctx.config.projectOrder), expanded, of, known) : treeRows(entries, expanded, of);
 };
 
 const draw = (el: HTMLElement, ctx: Ctx) => {
@@ -307,6 +309,7 @@ const exportSelected = async (ctx: Ctx, paths: string[]) => {
 };
 
 export const mountTree = (ctx: Ctx) => {
+  let projectOrderSave = Promise.resolve();
   ctx.left.files = {
     icon: "files",
     title: "ファイル",
@@ -348,6 +351,19 @@ export const mountTree = (ctx: Ctx) => {
       ? [{ label: "名前を変える", icon: icon("pencil", 14), run: () => void renameTreeItem(ctx, p) }]
       : [],
   );
+
+  treeMenus.push((path, dir) => {
+    const ws = ctx.store.get().workspace;
+    if (!dir || !ws) return [];
+    const neighbors = projectNeighbors(ws, entries, new Set(ctx.projects), ctx.config.projectOrder, path);
+    return (["up", "down"] as const).flatMap((direction): MenuItem[] => neighbors[direction]
+      ? [{ label: direction === "up" ? "一つ上へ" : "一つ下へ", run: () => {
+          ctx.config.projectOrder = moveProject(ws, entries, new Set(ctx.projects), ctx.config.projectOrder, path, direction);
+          ctx.refresh(["left"]);
+          projectOrderSave = projectOrderSave.then(() => ctx.saveConfig()).catch((error) => { notifyError(String(error)); });
+        } }]
+      : []);
+  });
 
   treeMenus.push((p, dir) => dir
     ? [
