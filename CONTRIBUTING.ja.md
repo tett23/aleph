@@ -7,11 +7,11 @@ CONTRIBUTING.ja.md はその機械翻訳です。
 
 ## 開発環境
 
-[adr-guard](https://github.com/tett23/adr-guard) v0.10.0 以降を入れ、clone したあとに git の hook を有効にします。
+[adr-guard](https://github.com/tett23/adr-guard) v0.13.1 以降を入れ、clone したあとに git の hook を有効にします。
 この設定はリポジトリに保存されないので、clone ごとに実行します。
 
 ```sh
-cargo install --git https://github.com/tett23/adr-guard --tag v0.10.0
+cargo install --git https://github.com/tett23/adr-guard --tag v0.13.1
 git config core.hooksPath .githooks
 ```
 
@@ -19,22 +19,23 @@ git config core.hooksPath .githooks
 
 ## 変更の進め方
 
-1. ADR を書き、レビューを受けます。レビューの前に ADR をコミットしません。
-2. ADR のテスト設計のテストを書き、失敗することを確かめます。
-3. 変更を実装し、テストを通します。
-4. 同じプルリクエストで docs/specifications.md と README を更新します。
-5. ブランチを push し、プルリクエストを開きます。
-6. CI が通ったら、マージコミット（`--no-ff`）で `main` にマージします。
+1. ステータスの行を `Status: proposed` にして ADR を書き、レビューを受けます。レビューの前に ADR をコミットしません。
+2. レビューで認められたら、ADR を `Status: proposed` のままコミットします。次のコミットで、実装の要る ADR はステータスを `accepted-pending` に、実装の要らない ADR は `accepted` にします。
+3. ADR のテスト設計のテストを書き、失敗することを確かめます。
+4. 変更を実装し、テストを通します。実装で、ADR のステータスを `accepted-pending` から `accepted` に変えます。
+5. 同じプルリクエストで docs/specifications.md と README を更新します。
+6. ブランチを push し、プルリクエストを開きます。
+7. CI が通ったら、マージコミット（`--no-ff`）で `main` にマージします。
 
 誤字の修正と、仕様を変えない文書の修正には ADR は要りません。
 
 ## ADR
 
 - ADR は `docs/adr/` に置き、`0001-scope-and-formats.md` のように連番と読める kebab-case の名前を付けます。
-- ADR は、`ステータス:` で始まるステータスの行をちょうど一つ持ちます。
+- ADR は、`Status:` で始まるステータスの行をちょうど一つ持ちます。値は `proposed`、`accepted-pending`、`accepted`、`superseded [...]`、`superseded-pending [...]`、`rejected`、`discarded` のいずれかです。後の ADR に決定を変えられた ADR は `superseded`（実装を待つ ADR なら `superseded-pending`）にし、`Status: superseded [{"part":"...","by":["docs/adr/...md"]}]` のように、変わった部分と後の ADR のパスを JSON で書きます。pre-commit hook と CI はステータスの遷移を検査します。
 - コミット済みの ADR は、ステータスの行とリンクを除いて変えません。adr-guard が pre-commit hook と CI でこれを強制します。決定を変えるときは、古い ADR を置きかえる新しい ADR を書きます。
 - 同じディレクトリの二つの ADR が同じ番号を持つことはありません。CI が `adr-guard check-numbers` でこれを検査し、`adr-guard renumber` で重複を直せます。
-- ADR を破棄するときは、ステータスを `破棄` にし、理由を docs/specifications.md に書きます。
+- ADR を破棄するときは、ステータスを `discarded` にし、理由を docs/specifications.md に書きます。
 - ADR からソースコードを参照するときは、コミットのハッシュを含む GitHub の URL で書きます。`main` は rebase しないので、この URL は変わりません。
 - ADR は、決定に使った文献を末尾に挙げます。
 - ADR や文書を書いたあとは、`adr-guard links --fix` を実行して ADR の参照にリンクを付けます。

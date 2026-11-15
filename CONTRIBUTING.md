@@ -7,11 +7,11 @@ CONTRIBUTING.ja.md is a machine translation of it.
 
 ## Development environment
 
-Install [adr-guard](https://github.com/tett23/adr-guard) v0.10.0 or later, and enable the git hooks after cloning.
+Install [adr-guard](https://github.com/tett23/adr-guard) v0.13.1 or later, and enable the git hooks after cloning.
 The setting is not stored in the repository, so run it in every clone.
 
 ```sh
-cargo install --git https://github.com/tett23/adr-guard --tag v0.10.0
+cargo install --git https://github.com/tett23/adr-guard --tag v0.13.1
 git config core.hooksPath .githooks
 ```
 
@@ -19,22 +19,23 @@ The toolchains of the application (Rust, Node.js and Tauri) are decided in ADRs.
 
 ## How a change is made
 
-1. Write an ADR and have it reviewed. Do not commit the ADR before the review.
-2. Write the tests of the ADR's test design, and see them fail.
-3. Implement the change, and make the tests pass.
-4. Update docs/specifications.md and the README in the same pull request.
-5. Push a branch and open a pull request.
-6. When CI passes, merge it into `main` with a merge commit (`--no-ff`).
+1. Write an ADR with the status line `Status: proposed`, and have it reviewed. Do not commit the ADR before the review.
+2. When the review accepts it, commit the ADR as `Status: proposed`. In the next commit, set its status to `accepted-pending` if it needs an implementation, or to `accepted` if it does not.
+3. Write the tests of the ADR's test design, and see them fail.
+4. Implement the change, and make the tests pass. The implementation changes the ADR's status from `accepted-pending` to `accepted`.
+5. Update docs/specifications.md and the README in the same pull request.
+6. Push a branch and open a pull request.
+7. When CI passes, merge it into `main` with a merge commit (`--no-ff`).
 
 Fixes of typos and of documents that do not change the specification need no ADR.
 
 ## ADRs
 
 - ADRs are in `docs/adr/`, named like `0001-scope-and-formats.md`: a sequential number and a readable kebab-case name.
-- An ADR has exactly one status line, which begins with `ステータス:`.
+- An ADR has exactly one status line, which begins with `Status:`. Its value is one of `proposed`, `accepted-pending`, `accepted`, `superseded [...]`, `superseded-pending [...]`, `rejected` and `discarded`. An ADR whose decision a later ADR changes becomes `superseded` (`superseded-pending` if it awaits its implementation), with the changed part and the path of the later ADR written as JSON, like `Status: superseded [{"part":"...","by":["docs/adr/...md"]}]`. The pre-commit hook and CI check the transitions of the status.
 - A committed ADR does not change, except for its status line and its links. adr-guard enforces this in the pre-commit hook and in CI. To change a decision, write a new ADR that supersedes the old one.
 - Two ADRs in the same directory never share a number. CI checks this with `adr-guard check-numbers`; `adr-guard renumber` repairs a duplicate.
-- To discard an ADR, set its status to `破棄` and write the reason in docs/specifications.md.
+- To discard an ADR, set its status to `discarded` and write the reason in docs/specifications.md.
 - An ADR refers to source code by a GitHub URL that contains a commit hash. `main` is never rebased, so such a URL does not change.
 - An ADR lists the references used for its decision at its end.
 - After writing an ADR or a document, run `adr-guard links --fix` to add links to ADR references.
