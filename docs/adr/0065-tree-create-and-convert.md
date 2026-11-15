@@ -1,6 +1,6 @@
 # ADR 0065: ツリーでフォルダとシートを作り、Markdown を gm に変換する
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 

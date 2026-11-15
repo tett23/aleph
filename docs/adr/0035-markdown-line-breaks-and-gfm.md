@@ -1,6 +1,6 @@
 # ADR 0035: Markdown の改行の扱いと GFM
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 

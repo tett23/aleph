@@ -1,6 +1,6 @@
 # ADR 0017: Aleph のプラグイン
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 

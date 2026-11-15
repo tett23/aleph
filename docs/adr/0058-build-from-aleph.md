@@ -1,6 +1,6 @@
 # ADR 0058: Aleph からプロジェクトをビルドする
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 

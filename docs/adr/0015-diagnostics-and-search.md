@@ -1,6 +1,6 @@
 # ADR 0015: 診断と検索
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 

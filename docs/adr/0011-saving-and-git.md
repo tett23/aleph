@@ -1,6 +1,6 @@
 # ADR 0011: 保存と Git
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 

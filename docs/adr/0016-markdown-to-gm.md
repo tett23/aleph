@@ -1,6 +1,6 @@
 # ADR 0016: md から gm への変換
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 

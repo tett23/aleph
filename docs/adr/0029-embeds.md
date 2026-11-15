@@ -1,6 +1,6 @@
 # ADR 0029: Markdown のプレビューでのシートの埋め込み
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 
