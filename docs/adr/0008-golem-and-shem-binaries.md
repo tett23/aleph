@@ -1,6 +1,6 @@
 # ADR 0008: Golem と shem の呼び出し
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 

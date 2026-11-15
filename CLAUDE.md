@@ -11,7 +11,7 @@ Tauri で作る。ライセンスは MIT とする。
   - コミット済みの ADR はステータスの行とリンクを除き変更不可（adr-guard が強制する）。変更が必要な場合は新たな ADR を作成する。
   - 同じディレクトリで ADR の番号を重複させない（CI が `adr-guard check-numbers` で検査する）。
   - ほかのリポジトリの ADR を参照するときは、`[tett23/adr-guard ADR 0019: ...](https://github.com/...)` のように修飾子ごとリンクのテキストに入れる（adr-guard は `ADR NNNN` の直前の語を修飾子として読む）。
-  - ADR は行頭が `ステータス:` のステータスの行をちょうど一つ持つ。
+  - ADR は行頭が `Status:` のステータスの行をちょうど一つ持つ。値と書き方は CONTRIBUTING.md と [ADR 0076](docs/adr/0076-update-adr-guard-to-v0.13.1.md) に従う。
   - ADR からソースコードを参照するときは、コミットのハッシュを含む GitHub の URL で書く。Golem のコードを参照するときも同じ。
 - **docs/audit/**、**docs/benchmarks/** 監査と性能計測の記録。コミット済みのものは変更、削除、移動不可。
 - **scripts/** 検査の道具。コミットするスクリプトは macOS の BSD 版の道具でも動くように書く。

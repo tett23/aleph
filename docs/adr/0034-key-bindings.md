@@ -1,6 +1,6 @@
 # ADR 0034: キーの割り当てを変える
 
-ステータス: 採択→アプリのメニューのキーの一覧は[ADR 0036](0036-cmd-w-closes-a-tab.md)
+Status: superseded [{"by":["docs/adr/0036-cmd-w-closes-a-tab.md"],"part":"アプリのメニューのキーの一覧"}]
 
 ## 文脈
 

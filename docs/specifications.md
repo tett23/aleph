@@ -78,6 +78,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0062](adr/0062-run-programs-off-the-main-thread.md) | 外部のプログラムをメインスレッドの外で走らせる（実装済み） |
 | [ADR 0063](adr/0063-watch-files-changed-outside.md) | 外部で変わったファイルに追従する（FSEvents、保存の前の確かめ、三方向のマージ）（実装済み） |
 | [ADR 0064](adr/0064-unified-notifications.md) | 通知を一つの仕組みにまとめ、問題のパネルに通知の履歴を出す（実装済み） |
+| [ADR 0076](adr/0076-update-adr-guard-to-v0.13.1.md) | ADR の検査に使う adr-guard を v0.13.1 に上げ、ADR のステータスの行を新形式（`Status:`）に移す（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 

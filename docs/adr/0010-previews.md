@@ -1,6 +1,6 @@
 # ADR 0010: プレビュー
 
-ステータス: 採択
+Status: accepted
 
 ## 文脈
 

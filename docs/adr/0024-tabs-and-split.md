@@ -1,6 +1,6 @@
 # ADR 0024: タブと左右の分割
 
-ステータス: 採択→分割を始める条件とやめる条件は[ADR 0037](0037-split-conditions.md)
+Status: superseded [{"by":["docs/adr/0037-split-conditions.md"],"part":"分割を始める条件とやめる条件"}]
 
 ## 文脈
 

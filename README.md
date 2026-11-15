@@ -74,10 +74,10 @@ npm test
 (cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 ```
 
-Install [adr-guard](https://github.com/tett23/adr-guard) v0.10.0 or later, and enable the git hooks in each clone.
+Install [adr-guard](https://github.com/tett23/adr-guard) v0.13.1 or later, and enable the git hooks in each clone.
 
 ```sh
-cargo install --git https://github.com/tett23/adr-guard --tag v0.10.0
+cargo install --git https://github.com/tett23/adr-guard --tag v0.13.1
 git config core.hooksPath .githooks
 ```
 

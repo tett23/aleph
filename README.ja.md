@@ -74,10 +74,10 @@ npm test
 (cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 ```
 
-[adr-guard](https://github.com/tett23/adr-guard) v0.10.0 以降を入れ、clone ごとに git の hook を有効にします。
+[adr-guard](https://github.com/tett23/adr-guard) v0.13.1 以降を入れ、clone ごとに git の hook を有効にします。
 
 ```sh
-cargo install --git https://github.com/tett23/adr-guard --tag v0.10.0
+cargo install --git https://github.com/tett23/adr-guard --tag v0.13.1
 git config core.hooksPath .githooks
 ```
 
