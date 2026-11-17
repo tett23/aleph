@@ -1,14 +1,13 @@
 name: Assistant benchmark
 
 # Measures the local models of the assistant on the standard macOS runner
-# (docs/adr/0081, 計測を CI で続ける): on every push to main that is not
-# docs only (docs/adr/0080), once a week, and by hand. It never runs on pull
-# requests, so it never blocks a merge.
+# (docs/adr/0081, 計測を CI で続ける): every night, and by hand. A night skips
+# when main has not moved since the newest run that finished measuring
+# (docs/adr/0085). It never runs on pull requests, so it never blocks a merge.
 on:
-  push:
-    branches: [main]
   schedule:
-    - cron: "23 4 * * 1"
+    # UTC: 3:17 a.m. in Japan
+    - cron: "17 18 * * *"
   workflow_dispatch:
 
 permissions: {}
@@ -18,43 +17,62 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Whether the push touches documentation only (docs/adr/0080). The schedule
-  # and a run by hand always measure.
-  changes:
+  # The recent completed runs of this workflow on main with the conclusions of
+  # their jobs, newest first. Only gh, with a token that reads the runs; the
+  # repository is not checked out.
+  runs:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+    outputs:
+      runs: ${{ steps.list.outputs.runs }}
+    steps:
+      - name: List the runs
+        id: list
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          {
+            for row in $(gh run list --workflow assistant-bench.yml --branch main --status completed --limit 30 --json databaseId,headSha -q '.[] | "\(.databaseId):\(.headSha)"'); do
+              id=${row%%:*}
+              gh run view "$id" --json jobs -q "{id: $id, sha: \"${row#*:}\", jobs: [.jobs[] | {name, conclusion}]}"
+            done
+          } | jq -cs . > "$RUNNER_TEMP/runs.json"
+          jq -r '.[] | "run \(.id) \(.sha)"' "$RUNNER_TEMP/runs.json"
+          echo "runs=$(cat "$RUNNER_TEMP/runs.json")" >> "$GITHUB_OUTPUT"
+
+  # Whether this run measures (docs/adr/0085), and the runs that finished
+  # measuring for the history. Runs the repository's code, with no token.
+  decide:
+    needs: runs
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
-      docs-only: ${{ steps.diff.outputs.docs-only }}
+      measure: ${{ steps.decide.outputs.measure }}
+      measured-runs: ${{ steps.decide.outputs.measured-runs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - name: List the changed files
-        id: diff
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - name: Decide
+        id: decide
         env:
+          RUNS: ${{ needs.runs.outputs.runs }}
           EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
-        run: |
-          only=false
-          if [ "$EVENT" = push ]; then
-            case "$BASE_SHA" in ''|*[!0]*) ;; *) BASE_SHA= ;; esac
-            if [ -n "$BASE_SHA" ] && files=$(git diff --name-only "$BASE_SHA..$HEAD_SHA"); then
-              only=$(printf '%s\n' "$files" | sh scripts/docs-only.sh)
-              printf '%s\n' "$files" | sed 's/^/changed: /'
-            fi
-          fi
-          echo "docs-only: $only"
-          echo "docs-only=$only" >> "$GITHUB_OUTPUT"
+        run: printf '%s' "$RUNS" | node bench/assistant/schedule.ts --event "$EVENT" --head "$HEAD_SHA" | tee -a "$GITHUB_OUTPUT"
 
   # Every model of bench/assistant/models.json at both context lengths. No
   # token beyond reading the repository: the benchmark runs llama-server and
   # the downloaded models.
   measure:
-    needs: changes
-    if: needs.changes.outputs.docs-only != 'true'
+    needs: decide
+    if: needs.decide.outputs.measure == 'true'
     runs-on: macos-26
     # The longest a job may run on a GitHub-hosted runner. The runner answers
     # about ten times slower than an M1 Max, so one job measures one model at
@@ -94,12 +112,12 @@ jobs:
           name: assistant-bench-${{ matrix.model }}-${{ matrix.context }}
           path: ${{ runner.temp }}/bench/${{ matrix.model }}-${{ matrix.context }}.json
 
-  # The joined results of the previous four runs that have them, the most
-  # recent as history/1. Only gh, with a token that reads the runs; the
-  # repository is not checked out.
+  # The joined results of the previous four runs that finished measuring
+  # (docs/adr/0085), the most recent as history/1. Only gh, with a token that
+  # reads the runs; the repository is not checked out.
   history:
-    needs: changes
-    if: needs.changes.outputs.docs-only != 'true'
+    needs: decide
+    if: needs.decide.outputs.measure == 'true'
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -108,12 +126,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
+          MEASURED_RUNS: ${{ needs.decide.outputs.measured-runs }}
         run: |
           mkdir -p "$RUNNER_TEMP/history"
           n=0
-          for id in $(gh run list --workflow assistant-bench.yml --branch main --limit 30 --json databaseId -q '.[].databaseId'); do
-            [ "$id" = "$RUN_ID" ] && continue
+          for id in $MEASURED_RUNS; do
             dir="$RUNNER_TEMP/history/$((n + 1))"
             if gh run download "$id" -n assistant-bench -D "$dir" 2>/dev/null && [ -f "$dir/assistant-bench.json" ]; then
               n=$((n + 1))
@@ -208,8 +225,8 @@ jobs:
   # (docs/adr/0081). Measuring runs the repository's code with no token;
   # reporting writes the issues and runs none of it.
   budget-measure:
-    needs: changes
-    if: needs.changes.outputs.docs-only != 'true'
+    needs: decide
+    if: needs.decide.outputs.measure == 'true'
     runs-on: macos-26
     timeout-minutes: 360
     permissions:

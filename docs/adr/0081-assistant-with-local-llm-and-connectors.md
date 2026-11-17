@@ -1,6 +1,6 @@
 # ADR 0081: 下部パネルに、ローカル LLM で動くアシスタントを置く
 
-Status: accepted-pending
+Status: superseded-pending [{"part":"計測を CI で続ける の、計測を動かす時","by":["docs/adr/0085-run-assistant-benchmark-nightly.md"]}]
 
 ## 文脈
 
