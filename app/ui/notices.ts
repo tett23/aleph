@@ -41,8 +41,14 @@ export const notify = (o: NotifyOpts): Handle => {
 /** A failure: an error that stays until closed. */
 export const notifyError = (message: string, actions?: NotifyOpts["actions"]) => notify({ message, level: "error", sticky: true, actions });
 
+/** The bar of a progress notification (docs/adr/0078). */
+const barHtml = (n: Note) =>
+  n.progress
+    ? `<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(n.progress.value * 100)}"><i style="width:${(n.progress.value * 100).toFixed(1)}%"></i></div><div class="cnt">${esc(n.progress.text)}</div>`
+    : "";
+
 const noteHtml = (n: Note) =>
-  `<span class="ic">${icon(LEVEL_ICON[n.level], 16)}</span><div class="msg">${esc(n.message)}</div><span class="x" data-x title="閉じる">${icon("x", 13)}</span>${
+  `<span class="ic">${icon(LEVEL_ICON[n.level], 16)}</span><div class="msg">${esc(n.message)}</div><span class="x" data-x title="閉じる">${icon("x", 13)}</span>${barHtml(n)}${
     n.actions.length ? `<div class="btns">${n.actions.map((a, i) => `<span class="btn${a.primary ? " pri" : ""}" data-a="${i}">${esc(a.label)}</span>`).join("")}</div>` : ""
   }`;
 

@@ -332,6 +332,9 @@ table.grid td:has(.chips) .cell { height: auto; font-size: 11px; color: var(--fa
 .toasts .nt .msg { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; cursor: text; }
 .toasts .nt .x { color: var(--faint); padding-top: 2px; display: flex; cursor: default; }
 .toasts .nt .x:hover { color: var(--text); }
+.toasts .nt .bar { grid-column: 2 / 3; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; margin-top: 4px; }
+.toasts .nt .bar > i { display: block; height: 100%; background: var(--text-2); }
+.toasts .nt .cnt { grid-column: 2 / 3; font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .toasts .nt .btns { grid-column: 2 / 4; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 4px; }
 .toasts .nt .btns .btn { font-size: 12px; padding: 2px 10px; }
 .toasts .more { align-self: flex-end; font-size: 12px; color: var(--text-2); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 10px; cursor: default; }
@@ -373,6 +376,9 @@ table.grid td:has(.chips) .cell { height: auto; font-size: 11px; color: var(--fa
 
 /* dropping files on the shared library */
 .dropzone { border: 1.5px dashed var(--border); border-radius: 6px; padding: 14px; text-align: center; color: var(--text-2); font-size: 12px; line-height: 1.7; }
+/* where a drop on the tree goes (docs/adr/0078) */
+.tree .r.drop-into { background: var(--sel); }
+.tree.drop-into { outline: 2px solid var(--text-2); outline-offset: -2px; border-radius: 6px; }
 .right.drop-over .dropzone { border-color: var(--text-2); background: var(--sel); color: var(--text); }
 .item input.field.num { flex: 0 0 72px; width: 72px; min-width: 0; }
 

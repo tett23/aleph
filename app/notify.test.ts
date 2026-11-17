@@ -175,3 +175,51 @@ test("listeners hear every change; the message can be changed", () => {
   assert.equal(heard, 3);
   assert.equal(n.history()[0].message, "b");
 });
+
+test("ADR 0078 I7: a progress notification is updated in place by its key, without adding a toast", () => {
+  const c = fakeClock();
+  const n = createNotifications(c.clock);
+  n.notify({ key: "copy", message: "novel にコピーしています", sticky: true, progress: { value: 0.1, text: "0 / 2" } });
+  n.notify({ key: "copy", message: "novel にコピーしています", sticky: true, progress: { value: 0.6, text: "1 / 2" } });
+  const shown = n.shown().notes;
+  assert.equal(shown.length, 1);
+  assert.deepEqual(shown[0].progress, { value: 0.6, text: "1 / 2" });
+  assert.equal(shown[0].repeats, 1);
+});
+
+test("ADR 0078 I7: progress notifications stay out of the history; the result replacing one is kept once", () => {
+  const c = fakeClock();
+  const n = createNotifications(c.clock);
+  n.seen();
+  n.notify({ key: "copy", message: "コピーしています", sticky: true, progress: { value: 0, text: "0 / 1" } });
+  n.notify({ key: "copy", message: "コピーしています", sticky: true, progress: { value: 0.5, text: "0 / 1" } });
+  assert.equal(n.history().length, 0);
+  assert.equal(n.unseen().count, 0);
+  n.notify({ key: "copy", message: "コピーしました：a.md" });
+  assert.deepEqual(
+    n.history().map((x) => [x.message, x.repeats]),
+    [["コピーしました：a.md", 1]],
+  );
+  assert.deepEqual(shownMessages(n), ["コピーしました：a.md"]);
+  assert.equal(n.unseen().count, 1);
+});
+
+test("ADR 0078 I7: a closed progress notification is not shown again by later values", () => {
+  const c = fakeClock();
+  const n = createNotifications(c.clock);
+  const h = n.notify({ key: "copy", message: "コピーしています", sticky: true, progress: { value: 0, text: "0 / 1" } });
+  h.dismiss();
+  n.notify({ key: "copy", message: "コピーしています", sticky: true, progress: { value: 0.5, text: "0 / 1" } });
+  assert.equal(n.shown().notes.length, 0);
+  n.notify({ key: "copy", message: "コピーしました" });
+  assert.deepEqual(shownMessages(n), ["コピーしました"]);
+});
+
+test("ADR 0078 I8: the value of a progress notification is kept within 0 and 1", () => {
+  const c = fakeClock();
+  const n = createNotifications(c.clock);
+  n.notify({ key: "k", message: "m", sticky: true, progress: { value: 1.5, text: "" } });
+  assert.equal(n.shown().notes[0].progress!.value, 1);
+  n.notify({ key: "k", message: "m", sticky: true, progress: { value: -1, text: "" } });
+  assert.equal(n.shown().notes[0].progress!.value, 0);
+});
