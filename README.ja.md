@@ -74,6 +74,8 @@ npm test
 (cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 ```
 
+変更が文書（README、CONTRIBUTING、ADR、仕様書と、`scripts/docs-only.sh` が挙げる `docs/` のほかのファイル）だけのときは、CI はこれらの検査を省きます。ADR と翻訳の検査は、どの変更でも走ります。
+
 [adr-guard](https://github.com/tett23/adr-guard) v0.13.1 以降を入れ、clone ごとに git の hook を有効にします。
 
 ```sh
