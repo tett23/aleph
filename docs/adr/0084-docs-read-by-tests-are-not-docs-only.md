@@ -1,6 +1,6 @@
 # ADR 0084: テストが読む文書の変更では、CI のビルドとテストを省かない
 
-Status: proposed
+Status: accepted
 
 ## 文脈
 

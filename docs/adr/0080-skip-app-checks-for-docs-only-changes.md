@@ -1,6 +1,6 @@
 # ADR 0080: 文書だけの変更では CI のビルドとテストを省く
 
-Status: accepted
+Status: superseded [{"part":"文書のパスの一覧","by":["docs/adr/0084-docs-read-by-tests-are-not-docs-only.md"],"kind":"supplement"}]
 
 ## 文脈
 
