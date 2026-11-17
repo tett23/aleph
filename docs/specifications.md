@@ -79,6 +79,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0063](adr/0063-watch-files-changed-outside.md) | 外部で変わったファイルに追従する（FSEvents、保存の前の確かめ、三方向のマージ）（実装済み） |
 | [ADR 0064](adr/0064-unified-notifications.md) | 通知を一つの仕組みにまとめ、問題のパネルに通知の履歴を出す（実装済み） |
 | [ADR 0076](adr/0076-update-adr-guard-to-v0.13.1.md) | ADR の検査に使う adr-guard を v0.13.1 に上げ、ADR のステータスの行を新形式（`Status:`）に移す（実装済み） |
+| [ADR 0080](adr/0080-skip-app-checks-for-docs-only-changes.md) | 文書だけの変更では、CI の `app` のジョブ（ビルドとテスト）を省く（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
@@ -92,6 +93,7 @@ Aleph は Tauri 2 のアプリで、画面を TypeScript（`app/`）、ファイ
 - git は、設定の値、`/usr/bin`、Homebrew（`/opt/homebrew/bin`）、PATH の順に探す。設定の値があれば、ほかの場所は探さない。macOS の GUI アプリはログインシェルの PATH を受け継がないためである。
 - アイコンは、使うものだけを `app/icons/` に SVG で置く（lucide、ISC ライセンス）。
 - テストは、TypeScript は `node --test`（Node が型を取り除いて実行する）、Rust は `cargo test` で書く。CI の `app` のジョブが macOS で、型検査、`node --test`、Vite のビルド、rustfmt、clippy、`cargo test` を実行する。
+- 変更したファイルがすべて文書（`README.md`、`README.ja.md`、`CONTRIBUTING.md`、`CONTRIBUTING.ja.md`、`docs/adr/`、`docs/specifications.md`、`docs/roadmap.md`、`docs/glossary.md`、`docs/research/`、`docs/audits/`、`docs/audit/`、`docs/benchmarks/`、`docs/benchmark/` の下）のときは、CI の `changes` のジョブが `scripts/docs-only.sh` でそれを見分け、`app` のジョブを省く（[ADR 0080](adr/0080-skip-app-checks-for-docs-only-changes.md)）。変更したファイルの一覧を作れないとき、変更したファイルが無いとき、ほかのファイル（ワークフローを含む）を変えたときは、`app` を走らせる。`adr` と `translations` のジョブと `audit` のワークフローは、どの変更でも走る。
 - CI の `audit` のジョブ（`.github/workflows/audit.yml`）が、プルリクエスト、main、週に一度の定期の実行で、`npm audit --omit=dev --audit-level=high` と、版を固定した `cargo audit` を走らせる（[ADR 0049](adr/0049-dependency-audit-in-ci.md)）。既知の脆弱性を一時的に許すときは、advisory の ID、理由、見直す日を書く（cargo は `src-tauri/.cargo/audit.toml`）。理由のない許可は置かない。
 
 ## 画面と Rust の信頼の境界
