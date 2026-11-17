@@ -227,7 +227,12 @@ for (const sig of ["SIGINT", "SIGTERM"] as const)
 
 type Server = { proc: ChildProcess; socket: string; dir: string; log: string; startedAt: number; tokens: Map<string, number> };
 
-const call = (socket: string, method: string, path: string, body?: unknown, timeoutMs = 600000) =>
+// A request may write up to max_tokens (2048 with thinking). The standard macOS
+// runner wrote about 1.9 tokens a second with Qwen3-0.6B, so a long answer
+// outlasted the old 10 minutes; allow 30.
+const REQUEST_TIMEOUT_MS = 30 * 60 * 1000;
+
+const call = (socket: string, method: string, path: string, body?: unknown, timeoutMs = REQUEST_TIMEOUT_MS) =>
   new Promise<{ status: number; body: string }>((resolve, reject) => {
     const data = body === undefined ? undefined : JSON.stringify(body);
     const req = request(
