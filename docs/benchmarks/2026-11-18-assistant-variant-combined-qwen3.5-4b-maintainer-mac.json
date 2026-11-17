@@ -1,0 +1,3536 @@
+{
+  "schema": 1,
+  "variant": {
+    "name": "kind-examples+user-material+title-rank+md-no-manual",
+    "features": [
+      "kind-examples",
+      "user-material",
+      "title-rank",
+      "md-no-manual"
+    ]
+  },
+  "date": "2026-11-17T21:27:03.221Z",
+  "commit": "38924475a7c6664b7c63c8c6faf465cf675c943f",
+  "machine": {
+    "model": "Mac13,1",
+    "memBytes": 68719476736,
+    "cpu": "Apple M1 Max",
+    "os": "27.0"
+  },
+  "llamaCpp": {
+    "repo": "ggml-org/llama.cpp",
+    "tag": "b12466",
+    "archive": "llama-b12466-bin-macos-arm64.tar.gz",
+    "sha256": "1940fb9b81d85c3a0edba8ebca6b723c9ab85cf98ca7a2ee70077cc26df63441"
+  },
+  "manual": {
+    "repo": "tett23/golem",
+    "tag": "v0.1.0-rc4",
+    "chapters": {
+      "03-markup": "5eb0a267200bd7eb85013d91ce56aec874ea7c5de045a934b7cefd54cfd17d66",
+      "04-manifest": "59fa4264769a0bf568ef894eed1dd9827f551d7be6afe7500b7e9c563ca6214e",
+      "05-style": "3545c2108a97406ce97360f17165322d202146ab5e723954281ce836d6786b0f"
+    }
+  },
+  "golemCheck": {
+    "bin": "/Users/tett23/.local/bin/golem",
+    "version": "golem 0.1.0-rc4"
+  },
+  "tasks": {
+    "count": 61,
+    "byKind": {
+      "style": 12,
+      "manifest": 12,
+      "gm": 12,
+      "markdown": 12,
+      "command": 13
+    },
+    "essential": [
+      "style-line-pitch",
+      "style-size",
+      "manifest-title",
+      "manifest-blank-line",
+      "gm-ruby",
+      "gm-strong",
+      "md-heading-space",
+      "md-bold-close",
+      "command-build",
+      "command-convert-md"
+    ]
+  },
+  "coldStarts": 1,
+  "runs": [
+    {
+      "summary": {
+        "key": "qwen3.5-4b@4096",
+        "model": "qwen3.5-4b",
+        "context": 4096,
+        "firstAnswerMsP95": 14693,
+        "answerMsMedian": 12786,
+        "answerMsP95": 16278,
+        "peakRssMb": 3379,
+        "successRate": 0.639344262295082,
+        "successByKind": {
+          "style": 0.5833333333333334,
+          "manifest": 0.75,
+          "gm": 0.6666666666666666,
+          "markdown": 0.75,
+          "command": 0.46153846153846156
+        },
+        "essentialFailed": [
+          "md-bold-close",
+          "command-build",
+          "command-convert-md"
+        ]
+      },
+      "model": {
+        "id": "qwen3.5-4b",
+        "name": "Qwen3.5-4B",
+        "repo": "unsloth/Qwen3.5-4B-GGUF",
+        "revision": "e87f176479d0855a907a41277aca2f8ee7a09523",
+        "file": "Qwen3.5-4B-Q4_K_M.gguf",
+        "sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4"
+      },
+      "context": 4096,
+      "firstAnswerMs": {
+        "all": [
+          14693
+        ],
+        "median": 14693,
+        "p95": 14693
+      },
+      "answerMs": {
+        "median": 12786,
+        "p95": 16278
+      },
+      "peakRssMb": 3379,
+      "idleRssMb": 3233,
+      "gpu": {
+        "offloaded": {
+          "layers": 33,
+          "of": 33
+        },
+        "lines": [
+          "0.01.767.318 I llama_prepare_model_devices: using device MTL0 (Apple M1 Max) (unknown id) - 53083 MiB free",
+          "0.02.590.772 I load_tensors: offloading output layer to GPU",
+          "0.02.590.779 I load_tensors: offloading 31 repeating layers to GPU",
+          "0.02.590.780 I load_tensors: offloaded 33/33 layers to GPU",
+          "0.02.595.029 I ggml_metal_init: allocating",
+          "0.02.595.072 I ggml_metal_init: found device: Apple M1 Max",
+          "0.02.595.078 I ggml_metal_init: picking default device: Apple M1 Max",
+          "0.02.595.124 I ggml_metal_init: use fusion         = true",
+          "0.02.595.128 I ggml_metal_init: use concurrency    = true",
+          "0.02.595.292 I ggml_metal_init: use graph optimize = true",
+          "0.02.998.623 I ggml_metal_free: deallocating"
+        ]
+      },
+      "material": {
+        "fixedTokensMax": 852,
+        "limitMin": 2220,
+        "sectionsMedian": 4,
+        "materialTokensMedian": 2231
+      },
+      "essential": {
+        "passed": [
+          "style-line-pitch",
+          "style-size",
+          "manifest-title",
+          "manifest-blank-line",
+          "gm-ruby",
+          "gm-strong",
+          "md-heading-space"
+        ],
+        "failed": [
+          "md-bold-close",
+          "command-build",
+          "command-convert-md"
+        ]
+      },
+      "loadAverage": {
+        "before": [
+          299.69384765625,
+          319.77001953125,
+          325.806640625
+        ],
+        "after": [
+          208.78662109375,
+          238.556640625,
+          275.6552734375
+        ]
+      },
+      "tasks": [
+        {
+          "id": "style-line-pitch",
+          "kind": "style",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 14428,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"行送り（line-pitch）の値を '20H' から '22H' に変更します。\",\"edits\":[{\"find\":\"line-pitch = \\\"20H\\\"\", \"replace\":\"line-pitch = \\\"22H\\\"\"}]}",
+          "timings": {
+            "promptTokens": 3069,
+            "cachedTokens": 0,
+            "promptMs": 11274,
+            "predictedTokens": 59,
+            "predictedMs": 3144
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "判型と版面",
+            "書体とフォント",
+            ""
+          ]
+        },
+        {
+          "id": "style-size",
+          "kind": "style",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 4707,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"判型を A6 から B6 に変更します。\",\"edits\":[{\"find\":\"size = \\\"A6\\\"\", \"replace\":\"size = \\\"B6\\\"\"}]}",
+          "timings": {
+            "promptTokens": 508,
+            "cachedTokens": 2553,
+            "promptMs": 2485,
+            "predictedTokens": 40,
+            "predictedMs": 2206
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "判型と版面",
+            "書体とフォント",
+            ""
+          ]
+        },
+        {
+          "id": "style-characters",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 13112,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"文字数を 38 から 36 に変更します。\",\"edits\":[{\"find\":\"characters = 38\",\"replace\":\"characters = 36\"}]}",
+          "timings": {
+            "promptTokens": 2309,
+            "cachedTokens": 587,
+            "promptMs": 11086,
+            "predictedTokens": 39,
+            "predictedMs": 2010
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "異体字",
+            "文字の送り",
+            "本文の字下げ",
+            ""
+          ]
+        },
+        {
+          "id": "style-lines",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 13495,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"行数を 16 行から 15 行に減らします。\",\"edits\":[{\"find\":\"lines = 16\",\"replace\":\"lines = 15\"}]}",
+          "timings": {
+            "promptTokens": 2422,
+            "cachedTokens": 587,
+            "promptMs": 11379,
+            "predictedTokens": 44,
+            "predictedMs": 2100
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "行分割と和文組版",
+            "索引の段組み"
+          ]
+        },
+        {
+          "id": "style-font-size",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 13383,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"本文のフォントサイズを 12.5Q から 12Q に変更します。\",\"edits\":[{\"find\":\"font-size = \\\"12.5Q\\\"\", \"replace\":\"font-size = \\\"12Q\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2424,
+            "cachedTokens": 587,
+            "promptMs": 10515,
+            "predictedTokens": 55,
+            "predictedMs": 2852
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "文字の送り",
+            "本文の字下げ",
+            "書体とフォント"
+          ]
+        },
+        {
+          "id": "style-bleed",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 14992,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"塗り足しの幅（bleed）を 3mm から 5mm に変更します。\",\"edits\":[{\"find\":\"bleed = \\\"3mm\\\"\", \"replace\":\"bleed = \\\"5mm\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2481,
+            "cachedTokens": 587,
+            "promptMs": 11994,
+            "predictedTokens": 50,
+            "predictedMs": 2979
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "判型と版面",
+            "書体とフォント",
+            ""
+          ]
+        },
+        {
+          "id": "style-position-top",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 15902,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"版面の天からの位置（top）を 14mm から 16mm に変更します。\",\"edits\":[{\"find\":\"top = \\\"14mm\\\"\", \"replace\": \"top = \\\"16mm\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2421,
+            "cachedTokens": 587,
+            "promptMs": 12979,
+            "predictedTokens": 53,
+            "predictedMs": 2904
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "判型と版面",
+            "本文の字下げ",
+            ""
+          ]
+        },
+        {
+          "id": "style-heading-number",
+          "kind": "style",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 15047,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"見出し番号の書式を漢数字から算用数字に変更します。\",\"edits\":[{\"find\":\"number = \\\"第{n:kanji}章\\\"\", \"replace\":\"number = \\\"{n}章\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2466,
+            "cachedTokens": 587,
+            "promptMs": 12630,
+            "predictedTokens": 50,
+            "predictedMs": 2400
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "見出しの体裁",
+            "リストの印と番号"
+          ]
+        },
+        {
+          "id": "style-folio-format",
+          "kind": "style",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 13945,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"番号の書式を「{n}」から「-{n}-」に変更します。\",\"edits\":[{\"find\":\"folio = { position = \\\"bottom-outside\\\", format = \\\"{n}\\\" }\",\"replace\":\"folio = { position = \\\"bottom-outside\\\", format = \\\"-{n}-\\\" }\"}]}",
+          "timings": {
+            "promptTokens": 2487,
+            "cachedTokens": 587,
+            "promptMs": 10356,
+            "predictedTokens": 69,
+            "predictedMs": 3573
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "リストの印と番号",
+            "行揃えと段落の前後のアキ",
+            "異体字",
+            ""
+          ]
+        },
+        {
+          "id": "style-first-line-indent",
+          "kind": "style",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 15972,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"段落スタイルの body に字下げ設定を追加します。\",\"edits\":[{\"find\":\"align = \\\"left-justified\\\"\", \"replace\":\"align = \\\"left-justified\\\"\\nindent = \\\"1zw\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2486,
+            "cachedTokens": 587,
+            "promptMs": 13137,
+            "predictedTokens": 50,
+            "predictedMs": 2818
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本文の字下げ",
+            "行揃えと段落の前後のアキ",
+            "ファイルの中のスタイル",
+            "スタイルの設定"
+          ]
+        },
+        {
+          "id": "style-align",
+          "kind": "style",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 16112,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"段落スタイルの整列設定を左揃えから両端揃えに変更します。\",\"edits\":[{\"find\":\"align = \\\"left-justified\\\"\", \"replace\":\"align = \\\"center-justified\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2416,
+            "cachedTokens": 587,
+            "promptMs": 13222,
+            "predictedTokens": 50,
+            "predictedMs": 2871
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本文の字下げ",
+            "行分割と和文組版",
+            ""
+          ]
+        },
+        {
+          "id": "style-remove-columns",
+          "kind": "style",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 14441,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"[page.grid] セクション内の段数設定行（columns = 1）を削除します。\",\"edits\":[{\"find\":\"columns = 1\",\"replace\":\"\"}]}",
+          "timings": {
+            "promptTokens": 2485,
+            "cachedTokens": 587,
+            "promptMs": 12301,
+            "predictedTokens": 41,
+            "predictedMs": 2123
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "索引の段組み",
+            "行揃えと段落の前後のアキ",
+            "書体とフォント",
+            "",
+            "異体字"
+          ]
+        },
+        {
+          "id": "manifest-title",
+          "kind": "manifest",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 14079,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"書名を「猫の町」に書き換えます。\",\"edits\":[{\"find\":\"title = \\\"無題\\\"\", \"replace\":\"title = \\\"猫の町\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2657,
+            "cachedTokens": 394,
+            "promptMs": 12002,
+            "predictedTokens": 42,
+            "predictedMs": 2060
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "出力の設定",
+            "章を並べる",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-blank-line",
+          "kind": "manifest",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 12786,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"[source] 節の paragraph-separator を 'blank-line' に変更します。\",\"edits\":[{\"find\":\"paragraph-separator = \\\"line\\\"\", \"replace\":\"paragraph-separator = \\\"blank-line\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2420,
+            "cachedTokens": 644,
+            "promptMs": 10527,
+            "predictedTokens": 49,
+            "predictedMs": 2242
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "原稿の読み方",
+            "章を並べる",
+            "奥付を組む",
+            "出力の設定",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "manifest-date",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 12951,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"date の値を 2027 年 4 月 1 日に更新します。\",\"edits\":[{\"find\":\"date = 2026-01-01\",\"replace\":\"date = 2027-04-01\"}]}",
+          "timings": {
+            "promptTokens": 2416,
+            "cachedTokens": 644,
+            "promptMs": 10054,
+            "predictedTokens": 64,
+            "predictedMs": 2881
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "出力の設定",
+            "章を並べる",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-add-chapter",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 12350,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"chapters の配列に \\\"chapters/02.gm\\\" を追加します。\",\"edits\":[{\"find\":\"chapters = [\\\"chapters/01.gm\\\"]\",\"replace\":\"chapters = [\\\"chapters/01.gm\\\", \\\"chapters/02.gm\\\"]\"}]}",
+          "timings": {
+            "promptTokens": 2379,
+            "cachedTokens": 644,
+            "promptMs": 9380,
+            "predictedTokens": 70,
+            "predictedMs": 2953
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "章を並べる",
+            "原稿の読み方",
+            "出力の設定",
+            "プロジェクトの設定",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-language",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 10695,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"language の値を 'ja' から 'en' に書き換えます。\",\"edits\":[{\"find\":\"language = \\\"ja\\\"\",\"replace\":\"language = \\\"en\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2403,
+            "cachedTokens": 644,
+            "promptMs": 8824,
+            "predictedTokens": 42,
+            "predictedMs": 1852
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "章を並べる",
+            "出力の設定",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-title-reading",
+          "kind": "manifest",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 10644,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"書名「猫の町」の直後に「（ねこのまち）」と足します。\",\"edits\":[{\"find\":\"title = \\\"猫の町\\\"\", \"replace\":\"title = \\\"猫の町\\\"\\n\\n（ねこのまち）\"}]}",
+          "timings": {
+            "promptTokens": 2393,
+            "cachedTokens": 644,
+            "promptMs": 8263,
+            "predictedTokens": 57,
+            "predictedMs": 2350
+          },
+          "golem": {
+            "before": 0,
+            "after": 1
+          },
+          "sections": [
+            "原稿の読み方",
+            "出力の設定",
+            "PDF/A と PDF/UA",
+            "マニフェストの全体",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-text-variants",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 10176,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"[targets.text] の variants に vertical を追加します。\",\"edits\":[{\"find\":\"variants = [\\\"horizontal\\\"]\",\"replace\":\"variants = [\\\"horizontal\\\", \\\"vertical\\\"]\"}]}",
+          "timings": {
+            "promptTokens": 2391,
+            "cachedTokens": 644,
+            "promptMs": 8376,
+            "predictedTokens": 43,
+            "predictedMs": 1785
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "出力の設定",
+            "PDF/A と PDF/UA",
+            "原稿の読み方",
+            "マニフェストの全体",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-split-chapter",
+          "kind": "manifest",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 13594,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"chapters の配列を、一つの章を二つのファイルに分けた形（入れ子配列）に変えます。\",\"edits\":[{\"find\":\"chapters = [\\\"chapters/01.gm\\\"]\",\"replace\":\"chapters = [\\n  \\\"chapters/01.gm\\\",\\n  \\\"chapters/02.gm\\\",\\n]\"}]}",
+          "timings": {
+            "promptTokens": 2429,
+            "cachedTokens": 644,
+            "promptMs": 9886,
+            "predictedTokens": 82,
+            "predictedMs": 3692
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "章を並べる",
+            "本の情報を書く",
+            "出力の設定"
+          ]
+        },
+        {
+          "id": "manifest-role-fix",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 12449,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"著者の役割を 'aut' から 'author' に変更します。\",\"edits\":[{\"find\":\"role = \\\"aut\\\"\",\"replace\":\"role = \\\"author\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2408,
+            "cachedTokens": 644,
+            "promptMs": 10267,
+            "predictedTokens": 41,
+            "predictedMs": 2166
+          },
+          "golem": {
+            "before": 1,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "奥付を組む",
+            "マニフェストの全体",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-creator-reading",
+          "kind": "manifest",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 17633,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"著者の名前「夏目 漱石」の直後に「（なつめ そうせき）」を足します。\",\"edits\":[{\"find\":\"name = \\\"夏目 漱石\\\"\", \"replace\":\"name = \\\"夏目 漱石\\\"\\n（なつめ そうせき）\"}]}",
+          "timings": {
+            "promptTokens": 2392,
+            "cachedTokens": 644,
+            "promptMs": 13472,
+            "predictedTokens": 69,
+            "predictedMs": 4146
+          },
+          "golem": {
+            "before": 0,
+            "after": 1
+          },
+          "sections": [
+            "原稿の読み方",
+            "奥付を組む",
+            "出力の設定",
+            "章を並べる",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-edition",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 16068,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"edition の値を「第1版」から「第2版」に変更します。\",\"edits\":[{\"find\":\"edition = \\\"第1版\\\"\",\"replace\":\"edition = \\\"第2版\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2422,
+            "cachedTokens": 644,
+            "promptMs": 13197,
+            "predictedTokens": 48,
+            "predictedMs": 2855
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "出力の設定",
+            "章を並べる",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-publisher",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 14358,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"発行所の名前を「猫町書房」に書き換えます。\",\"edits\":[{\"find\":\"publisher = \\\"猫町社\\\"\",\"replace\":\"publisher = \\\"猫町書房\\\"\"}]}",
+          "timings": {
+            "promptTokens": 2404,
+            "cachedTokens": 644,
+            "promptMs": 11874,
+            "predictedTokens": 46,
+            "predictedMs": 2469
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "奥付を組む",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "gm-ruby",
+          "kind": "gm",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 16402,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「東京」に「とうきょう」とルビを振ります。\",\"edits\":[{\"find\":\"東京\",\"replace\":\"[ruby: 東京 | とうきょう]\"}]}",
+          "timings": {
+            "promptTokens": 2616,
+            "cachedTokens": 394,
+            "promptMs": 13945,
+            "predictedTokens": 43,
+            "predictedMs": 2442
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "注",
+            "原稿の記法",
+            "",
+            "箇条書きと番号付きリスト"
+          ]
+        },
+        {
+          "id": "gm-strong",
+          "kind": "gm",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 14796,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「大切」を強調します。\",\"edits\":[{\"find\":\"大切な\", \"replace\":\"[strong: 大切]な\"}]}",
+          "timings": {
+            "promptTokens": 2413,
+            "cachedTokens": 587,
+            "promptMs": 12925,
+            "predictedTokens": 32,
+            "predictedMs": 1850
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "強調と圏点",
+            "注",
+            "",
+            "原稿の記法",
+            "箇条書きと番号付きリスト"
+          ]
+        },
+        {
+          "id": "gm-kenten",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 15754,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「ここ」だけを圏点で囲みます。\",\"edits\":[{\"find\":\"ここ\",\"replace\":\"[kenten: ここ]\"}]}",
+          "timings": {
+            "promptTokens": 2447,
+            "cachedTokens": 587,
+            "promptMs": 13655,
+            "predictedTokens": 33,
+            "predictedMs": 2080
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "強調と圏点",
+            "",
+            "原稿の記法",
+            "段落と改行",
+            "箇条書きと番号付きリスト"
+          ]
+        },
+        {
+          "id": "gm-nonumber",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 15608,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"見出し「まえがき」に番号を振らないようにするため、その直前の行に @nonumber を追加します。\",\"edits\":[{\"find\":\"# まえがき\",\"replace\":\"@nonumber\\n# まえがき\"}]}",
+          "timings": {
+            "promptTokens": 2433,
+            "cachedTokens": 587,
+            "promptMs": 12350,
+            "predictedTokens": 57,
+            "predictedMs": 3236
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "行番号、キャプション、注釈の印",
+            ""
+          ]
+        },
+        {
+          "id": "gm-md-bold",
+          "kind": "gm",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 13703,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"Markdown の**太字**を、Golem の[kenten: 太字]（角括弧で囲む）に変換します。\",\"edits\":[{\"find\":\"**重要**\", \"replace\":\"[kenten: 重要]\"}]}",
+          "timings": {
+            "promptTokens": 2456,
+            "cachedTokens": 587,
+            "promptMs": 10998,
+            "predictedTokens": 57,
+            "predictedMs": 2689
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "箇条書きと番号付きリスト",
+            "原稿の記法",
+            "段落と改行",
+            "強調と圏点",
+            ""
+          ]
+        },
+        {
+          "id": "gm-md-link",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 12597,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"Markdown の [Golem](...) を Golem の [code: \\\\\\\\[link \",\"edits\":[{\"find\":\"[Golem](https://example.com/golem)\",\"replace\":\"[link \\\"https://example.com/golem\\\": Golem]\"}]}",
+          "timings": {
+            "promptTokens": 2375,
+            "cachedTokens": 587,
+            "promptMs": 9485,
+            "predictedTokens": 60,
+            "predictedMs": 3051
+          },
+          "golem": {
+            "before": 1,
+            "after": 0
+          },
+          "sections": [
+            "外部へのリンク",
+            "箇条書きと番号付きリスト",
+            "目次と索引と参考文献",
+            "原稿の記法",
+            ""
+          ]
+        },
+        {
+          "id": "gm-md-ordered-list",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 13195,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"通常の箇条書き（-）を、Golem の番号付きリスト（+）に変換します。\",\"edits\":[{\"find\":\"# 手順\\n\\n1. 原稿を書く\\n2. 組む\\n3. 確かめる\",\"replace\":\"# 手順\\n\\n+ 原稿を書く\\n+ 組む\\n+ 確かめる\"}]}",
+          "timings": {
+            "promptTokens": 2468,
+            "cachedTokens": 587,
+            "promptMs": 9482,
+            "predictedTokens": 81,
+            "predictedMs": 3698
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "定義リスト",
+            "箇条書きと番号付きリスト",
+            "原稿の記法",
+            "コードと外部のファイル",
+            "見出し",
+            ""
+          ]
+        },
+        {
+          "id": "gm-blank-line",
+          "kind": "gm",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 13389,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「雪がやんだ。」と「翌朝、駅に着いた。」のあいだに一行の行アキ [@blank-line] を挿入します。\",\"edits\":[{\"find\":\"雪がやんだ。\",\"replace\":\"雪がやんだ。\\n@blank-line\\n翌朝、駅に着いた。\"}]}",
+          "timings": {
+            "promptTokens": 2483,
+            "cachedTokens": 587,
+            "promptMs": 10013,
+            "predictedTokens": 71,
+            "predictedMs": 3361
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "空きを入れる",
+            "段落のあいだを空ける",
+            "段落と改行",
+            "定義リスト",
+            ""
+          ]
+        },
+        {
+          "id": "gm-comment",
+          "kind": "gm",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 13038,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「本文。」の後に「%% 出典を確かめる %%」という校正コメントを追加します。組むときは紙面に出ないよう、[code: \\\\\\text] で囲みます。\",\"edits\":[{\"find\":\"本文。\",\"replace\":\"本文。\\\\[code: \\\\\\text%% 出典を確かめる \\\\\\text%%]\"}]}",
+          "timings": {
+            "promptTokens": 2432,
+            "cachedTokens": 587,
+            "promptMs": 9393,
+            "predictedTokens": 80,
+            "predictedMs": 3630
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "コメントとエスケープ",
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "コードと外部のファイル",
+            ""
+          ]
+        },
+        {
+          "id": "gm-tcy",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 12833,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「!?」を縦中横にするため、[tcy: !?] コマンドを適用します。\",\"edits\":[{\"find\":\"本当に!?と思った。\",\"replace\":\"本当に[tcy: !?]と思った。\"}]}",
+          "timings": {
+            "promptTokens": 2446,
+            "cachedTokens": 587,
+            "promptMs": 10432,
+            "predictedTokens": 52,
+            "predictedMs": 2383
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "強調と圏点",
+            "",
+            "原稿の記法",
+            "段落と改行",
+            "箇条書きと番号付きリスト"
+          ]
+        },
+        {
+          "id": "gm-page-break",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 11943,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「第二章」の見出しの前で改ページコマンド [@page-break] を追加します。\",\"edits\":[{\"find\":\"# 第一章\\n\\n本文。\\n\\n# 第二章\",\"replace\":\"# 第一章\\n\\n本文。\\n\\n@page-break\\n\\n# 第二章\"}]}",
+          "timings": {
+            "promptTokens": 2337,
+            "cachedTokens": 587,
+            "promptMs": 9018,
+            "predictedTokens": 64,
+            "predictedMs": 2906
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "改ページ",
+            "見出し",
+            "相互参照",
+            ""
+          ]
+        },
+        {
+          "id": "gm-note",
+          "kind": "gm",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 12824,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「吾輩」の後に注を付けます。\",\"edits\":[{\"find\":\"吾輩は猫である。\",\"replace\":\"吾輩は猫である。[note: 語り手の猫のこと。]\"}]}",
+          "timings": {
+            "promptTokens": 2425,
+            "cachedTokens": 587,
+            "promptMs": 10348,
+            "predictedTokens": 49,
+            "predictedMs": 2454
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "注",
+            "箇条書きと番号付きリスト",
+            "強調と圏点",
+            "原稿の記法",
+            ""
+          ]
+        },
+        {
+          "id": "md-heading-space",
+          "kind": "markdown",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 5398,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"# の後に空白を足します。\",\"edits\":[{\"find\":\"#はじめに\",\"replace\":\"# はじめに\"}]}",
+          "timings": {
+            "promptTokens": 903,
+            "cachedTokens": 394,
+            "promptMs": 3977,
+            "predictedTokens": 31,
+            "predictedMs": 1413
+          },
+          "sections": []
+        },
+        {
+          "id": "md-bold-close",
+          "kind": "markdown",
+          "essential": true,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 3717,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"**大切な**の後に閉じる記号**を足します。\",\"edits\":[{\"find\":\"**大切な\",\"replace\":\"**大切な\"}]}",
+          "timings": {
+            "promptTokens": 523,
+            "cachedTokens": 781,
+            "promptMs": 2078,
+            "predictedTokens": 34,
+            "predictedMs": 1630
+          },
+          "sections": []
+        },
+        {
+          "id": "md-link-space",
+          "kind": "markdown",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 5824,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"リンクの書き方を [URL](URL) の形式に直します。\",\"edits\":[{\"find\":\"(https://example.com/golem)\",\"replace\":\"(https://example.com/golem)\"},{\"find\":\"[Golem]\",\"replace\":\"[Golem]\"}]}",
+          "timings": {
+            "promptTokens": 517,
+            "cachedTokens": 788,
+            "promptMs": 2660,
+            "predictedTokens": 60,
+            "predictedMs": 3155
+          },
+          "sections": []
+        },
+        {
+          "id": "md-close-fence",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 4537,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コードブロックの閉じタグ ` ``` ` を追加します。\",\"edits\":[{\"find\":\"npm test\",\"replace\":\"npm test\\n```\"}]}",
+          "timings": {
+            "promptTokens": 508,
+            "cachedTokens": 789,
+            "promptMs": 2566,
+            "predictedTokens": 35,
+            "predictedMs": 1958
+          },
+          "sections": []
+        },
+        {
+          "id": "md-bullets",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 6265,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"記号をすべて - に統一します。\",\"edits\":[{\"find\":\"- 一つめ\",\"replace\":\"- 一つめ\"},{\"find\":\"* 二つめ\",\"replace\":\"- 二つめ\"},{\"find\":\"+ 三つめ\",\"replace\":\"- 三つめ\"}]}",
+          "timings": {
+            "promptTokens": 518,
+            "cachedTokens": 789,
+            "promptMs": 2726,
+            "predictedTokens": 64,
+            "predictedMs": 3529
+          },
+          "sections": []
+        },
+        {
+          "id": "md-renumber",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 6523,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"番号を 1 から順に振り直します。\",\"edits\":[{\"find\":\"1. 書く\",\"replace\":\"1. 書く\"},{\"find\":\"1. 組む\",\"replace\":\"2. 組む\"},{\"find\":\"5. 確かめる\",\"replace\":\"3. 確かめる\"}]}",
+          "timings": {
+            "promptTokens": 519,
+            "cachedTokens": 791,
+            "promptMs": 2720,
+            "predictedTokens": 67,
+            "predictedMs": 3791
+          },
+          "sections": []
+        },
+        {
+          "id": "md-table-delimiter",
+          "kind": "markdown",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 5521,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"区切り行（|---|）を追加します。\",\"edits\":[{\"find\":\"| a | 1 |\",\"replace\":\"| a | 1 |\\n|---|---|\"}]}",
+          "timings": {
+            "promptTokens": 516,
+            "cachedTokens": 794,
+            "promptMs": 2740,
+            "predictedTokens": 45,
+            "predictedMs": 2768
+          },
+          "sections": []
+        },
+        {
+          "id": "md-image",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 5397,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"リンク記法を画像表示記法に変えます。\",\"edits\":[{\"find\":\"[表紙](cover.png)\",\"replace\":\"![表紙](cover.png)\"}]}",
+          "timings": {
+            "promptTokens": 503,
+            "cachedTokens": 794,
+            "promptMs": 2837,
+            "predictedTokens": 40,
+            "predictedMs": 2542
+          },
+          "sections": []
+        },
+        {
+          "id": "md-quote-space",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 5794,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"引用の行の > の後に空白を足します。\",\"edits\":[{\"find\":\">引用です。\",\"replace\":\"> 引用です。\"},{\"find\":\">二行目。\",\"replace\":\"> 二行目。\"}]}",
+          "timings": {
+            "promptTokens": 504,
+            "cachedTokens": 794,
+            "promptMs": 2732,
+            "predictedTokens": 53,
+            "predictedMs": 3047
+          },
+          "sections": []
+        },
+        {
+          "id": "md-heading-level",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 5209,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"見出しの階層を修正するために、### を ## に書き換えます。\",\"edits\":[{\"find\":\"### 節\",\"replace\":\"## 節\"}]}",
+          "timings": {
+            "promptTokens": 511,
+            "cachedTokens": 794,
+            "promptMs": 2797,
+            "predictedTokens": 39,
+            "predictedMs": 2394
+          },
+          "sections": []
+        },
+        {
+          "id": "md-italic",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 5675,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"_ を * に書き換えます。\",\"edits\":[{\"find\":\"_斜体_\",\"replace\":\"*斜体*\"},{\"find\":\"*斜体*\",\"replace\":\"*斜体*\"}]}",
+          "timings": {
+            "promptTokens": 504,
+            "cachedTokens": 794,
+            "promptMs": 2905,
+            "predictedTokens": 46,
+            "predictedMs": 2759
+          },
+          "sections": []
+        },
+        {
+          "id": "md-url-space",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 5097,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"URL 内の空白を %20 に置換します。\",\"edits\":[{\"find\":\"docs/my file.md\",\"replace\":\"docs/my%20file.md\"}]}",
+          "timings": {
+            "promptTokens": 509,
+            "cachedTokens": 794,
+            "promptMs": 2785,
+            "predictedTokens": 40,
+            "predictedMs": 2300
+          },
+          "sections": []
+        },
+        {
+          "id": "command-build",
+          "kind": "command",
+          "essential": true,
+          "pass": false,
+          "reason": "説明に project.build も「ビルド」もありません",
+          "ms": 17519,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"原稿を PDF に組みるコマンドは資料にありません。したがって、テキストを書き換えず、edits を空にします。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2511,
+            "cachedTokens": 394,
+            "promptMs": 14797,
+            "predictedTokens": 40,
+            "predictedMs": 2707
+          },
+          "sections": [
+            "原稿の記法",
+            "数と式",
+            ""
+          ]
+        },
+        {
+          "id": "command-convert-md",
+          "kind": "command",
+          "essential": true,
+          "pass": false,
+          "reason": "edits が空ではありません",
+          "ms": 7995,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"Markdown ファイルを Golem の原稿形式に変換します。\",\"edits\":[{\"find\":\"# メモ\\n\\n本文。\",\"replace\":\"# メモ\\n\\n本文。\\n\"}]}",
+          "timings": {
+            "promptTokens": 907,
+            "cachedTokens": 394,
+            "promptMs": 5276,
+            "predictedTokens": 45,
+            "predictedMs": 2708
+          },
+          "sections": []
+        },
+        {
+          "id": "command-outline",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "edits が空ではありません",
+          "ms": 16278,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「横書き」の表示モードに切り替えます。\",\"edits\":[{\"find\":\"# はじめに\",\"replace\":\"view.horizontal\\n# はじめに\"}]}",
+          "timings": {
+            "promptTokens": 2653,
+            "cachedTokens": 394,
+            "promptMs": 14223,
+            "predictedTokens": 39,
+            "predictedMs": 2036
+          },
+          "sections": [
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "表",
+            "定義リスト",
+            ""
+          ]
+        },
+        {
+          "id": "command-keys",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 13039,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「キーの割り当て」(settings.keys.open) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2388,
+            "cachedTokens": 587,
+            "promptMs": 11709,
+            "predictedTokens": 27,
+            "predictedMs": 1310
+          },
+          "sections": [
+            "変数をファイルで共有する",
+            "行番号、キャプション、注釈の印",
+            ""
+          ]
+        },
+        {
+          "id": "command-bookmark",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "edits が空ではありません",
+          "ms": 12409,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「本文」の行頭に [label] を付けます。\",\"edits\":[{\"find\":\"本文。\",\"replace\":\"[label]本文。\"}]}",
+          "timings": {
+            "promptTokens": 2415,
+            "cachedTokens": 587,
+            "promptMs": 10561,
+            "predictedTokens": 36,
+            "predictedMs": 1815
+          },
+          "sections": [
+            "段落と改行",
+            "箇条書きと番号付きリスト",
+            "段落のあいだを空ける",
+            "原稿の記法",
+            ""
+          ]
+        },
+        {
+          "id": "command-preview-pages",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 12645,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"プレビューをページ形式（preview.pages）で表示します。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2486,
+            "cachedTokens": 587,
+            "promptMs": 11344,
+            "predictedTokens": 23,
+            "predictedMs": 1258
+          },
+          "sections": [
+            "改ページ",
+            "見出し",
+            "注"
+          ]
+        },
+        {
+          "id": "command-problems",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "説明に view.bottomPanel も「下部パネル」もありません",
+          "ms": 10386,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"サイドバーの診断（Diagnostics）を表示します。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2341,
+            "cachedTokens": 587,
+            "promptMs": 9331,
+            "predictedTokens": 21,
+            "predictedMs": 1021
+          },
+          "sections": [
+            "原稿の記法",
+            "見出し",
+            "表",
+            ""
+          ]
+        },
+        {
+          "id": "command-split",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 10168,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"二つのシートを左右に並べるコマンド「split」(view.split) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2429,
+            "cachedTokens": 587,
+            "promptMs": 8863,
+            "predictedTokens": 31,
+            "predictedMs": 1288
+          },
+          "sections": [
+            "箇条書きと番号付きリスト",
+            "数と式",
+            "定義リスト",
+            ""
+          ]
+        },
+        {
+          "id": "command-commit",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "説明に git.commit も「コミット」もありません",
+          "ms": 10734,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"履歴に残る形で記録するには、コマンド「記録」(record) を使います。テキストを書き換えず、edits を空にします。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2415,
+            "cachedTokens": 587,
+            "promptMs": 8987,
+            "predictedTokens": 42,
+            "predictedMs": 1727
+          },
+          "sections": [
+            "外部へのリンク",
+            "数と式",
+            ""
+          ]
+        },
+        {
+          "id": "command-trash",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 10675,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「ゴミ箱に移す」(file.trash) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2444,
+            "cachedTokens": 587,
+            "promptMs": 9484,
+            "predictedTokens": 27,
+            "predictedMs": 1171
+          },
+          "sections": [
+            "コードと外部のファイル",
+            "段落のあいだを空ける",
+            "",
+            "原稿の記法",
+            "定義リスト"
+          ]
+        },
+        {
+          "id": "command-copy-fonts",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 10326,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「共有ライブラリのフォントをコピー」(library.copyFonts) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2485,
+            "cachedTokens": 587,
+            "promptMs": 9019,
+            "predictedTokens": 31,
+            "predictedMs": 1292
+          },
+          "sections": [
+            "空きを入れる",
+            "段落と改行",
+            "言語を指定する",
+            "定義リスト",
+            ""
+          ]
+        },
+        {
+          "id": "command-replace",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 10331,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「置換」(editor.find) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2353,
+            "cachedTokens": 587,
+            "promptMs": 9267,
+            "predictedTokens": 24,
+            "predictedMs": 1046
+          },
+          "sections": [
+            "言語を指定する",
+            "注",
+            "原稿の記法",
+            "定義リスト",
+            ""
+          ]
+        },
+        {
+          "id": "command-new-project",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "説明に file.newProject も「新しいプロジェクト（golem new）」もありません",
+          "ms": 11190,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「プロジェクト作成」(project.new) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 2466,
+            "cachedTokens": 587,
+            "promptMs": 10064,
+            "predictedTokens": 24,
+            "predictedMs": 1112
+          },
+          "sections": [
+            "段落と改行",
+            "表",
+            "",
+            "定義リスト"
+          ]
+        }
+      ]
+    },
+    {
+      "summary": {
+        "key": "qwen3.5-4b@8192",
+        "model": "qwen3.5-4b",
+        "context": 8192,
+        "firstAnswerMsP95": 37849,
+        "answerMsMedian": 29723,
+        "answerMsP95": 41163,
+        "peakRssMb": 3494,
+        "successRate": 0.7049180327868853,
+        "successByKind": {
+          "style": 0.6666666666666666,
+          "manifest": 0.8333333333333334,
+          "gm": 0.75,
+          "markdown": 0.75,
+          "command": 0.5384615384615384
+        },
+        "essentialFailed": [
+          "gm-ruby",
+          "md-bold-close",
+          "command-convert-md"
+        ]
+      },
+      "model": {
+        "id": "qwen3.5-4b",
+        "name": "Qwen3.5-4B",
+        "repo": "unsloth/Qwen3.5-4B-GGUF",
+        "revision": "e87f176479d0855a907a41277aca2f8ee7a09523",
+        "file": "Qwen3.5-4B-Q4_K_M.gguf",
+        "sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4"
+      },
+      "context": 8192,
+      "firstAnswerMs": {
+        "all": [
+          37849
+        ],
+        "median": 37849,
+        "p95": 37849
+      },
+      "answerMs": {
+        "median": 29723,
+        "p95": 41163
+      },
+      "peakRssMb": 3494,
+      "idleRssMb": 3202,
+      "gpu": {
+        "offloaded": {
+          "layers": 33,
+          "of": 33
+        },
+        "lines": [
+          "0.03.523.578 I llama_prepare_model_devices: using device MTL0 (Apple M1 Max) (unknown id) - 53083 MiB free",
+          "0.05.582.910 I load_tensors: offloading output layer to GPU",
+          "0.05.582.916 I load_tensors: offloading 31 repeating layers to GPU",
+          "0.05.582.917 I load_tensors: offloaded 33/33 layers to GPU",
+          "0.05.605.382 I ggml_metal_init: allocating",
+          "0.05.605.423 I ggml_metal_init: found device: Apple M1 Max",
+          "0.05.605.431 I ggml_metal_init: picking default device: Apple M1 Max",
+          "0.05.630.950 I ggml_metal_init: use fusion         = true",
+          "0.05.630.963 I ggml_metal_init: use concurrency    = true",
+          "0.05.630.963 I ggml_metal_init: use graph optimize = true",
+          "0.07.055.707 I ggml_metal_free: deallocating"
+        ]
+      },
+      "material": {
+        "fixedTokensMax": 852,
+        "limitMin": 6316,
+        "sectionsMedian": 8,
+        "materialTokensMedian": 6262
+      },
+      "essential": {
+        "passed": [
+          "style-line-pitch",
+          "style-size",
+          "manifest-title",
+          "manifest-blank-line",
+          "gm-strong",
+          "md-heading-space",
+          "command-build"
+        ],
+        "failed": [
+          "gm-ruby",
+          "md-bold-close",
+          "command-convert-md"
+        ]
+      },
+      "loadAverage": {
+        "before": [
+          204.568359375,
+          236.21435546875,
+          274.173828125
+        ],
+        "after": [
+          206.42578125,
+          181.98291015625,
+          199.63818359375
+        ]
+      },
+      "tasks": [
+        {
+          "id": "style-line-pitch",
+          "kind": "style",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 37092,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"行送り（line-pitch）の値を 20H から 22H に変更します。\",\"edits\":[{\"find\":\"line-pitch = \\\"20H\\\"\", \"replace\": \"line-pitch = \\\"22H\\\"\"}]}",
+          "timings": {
+            "promptTokens": 7162,
+            "cachedTokens": 0,
+            "promptMs": 33441,
+            "predictedTokens": 58,
+            "predictedMs": 3628
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "判型と版面",
+            "段落スタイルと文字スタイル",
+            "[ruby: 柱 | はしら]とノンブル",
+            "見出しの体裁",
+            ""
+          ]
+        },
+        {
+          "id": "style-size",
+          "kind": "style",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 40887,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"判型を A6 から B6 に変更します。\",\"edits\":[{\"find\":\"size = \\\"A6\\\"\", \"replace\": \"size = \\\"B6\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6518,
+            "cachedTokens": 587,
+            "promptMs": 38087,
+            "predictedTokens": 41,
+            "predictedMs": 2763
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "判型と版面",
+            "段落スタイルと文字スタイル",
+            "[ruby: 柱 | はしら]とノンブル",
+            "書体とフォント",
+            "索引の段組み",
+            ""
+          ]
+        },
+        {
+          "id": "style-characters",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 39532,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"一行の字数を 38 字から 36 字に変更します。\",\"edits\":[{\"find\":\"characters = 38\",\"replace\":\"characters = 36\"}]}",
+          "timings": {
+            "promptTokens": 6577,
+            "cachedTokens": 587,
+            "promptMs": 37015,
+            "predictedTokens": 44,
+            "predictedMs": 2460
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "異体字",
+            "文字の送り",
+            "字間の空き",
+            "本文の字下げ",
+            "段落スタイルと文字スタイル",
+            "判型と版面",
+            "書体とフォント"
+          ]
+        },
+        {
+          "id": "style-lines",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 32720,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"一ページの行数を 16 行から 15 行に減らします。\",\"edits\":[{\"find\":\"lines = 16\",\"replace\":\"lines = 15\"}]}",
+          "timings": {
+            "promptTokens": 6538,
+            "cachedTokens": 587,
+            "promptMs": 30200,
+            "predictedTokens": 46,
+            "predictedMs": 2474
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "行分割と和文組版",
+            "行揃えと段落の前後のアキ",
+            "判型と版面",
+            "段落スタイルと文字スタイル",
+            "見出しの体裁"
+          ]
+        },
+        {
+          "id": "style-font-size",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 28978,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"文字の大きさを 12.5Q から 12Q に変更します。\",\"edits\":[{\"find\":\"font-size = \\\"12.5Q\\\"\", \"replace\": \"font-size = \\\"12Q\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6514,
+            "cachedTokens": 587,
+            "promptMs": 26679,
+            "predictedTokens": 54,
+            "predictedMs": 2259
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "文字の送り",
+            "本文の字下げ",
+            "段落スタイルと文字スタイル",
+            "判型と版面",
+            "見出しの体裁",
+            "書体とフォント",
+            "異体字"
+          ]
+        },
+        {
+          "id": "style-bleed",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 23786,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"塗り足しの幅（bleed）を 3mm から 5mm に変更します。\",\"edits\":[{\"find\":\"bleed = \\\"3mm\\\"\", \"replace\":\"bleed = \\\"5mm\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6574,
+            "cachedTokens": 587,
+            "promptMs": 21999,
+            "predictedTokens": 50,
+            "predictedMs": 1756
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "判型と版面",
+            "段落スタイルと文字スタイル",
+            "[ruby: 柱 | はしら]とノンブル",
+            "見出しの体裁",
+            ""
+          ]
+        },
+        {
+          "id": "style-position-top",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 22422,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"版面の天からの位置（top）を 14mm から 16mm に変更します。\",\"edits\":[{\"find\":\"position = { top = \\\"14mm\\\"\", \"replace\":\"position = { top = \\\"16mm\\\"\" }]}",
+          "timings": {
+            "promptTokens": 6465,
+            "cachedTokens": 587,
+            "promptMs": 20330,
+            "predictedTokens": 58,
+            "predictedMs": 2059
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "判型と版面",
+            "本文の字下げ",
+            "段落スタイルと文字スタイル",
+            "[ruby: 柱 | はしら]とノンブル",
+            "索引の段組み",
+            ""
+          ]
+        },
+        {
+          "id": "style-heading-number",
+          "kind": "style",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 23477,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"見出し番号の表記を漢数字から算用数字に変更します。\",\"edits\":[{\"find\":\"number = \\\"第{n:kanji}章\\\"\", \"replace\":\"number = \\\"{n}章\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6584,
+            "cachedTokens": 587,
+            "promptMs": 21437,
+            "predictedTokens": 49,
+            "predictedMs": 2012
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "見出しの体裁",
+            "リストの印と番号",
+            "判型と版面",
+            "注と図の設定",
+            "行分割と和文組版"
+          ]
+        },
+        {
+          "id": "style-folio-format",
+          "kind": "style",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 25261,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"ノンブルの書式を「{n}」から「-{n}-」に変更します。\",\"edits\":[{\"find\":\"format = \\\"{n}\\\"\",\"replace\":\"format = \\\"-{n}-\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6576,
+            "cachedTokens": 587,
+            "promptMs": 22995,
+            "predictedTokens": 48,
+            "predictedMs": 2166
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "リストの印と番号",
+            "[ruby: 柱 | はしら]とノンブル",
+            "行揃えと段落の前後のアキ",
+            "判型と版面",
+            "見出しの体裁",
+            "書体とフォント",
+            "色"
+          ]
+        },
+        {
+          "id": "style-first-line-indent",
+          "kind": "style",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 29723,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"段落スタイルの字下げ設定を追加します。\",\"edits\":[{\"find\":\"align = \\\"left-justified\\\"\", \"replace\":\"align = \\\"left-justified\\\"\\nindent = \\\"2zw\\\"\\nfirst-line-indent = \\\"2zw\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6546,
+            "cachedTokens": 587,
+            "promptMs": 26545,
+            "predictedTokens": 57,
+            "predictedMs": 3119
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本文の字下げ",
+            "行揃えと段落の前後のアキ",
+            "段落スタイルと文字スタイル",
+            "判型と版面",
+            "行分割と和文組版",
+            "ファイルの中のスタイル",
+            ""
+          ]
+        },
+        {
+          "id": "style-align",
+          "kind": "style",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 37746,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"段落スタイルの align を 'left-justified' から 'fully-justified' に変更します。\",\"edits\":[{\"find\":\"align = \\\"left-justified\\\"\", \"replace\":\"align = \\\"fully-justified\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6531,
+            "cachedTokens": 587,
+            "promptMs": 34113,
+            "predictedTokens": 54,
+            "predictedMs": 3580
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本文の字下げ",
+            "行分割と和文組版",
+            "行揃えと段落の前後のアキ",
+            "索引の段組み",
+            "段落スタイルと文字スタイル",
+            "判型と版面",
+            ""
+          ]
+        },
+        {
+          "id": "style-remove-columns",
+          "kind": "style",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 45035,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"[page.grid] の columns = 1 を削除します。\",\"edits\":[{\"find\":\"columns = 1\",\"replace\":\"\"}]}",
+          "timings": {
+            "promptTokens": 6495,
+            "cachedTokens": 587,
+            "promptMs": 42399,
+            "predictedTokens": 33,
+            "predictedMs": 2594
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "索引の段組み",
+            "行揃えと段落の前後のアキ",
+            "行分割と和文組版",
+            "段落スタイルと文字スタイル",
+            "判型と版面",
+            "書体とフォント"
+          ]
+        },
+        {
+          "id": "manifest-title",
+          "kind": "manifest",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 38439,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"書名を「猫の町」に書き換えます。\",\"edits\":[{\"find\":\"title = \\\"無題\\\"\", \"replace\":\"title = \\\"猫の町\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6337,
+            "cachedTokens": 394,
+            "promptMs": 35767,
+            "predictedTokens": 42,
+            "predictedMs": 2436
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "参考文献のデータ",
+            "原稿の読み方",
+            "出力の設定",
+            "プロジェクトの設定",
+            "章を並べる",
+            "奥付を組む",
+            "PDF/A と PDF/UA",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "manifest-blank-line",
+          "kind": "manifest",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 27971,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"[source] の paragraph-separator を 'blank-line' に変更します。\",\"edits\":[{\"find\":\"paragraph-separator = \\\"line\\\"\", \"replace\":\"paragraph-separator = \\\"blank-line\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6092,
+            "cachedTokens": 644,
+            "promptMs": 26104,
+            "predictedTokens": 47,
+            "predictedMs": 1839
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "原稿の読み方",
+            "本の情報を書く",
+            "参考文献のデータ",
+            "章を並べる",
+            "奥付を組む",
+            "PDF/A と PDF/UA",
+            "プロジェクトの設定",
+            "出力の設定",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "manifest-date",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 23933,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"発行日（date）を 2027 年 4 月 1 日に書き換えます。\",\"edits\":[{\"find\":\"date = 2026-01-01\",\"replace\":\"date = 2027-04-01\"}]}",
+          "timings": {
+            "promptTokens": 6096,
+            "cachedTokens": 644,
+            "promptMs": 21347,
+            "predictedTokens": 67,
+            "predictedMs": 2560
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "参考文献のデータ",
+            "原稿の読み方",
+            "出力の設定",
+            "章を並べる",
+            "奥付を組む",
+            "プロジェクトの設定",
+            "PDF/A と PDF/UA",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "manifest-add-chapter",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 22527,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"chapters の配列に \\\"chapters/02.gm\\\" を追加します。\",\"edits\":[{\"find\":\"chapters = [\\\"chapters/01.gm\\\"]\",\"replace\":\"chapters = [\\\"chapters/01.gm\\\", \\\"chapters/02.gm\\\"]\"}]}",
+          "timings": {
+            "promptTokens": 6097,
+            "cachedTokens": 644,
+            "promptMs": 20108,
+            "predictedTokens": 70,
+            "predictedMs": 2392
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "章を並べる",
+            "参考文献のデータ",
+            "原稿の読み方",
+            "本の情報を書く",
+            "出力の設定",
+            "プロジェクトの設定",
+            "奥付を組む",
+            "PDF/A と PDF/UA",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "manifest-language",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 20679,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"[metadata] の language を ja から en に書き換えます。\",\"edits\":[{\"find\":\"language = \\\"ja\\\"\",\"replace\":\"language = \\\"en\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6083,
+            "cachedTokens": 644,
+            "promptMs": 19275,
+            "predictedTokens": 40,
+            "predictedMs": 1373
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "参考文献のデータ",
+            "PDF/A と PDF/UA",
+            "章を並べる",
+            "原稿の読み方",
+            "出力の設定",
+            "プロジェクトの設定",
+            "奥付を組む",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "manifest-title-reading",
+          "kind": "manifest",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 23464,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"title の次の行に、書名の読み「ねこのまち」を追加します。\",\"edits\":[{\"find\":\"title = \\\"猫の町\\\"\\nlanguage = \\\"ja\\\"\\n\",\"replace\":\"title = \\\"猫の町\\\"\\nreading = \\\"ねこのまち\\\"\\nlanguage = \\\"ja\\\"\\n\"}]}",
+          "timings": {
+            "promptTokens": 6096,
+            "cachedTokens": 644,
+            "promptMs": 20724,
+            "predictedTokens": 69,
+            "predictedMs": 2717
+          },
+          "golem": {
+            "before": 0,
+            "after": 1
+          },
+          "sections": [
+            "原稿の読み方",
+            "本の情報を書く",
+            "参考文献のデータ",
+            "出力の設定",
+            "PDF/A と PDF/UA",
+            "プロジェクトの設定",
+            "章を並べる",
+            "奥付を組む",
+            "マニフェストの全体",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-text-variants",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 26576,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"[targets.text] の variants に vertical を追加します。\",\"edits\":[{\"find\":\"variants = [\\\"horizontal\\\"]\",\"replace\":\"variants = [\\\"horizontal\\\", \\\"vertical\\\"]\"}]}",
+          "timings": {
+            "promptTokens": 6094,
+            "cachedTokens": 644,
+            "promptMs": 24338,
+            "predictedTokens": 43,
+            "predictedMs": 2203
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "出力の設定",
+            "PDF/A と PDF/UA",
+            "原稿の読み方",
+            "本の情報を書く",
+            "参考文献のデータ",
+            "プロジェクトの設定",
+            "章を並べる",
+            "奥付を組む",
+            "マニフェストの全体",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-split-chapter",
+          "kind": "manifest",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 44161,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"chapters の配列を、一つのファイルから二つのファイルの入れ子配列に変えます。\",\"edits\":[{\"find\":\"chapters = [\\\"chapters/01.gm\\\"]\",\"replace\":\"chapters = [\\n  \\\"chapters/01.gm\\\",\\n  [\\\"chapters/02.gm\\\"],\\n]\"}]}",
+          "timings": {
+            "promptTokens": 6113,
+            "cachedTokens": 644,
+            "promptMs": 36974,
+            "predictedTokens": 81,
+            "predictedMs": 7148
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "章を並べる",
+            "本の情報を書く",
+            "参考文献のデータ",
+            "原稿の読み方",
+            "プロジェクトの設定",
+            "奥付を組む",
+            "出力の設定",
+            "PDF/A と PDF/UA",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "manifest-role-fix",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 41622,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"著者の役割を 'aut' から 'author' に変更します。\",\"edits\":[{\"find\":\"role = \\\"aut\\\"\",\"replace\":\"role = \\\"author\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6110,
+            "cachedTokens": 644,
+            "promptMs": 39271,
+            "predictedTokens": 41,
+            "predictedMs": 2314
+          },
+          "golem": {
+            "before": 1,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "奥付を組む",
+            "参考文献のデータ",
+            "原稿の読み方",
+            "プロジェクトの設定",
+            "出力の設定",
+            "PDF/A と PDF/UA",
+            "章を並べる",
+            "マニフェストの全体",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-creator-reading",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 32801,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"著者の次の行に読み「なつめ そうせき」を追加します。\",\"edits\":[{\"find\":\"name = \\\"夏目 漱石\\\"\", \"replace\":\"name = \\\"夏目 漱石\\\"\\nreading = \\\"なつめ そうせき\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6121,
+            "cachedTokens": 644,
+            "promptMs": 29843,
+            "predictedTokens": 62,
+            "predictedMs": 2924
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "原稿の読み方",
+            "本の情報を書く",
+            "参考文献のデータ",
+            "奥付を組む",
+            "出力の設定",
+            "PDF/A と PDF/UA",
+            "プロジェクトの設定",
+            "章を並べる",
+            "マニフェストの全体",
+            ""
+          ]
+        },
+        {
+          "id": "manifest-edition",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 26541,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"edition の値を「第1版」から「第2版」に書き換えます。\",\"edits\":[{\"find\":\"edition = \\\"第1版\\\"\",\"replace\":\"edition = \\\"第2版\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6102,
+            "cachedTokens": 644,
+            "promptMs": 24297,
+            "predictedTokens": 50,
+            "predictedMs": 2215
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "参考文献のデータ",
+            "原稿の読み方",
+            "出力の設定",
+            "章を並べる",
+            "奥付を組む",
+            "プロジェクトの設定",
+            "PDF/A と PDF/UA",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "manifest-publisher",
+          "kind": "manifest",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 27833,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"発行所の名前を「猫町書房」に書き換えます。\",\"edits\":[{\"find\":\"publisher = \\\"猫町社\\\"\",\"replace\":\"publisher = \\\"猫町書房\\\"\"}]}",
+          "timings": {
+            "promptTokens": 6106,
+            "cachedTokens": 644,
+            "promptMs": 25454,
+            "predictedTokens": 46,
+            "predictedMs": 2342
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "本の情報を書く",
+            "参考文献のデータ",
+            "奥付を組む",
+            "原稿の読み方",
+            "出力の設定",
+            "章を並べる",
+            "プロジェクトの設定",
+            "PDF/A と PDF/UA",
+            "",
+            "マニフェストの全体"
+          ]
+        },
+        {
+          "id": "gm-ruby",
+          "kind": "gm",
+          "essential": true,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 33802,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「東京」にルビ「とうきょう」を付けます。\",\"edits\":[{\"find\":\"東京\",\"replace\":\"東京\"}]}",
+          "timings": {
+            "promptTokens": 6615,
+            "cachedTokens": 394,
+            "promptMs": 32090,
+            "predictedTokens": 33,
+            "predictedMs": 1664
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "注",
+            "原稿の記法",
+            "段落と改行",
+            "見出し",
+            "言語を指定する",
+            "行番号、キャプション、注釈の印",
+            "目次と索引と参考文献",
+            "コメントとエスケープ",
+            "",
+            "箇条書きと番号付きリスト",
+            "定義リスト"
+          ]
+        },
+        {
+          "id": "gm-strong",
+          "kind": "gm",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 34122,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「大切」だけを強調します。\",\"edits\":[{\"find\":\"これは大切なことです。\",\"replace\":\"これは[strong: 大切]なことです。\"}]}",
+          "timings": {
+            "promptTokens": 6562,
+            "cachedTokens": 587,
+            "promptMs": 32253,
+            "predictedTokens": 37,
+            "predictedMs": 1811
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "強調と圏点",
+            "数と式",
+            "注",
+            "行番号、キャプション、注釈の印",
+            "",
+            "原稿の記法",
+            "段落と改行",
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "定義リスト",
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）"
+          ]
+        },
+        {
+          "id": "gm-kenten",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 32078,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「ここ」だけを圏点で囲みます。\",\"edits\":[{\"find\":\"ここ\",\"replace\":\"[kenten: ここ]\"}]}",
+          "timings": {
+            "promptTokens": 6410,
+            "cachedTokens": 587,
+            "promptMs": 30028,
+            "predictedTokens": 33,
+            "predictedMs": 2021
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "強調と圏点",
+            "",
+            "原稿の記法",
+            "段落と改行",
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "定義リスト",
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "数と式",
+            "空きを入れる",
+            "言語を指定する",
+            "変数をファイルで共有する"
+          ]
+        },
+        {
+          "id": "gm-nonumber",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 40029,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"見出し「まえがき」に番号を振らないようにするため、その直前に @nonumber を追加します。\",\"edits\":[{\"find\":\"# まえがき\",\"replace\":\"@nonumber\\n# まえがき\"}]}",
+          "timings": {
+            "promptTokens": 6505,
+            "cachedTokens": 587,
+            "promptMs": 36959,
+            "predictedTokens": 55,
+            "predictedMs": 3034
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "行番号、キャプション、注釈の印",
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "図版",
+            "目次と索引と参考文献",
+            ""
+          ]
+        },
+        {
+          "id": "gm-md-bold",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 33175,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"Markdown の**太字**を、Golem の [strong: 太字] に書き換えます。\",\"edits\":[{\"find\":\"**重要**\",\"replace\":\"[strong: 重要]\"}]}",
+          "timings": {
+            "promptTokens": 6471,
+            "cachedTokens": 587,
+            "promptMs": 30789,
+            "predictedTokens": 48,
+            "predictedMs": 2345
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "箇条書きと番号付きリスト",
+            "図版",
+            "原稿の記法",
+            "段落と改行",
+            "強調と圏点",
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "コードと外部のファイル",
+            ""
+          ]
+        },
+        {
+          "id": "gm-md-link",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 30312,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"Markdown の [link](URL) 形式を、Golem の [link \",\"edits\":[{\"find\":\"[Golem](https://example.com/golem)\",\"replace\":\"[link \\\"https://example.com/golem\\\": Golem]\"}]}",
+          "timings": {
+            "promptTokens": 6537,
+            "cachedTokens": 587,
+            "promptMs": 27775,
+            "predictedTokens": 56,
+            "predictedMs": 2502
+          },
+          "golem": {
+            "before": 1,
+            "after": 0
+          },
+          "sections": [
+            "外部へのリンク",
+            "箇条書きと番号付きリスト",
+            "図版",
+            "目次と索引と参考文献",
+            "原稿の記法",
+            "コードと外部のファイル",
+            "段落と改行",
+            "定義リスト",
+            ""
+          ]
+        },
+        {
+          "id": "gm-md-ordered-list",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 30114,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"Markdown の番号付きリスト（数字と点）を、Golem の番号付きリスト（[code: +]）に変換します。\",\"edits\":[{\"find\":\"1. 原稿を書く\",\"replace\":\"+ 原稿を書く\"},{\"find\":\"2. 組む\",\"replace\":\"+ 組む\"},{\"find\":\"3. 確かめる\",\"replace\":\"+ 確かめる\"}]}",
+          "timings": {
+            "promptTokens": 6531,
+            "cachedTokens": 587,
+            "promptMs": 26545,
+            "predictedTokens": 83,
+            "predictedMs": 3536
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "定義リスト",
+            "箇条書きと番号付きリスト",
+            "図版",
+            "原稿の記法",
+            "コードと外部のファイル",
+            "目次と索引と参考文献",
+            "注",
+            "相互参照",
+            ""
+          ]
+        },
+        {
+          "id": "gm-blank-line",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 33954,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「雪がやんだ。」と「翌朝、駅に着いた。」のあいだに一行の行アキ ([code: @blank-line]) を挿入します。\",\"edits\":[{\"find\":\"雪がやんだ。\\n翌朝、駅に着いた。\",\"replace\":\"雪がやんだ。\\n@blank-line\\n翌朝、駅に着いた。\"}]}",
+          "timings": {
+            "promptTokens": 6261,
+            "cachedTokens": 587,
+            "promptMs": 29278,
+            "predictedTokens": 82,
+            "predictedMs": 4643
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "空きを入れる",
+            "段落のあいだを空ける",
+            "段落と改行",
+            "箇条書きと番号付きリスト",
+            "表",
+            "行番号、キャプション、注釈の印",
+            "段落スタイルと韻文",
+            "原稿の記法",
+            "定義リスト",
+            "強調と圏点",
+            ""
+          ]
+        },
+        {
+          "id": "gm-comment",
+          "kind": "gm",
+          "essential": false,
+          "pass": false,
+          "reason": "適用できません: 二つの find の範囲が重なっています",
+          "ms": 34765,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"校正用のコメント [code: \\\\\\\\\\textbf{出典を確かめる}\\\\\\\\] を「本文。」の後に追加し、圏点で囲みます。\",\"edits\":[{\"find\":\"本文。\",\"replace\":\"[kenten: 本文。\\\\\\\\\\\\textbf{出典を確かめる}\\\\\\\\]\"},{\"find\":\"本文。\",\"replace\":\"本文。\"}]}",
+          "timings": {
+            "promptTokens": 6581,
+            "cachedTokens": 587,
+            "promptMs": 30262,
+            "predictedTokens": 83,
+            "predictedMs": 4473
+          },
+          "sections": [
+            "コメントとエスケープ",
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "図版",
+            "コードと外部のファイル",
+            "改ページ",
+            "段落と改行",
+            ""
+          ]
+        },
+        {
+          "id": "gm-tcy",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 31143,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「!?」を縦中横（tcy）の書体で表示します。\",\"edits\":[{\"find\":\"!?\",\"replace\":\"[tcy: !?]\"}]}",
+          "timings": {
+            "promptTokens": 6409,
+            "cachedTokens": 587,
+            "promptMs": 28919,
+            "predictedTokens": 41,
+            "predictedMs": 2193
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "強調と圏点",
+            "数と式",
+            "",
+            "原稿の記法",
+            "段落と改行",
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "定義リスト",
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "空きを入れる",
+            "言語を指定する",
+            "変数をファイルで共有する"
+          ]
+        },
+        {
+          "id": "gm-page-break",
+          "kind": "gm",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 38658,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「第二章」の見出しの前で改ページします。\",\"edits\":[{\"find\":\"# 第一章\\n\\n本文。\\n\\n# 第二章\",\"replace\":\"# 第一章\\n\\n本文。\\n\\n@page-break\\n\\n# 第二章\"}]}",
+          "timings": {
+            "promptTokens": 6538,
+            "cachedTokens": 587,
+            "promptMs": 34618,
+            "predictedTokens": 56,
+            "predictedMs": 3973
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "改ページ",
+            "見出し",
+            "目次と索引と参考文献",
+            "段落と改行",
+            "表",
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "相互参照",
+            "原稿の記法",
+            "段落のあいだを空ける",
+            "コメントとエスケープ",
+            ""
+          ]
+        },
+        {
+          "id": "gm-note",
+          "kind": "gm",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 39049,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「吾輩」の後に注を付けます。\",\"edits\":[{\"find\":\"吾輩は猫である。\",\"replace\":\"吾輩は猫である。[note: 語り手の猫のこと。]\"}]}",
+          "timings": {
+            "promptTokens": 6569,
+            "cachedTokens": 587,
+            "promptMs": 36125,
+            "predictedTokens": 49,
+            "predictedMs": 2755
+          },
+          "golem": {
+            "before": 0,
+            "after": 0
+          },
+          "sections": [
+            "注",
+            "箇条書きと番号付きリスト",
+            "行番号、キャプション、注釈の印",
+            "強調と圏点",
+            "図版",
+            "段落と改行",
+            ""
+          ]
+        },
+        {
+          "id": "md-heading-space",
+          "kind": "markdown",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 5501,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"# の後に空白を足します。\",\"edits\":[{\"find\":\"#はじめに\",\"replace\":\"# はじめに\"}]}",
+          "timings": {
+            "promptTokens": 903,
+            "cachedTokens": 394,
+            "promptMs": 3998,
+            "predictedTokens": 31,
+            "predictedMs": 1487
+          },
+          "sections": []
+        },
+        {
+          "id": "md-bold-close",
+          "kind": "markdown",
+          "essential": true,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 3737,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"**大切な**の後に閉じる記号**を足します。\",\"edits\":[{\"find\":\"**大切な\",\"replace\":\"**大切な\"}]}",
+          "timings": {
+            "promptTokens": 523,
+            "cachedTokens": 781,
+            "promptMs": 2285,
+            "predictedTokens": 34,
+            "predictedMs": 1440
+          },
+          "sections": []
+        },
+        {
+          "id": "md-link-space",
+          "kind": "markdown",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 4996,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"リンクの書き方を [URL](URL) の形式に直します。\",\"edits\":[{\"find\":\"(https://example.com/golem)\",\"replace\":\"(https://example.com/golem)\"},{\"find\":\"[Golem]\",\"replace\":\"[Golem]\"}]}",
+          "timings": {
+            "promptTokens": 517,
+            "cachedTokens": 788,
+            "promptMs": 2205,
+            "predictedTokens": 60,
+            "predictedMs": 2781
+          },
+          "sections": []
+        },
+        {
+          "id": "md-close-fence",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 3826,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コードブロックの閉じタグ ` ``` ` を追加します。\",\"edits\":[{\"find\":\"npm test\",\"replace\":\"npm test\\n```\"}]}",
+          "timings": {
+            "promptTokens": 508,
+            "cachedTokens": 789,
+            "promptMs": 2300,
+            "predictedTokens": 35,
+            "predictedMs": 1518
+          },
+          "sections": []
+        },
+        {
+          "id": "md-bullets",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 5135,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"記号をすべて - に統一します。\",\"edits\":[{\"find\":\"- 一つめ\",\"replace\":\"- 一つめ\"},{\"find\":\"* 二つめ\",\"replace\":\"- 二つめ\"},{\"find\":\"+ 三つめ\",\"replace\":\"- 三つめ\"}]}",
+          "timings": {
+            "promptTokens": 518,
+            "cachedTokens": 789,
+            "promptMs": 2205,
+            "predictedTokens": 64,
+            "predictedMs": 2921
+          },
+          "sections": []
+        },
+        {
+          "id": "md-renumber",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 5575,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"番号を 1 から順に振り直します。\",\"edits\":[{\"find\":\"1. 書く\",\"replace\":\"1. 書く\"},{\"find\":\"1. 組む\",\"replace\":\"2. 組む\"},{\"find\":\"5. 確かめる\",\"replace\":\"3. 確かめる\"}]}",
+          "timings": {
+            "promptTokens": 519,
+            "cachedTokens": 791,
+            "promptMs": 2289,
+            "predictedTokens": 67,
+            "predictedMs": 3273
+          },
+          "sections": []
+        },
+        {
+          "id": "md-table-delimiter",
+          "kind": "markdown",
+          "essential": false,
+          "pass": false,
+          "reason": "適用した後のテキストが正解と違います",
+          "ms": 4465,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"区切り行（|---|）を追加します。\",\"edits\":[{\"find\":\"| a | 1 |\",\"replace\":\"| a | 1 |\\n|---|---|\"}]}",
+          "timings": {
+            "promptTokens": 516,
+            "cachedTokens": 794,
+            "promptMs": 2383,
+            "predictedTokens": 45,
+            "predictedMs": 2071
+          },
+          "sections": []
+        },
+        {
+          "id": "md-image",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 4352,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"リンク記法を画像表示記法に変えます。\",\"edits\":[{\"find\":\"[表紙](cover.png)\",\"replace\":\"![表紙](cover.png)\"}]}",
+          "timings": {
+            "promptTokens": 503,
+            "cachedTokens": 794,
+            "promptMs": 2387,
+            "predictedTokens": 40,
+            "predictedMs": 1956
+          },
+          "sections": []
+        },
+        {
+          "id": "md-quote-space",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 5024,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"引用の行の > の後に空白を足します。\",\"edits\":[{\"find\":\">引用です。\",\"replace\":\"> 引用です。\"},{\"find\":\">二行目。\",\"replace\":\"> 二行目。\"}]}",
+          "timings": {
+            "promptTokens": 504,
+            "cachedTokens": 794,
+            "promptMs": 2377,
+            "predictedTokens": 53,
+            "predictedMs": 2625
+          },
+          "sections": []
+        },
+        {
+          "id": "md-heading-level",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 4117,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"見出しの階層を修正するために、### を ## に書き換えます。\",\"edits\":[{\"find\":\"### 節\",\"replace\":\"## 節\"}]}",
+          "timings": {
+            "promptTokens": 511,
+            "cachedTokens": 794,
+            "promptMs": 2392,
+            "predictedTokens": 39,
+            "predictedMs": 1717
+          },
+          "sections": []
+        },
+        {
+          "id": "md-italic",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 4251,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"_ を * に書き換えます。\",\"edits\":[{\"find\":\"_斜体_\",\"replace\":\"*斜体*\"},{\"find\":\"*斜体*\",\"replace\":\"*斜体*\"}]}",
+          "timings": {
+            "promptTokens": 504,
+            "cachedTokens": 794,
+            "promptMs": 2184,
+            "predictedTokens": 46,
+            "predictedMs": 2059
+          },
+          "sections": []
+        },
+        {
+          "id": "md-url-space",
+          "kind": "markdown",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 4185,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"URL 内の空白を %20 に置換します。\",\"edits\":[{\"find\":\"docs/my file.md\",\"replace\":\"docs/my%20file.md\"}]}",
+          "timings": {
+            "promptTokens": 509,
+            "cachedTokens": 794,
+            "promptMs": 2263,
+            "predictedTokens": 40,
+            "predictedMs": 1910
+          },
+          "sections": []
+        },
+        {
+          "id": "command-build",
+          "kind": "command",
+          "essential": true,
+          "pass": true,
+          "reason": "",
+          "ms": 29914,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「ビルド」(project.build) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 6713,
+            "cachedTokens": 394,
+            "promptMs": 28878,
+            "predictedTokens": 24,
+            "predictedMs": 1002
+          },
+          "sections": [
+            "原稿の記法",
+            "数と式",
+            "強調と圏点",
+            "コードと外部のファイル",
+            "相互参照",
+            "見出し",
+            "段落と改行",
+            "注",
+            "言語を指定する",
+            "箇条書きと番号付きリスト",
+            "",
+            "定義リスト"
+          ]
+        },
+        {
+          "id": "command-convert-md",
+          "kind": "command",
+          "essential": true,
+          "pass": false,
+          "reason": "edits が空ではありません",
+          "ms": 5389,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"Markdown ファイルを Golem の原稿形式に変換します。\",\"edits\":[{\"find\":\"# メモ\\n\\n本文。\",\"replace\":\"# メモ\\n\\n本文。\\n\"}]}",
+          "timings": {
+            "promptTokens": 907,
+            "cachedTokens": 394,
+            "promptMs": 3549,
+            "predictedTokens": 45,
+            "predictedMs": 1831
+          },
+          "sections": []
+        },
+        {
+          "id": "command-outline",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "edits が空ではありません",
+          "ms": 27720,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"見出しの直前にプロットコマンドを配置し、横に構成を表示します。\",\"edits\":[{\"find\":\"# はじめに\",\"replace\":\"@plot\\n# はじめに\"}]}",
+          "timings": {
+            "promptTokens": 6596,
+            "cachedTokens": 394,
+            "promptMs": 25560,
+            "predictedTokens": 46,
+            "predictedMs": 2129
+          },
+          "sections": [
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "表",
+            "行番号、キャプション、注釈の印",
+            "目次と索引と参考文献",
+            "段落と改行",
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "言語を指定する",
+            "原稿の記法",
+            "定義リスト",
+            ""
+          ]
+        },
+        {
+          "id": "command-keys",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 30943,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「キーの割り当て」(settings.keys.open) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 6560,
+            "cachedTokens": 587,
+            "promptMs": 29513,
+            "predictedTokens": 27,
+            "predictedMs": 1402
+          },
+          "sections": [
+            "変数をファイルで共有する",
+            "数と式",
+            "行番号、キャプション、注釈の印",
+            "見出し",
+            "強調と圏点",
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "相互参照",
+            "外部へのリンク",
+            "",
+            "原稿の記法",
+            "箇条書きと番号付きリスト"
+          ]
+        },
+        {
+          "id": "command-bookmark",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "edits が空ではありません",
+          "ms": 35814,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"行の末尾に [code: \\\\] を付け、強制改行として処理させます。\",\"edits\":[{\"find\":\"本文。\",\"replace\":\"本文。\\\\\"}]}",
+          "timings": {
+            "promptTokens": 6457,
+            "cachedTokens": 587,
+            "promptMs": 33510,
+            "predictedTokens": 41,
+            "predictedMs": 2272
+          },
+          "sections": [
+            "段落と改行",
+            "箇条書きと番号付きリスト",
+            "行番号、キャプション、注釈の印",
+            "段落のあいだを空ける",
+            "原稿の記法",
+            "注",
+            "目次と索引と参考文献",
+            "改ページ",
+            "強調と圏点",
+            "",
+            "定義リスト"
+          ]
+        },
+        {
+          "id": "command-preview-pages",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "edits が空ではありません",
+          "ms": 35926,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"プレビューを「ページ」形式で表示します。\",\"edits\":[{\"find\":\"本文。\",\"replace\":\"本文。\"}]}",
+          "timings": {
+            "promptTokens": 6504,
+            "cachedTokens": 587,
+            "promptMs": 34122,
+            "predictedTokens": 31,
+            "predictedMs": 1725
+          },
+          "sections": [
+            "改ページ",
+            "見出し",
+            "図版",
+            "数と式",
+            "注",
+            ""
+          ]
+        },
+        {
+          "id": "command-problems",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "説明に view.bottomPanel も「下部パネル」もありません",
+          "ms": 41163,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"診断（誤りや警告）の一覧を表示します。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 6576,
+            "cachedTokens": 587,
+            "promptMs": 39291,
+            "predictedTokens": 22,
+            "predictedMs": 1839
+          },
+          "sections": [
+            "原稿の記法",
+            "見出し",
+            "表",
+            "段落のあいだを空ける",
+            "言語を指定する",
+            "相互参照",
+            "外部へのリンク",
+            "改ページ",
+            "段落と改行",
+            "[ruby: 振/り/仮/名 | ふ//が/な]（ルビ）",
+            "箇条書きと番号付きリスト",
+            ""
+          ]
+        },
+        {
+          "id": "command-split",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 36778,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"「左右に並べる」コマンド（view.split）を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 6396,
+            "cachedTokens": 587,
+            "promptMs": 35121,
+            "predictedTokens": 25,
+            "predictedMs": 1405
+          },
+          "sections": [
+            "箇条書きと番号付きリスト",
+            "図版",
+            "数と式",
+            "表",
+            "定義リスト",
+            "原稿の記法",
+            ""
+          ]
+        },
+        {
+          "id": "command-commit",
+          "kind": "command",
+          "essential": false,
+          "pass": false,
+          "reason": "説明に git.commit も「コミット」もありません",
+          "ms": 27545,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"履歴に残る形で記録するために、コマンド「記録」(record) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 6494,
+            "cachedTokens": 587,
+            "promptMs": 26346,
+            "predictedTokens": 29,
+            "predictedMs": 1164
+          },
+          "sections": [
+            "外部へのリンク",
+            "数と式",
+            "行番号、キャプション、注釈の印",
+            "目次と索引と参考文献",
+            "段落スタイルと韻文",
+            "コメントとエスケープ",
+            "",
+            "原稿の記法",
+            "段落と改行",
+            "見出し"
+          ]
+        },
+        {
+          "id": "command-trash",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 23857,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「ゴミ箱に移す」(file.trash) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 6330,
+            "cachedTokens": 587,
+            "promptMs": 22684,
+            "predictedTokens": 27,
+            "predictedMs": 1139
+          },
+          "sections": [
+            "図版",
+            "コードと外部のファイル",
+            "段落のあいだを空ける",
+            "",
+            "原稿の記法",
+            "段落と改行",
+            "見出し",
+            "箇条書きと番号付きリスト",
+            "定義リスト"
+          ]
+        },
+        {
+          "id": "command-copy-fonts",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 26887,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「共有ライブラリのフォントをコピー」(library.copyFonts) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 6509,
+            "cachedTokens": 587,
+            "promptMs": 25295,
+            "predictedTokens": 31,
+            "predictedMs": 1530
+          },
+          "sections": [
+            "空きを入れる",
+            "図版",
+            "段落と改行",
+            "言語を指定する",
+            "コードと外部のファイル",
+            "段落のあいだを空ける",
+            "箇条書きと番号付きリスト",
+            ""
+          ]
+        },
+        {
+          "id": "command-replace",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 32515,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「置換」(editor.find) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 6565,
+            "cachedTokens": 587,
+            "promptMs": 30885,
+            "predictedTokens": 24,
+            "predictedMs": 1552
+          },
+          "sections": [
+            "言語を指定する",
+            "図版",
+            "注",
+            "コードと外部のファイル",
+            "原稿の記法",
+            "段落と改行",
+            "定義リスト",
+            "箇条書きと番号付きリスト",
+            ""
+          ]
+        },
+        {
+          "id": "command-new-project",
+          "kind": "command",
+          "essential": false,
+          "pass": true,
+          "reason": "",
+          "ms": 40373,
+          "finish": "stop",
+          "answer": "{\"explanation\":\"コマンド「file.newProject」(file.newProject) を使います。\",\"edits\":[]}",
+          "timings": {
+            "promptTokens": 6530,
+            "cachedTokens": 587,
+            "promptMs": 38378,
+            "predictedTokens": 26,
+            "predictedMs": 1933
+          },
+          "sections": [
+            "図版",
+            "段落と改行",
+            "数と式",
+            "表",
+            "",
+            "箇条書きと番号付きリスト"
+          ]
+        }
+      ]
+    }
+  ],
+  "summaries": [
+    {
+      "key": "qwen3.5-4b@4096",
+      "model": "qwen3.5-4b",
+      "context": 4096,
+      "firstAnswerMsP95": 14693,
+      "answerMsMedian": 12786,
+      "answerMsP95": 16278,
+      "peakRssMb": 3379,
+      "successRate": 0.639344262295082,
+      "successByKind": {
+        "style": 0.5833333333333334,
+        "manifest": 0.75,
+        "gm": 0.6666666666666666,
+        "markdown": 0.75,
+        "command": 0.46153846153846156
+      },
+      "essentialFailed": [
+        "md-bold-close",
+        "command-build",
+        "command-convert-md"
+      ]
+    },
+    {
+      "key": "qwen3.5-4b@8192",
+      "model": "qwen3.5-4b",
+      "context": 8192,
+      "firstAnswerMsP95": 37849,
+      "answerMsMedian": 29723,
+      "answerMsP95": 41163,
+      "peakRssMb": 3494,
+      "successRate": 0.7049180327868853,
+      "successByKind": {
+        "style": 0.6666666666666666,
+        "manifest": 0.8333333333333334,
+        "gm": 0.75,
+        "markdown": 0.75,
+        "command": 0.5384615384615384
+      },
+      "essentialFailed": [
+        "gm-ruby",
+        "md-bold-close",
+        "command-convert-md"
+      ]
+    }
+  ],
+  "selection": {
+    "qualifies": [
+      {
+        "key": "qwen3.5-4b@4096",
+        "ok": false,
+        "reasons": [
+          "欠かせない課題に落ちた: md-bold-close, command-build, command-convert-md",
+          "全体の正解の割合 63.9% < 70%",
+          "command の正解の割合 46.2% < 50%",
+          "答えの p95 16278 ms > 15000",
+          "最大の RSS 3379 MB > 2048"
+        ]
+      },
+      {
+        "key": "qwen3.5-4b@8192",
+        "ok": false,
+        "reasons": [
+          "欠かせない課題に落ちた: gm-ruby, md-bold-close, command-convert-md",
+          "起動からの答えの p95 37849 ms > 30000",
+          "答えの p95 41163 ms > 15000",
+          "最大の RSS 3494 MB > 2048"
+        ]
+      }
+    ],
+    "pick": null
+  }
+}
