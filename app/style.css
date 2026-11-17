@@ -68,6 +68,8 @@ input.field:focus, textarea.field:focus { border-color: var(--text-2); }
 /* side */
 .side { width: 270px; background: var(--lib); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
 .side.hidden, .right.hidden { display: none; }
+/* the left panel fills the sidebar below the workspace bar and scrolls; the tree scrolls inside it, below its buttons */
+.leftbody { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
 .wsbar { height: 40px; margin-top: 30px; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 12px; position: relative; }
 .wsbar .name { font-weight: 600; display: flex; gap: 4px; align-items: center; flex: 1; cursor: default; min-width: 0; }
 .wsbar .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
