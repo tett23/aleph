@@ -85,6 +85,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0079](adr/0079-read-titles-again-on-save.md) | 保存したときに、そのシートの見出しを読み直す（実装済み） |
 | [ADR 0080](adr/0080-skip-app-checks-for-docs-only-changes.md) | 文書だけの変更では、CI の `app` のジョブ（ビルドとテスト）を省く（実装済み） |
 | [ADR 0082](adr/0082-ui-names-and-glossary.md) | 画面の要素の正式な名前と英語の名前を決めて [用語集](glossary.md) にまとめ、画面の文言、仕様書、コードの名前を合わせる。古い名前で保存された `config.json` の画面の状態とキーの割り当ては読みかえる（実装済み） |
+| [ADR 0083](adr/0083-rename-sidebar-panel-command-ids.md) | サイドバーのパネルを開くコマンドの ID を `view.left.<パネル>` から `view.sidebar.<パネル>` に変え、古い ID を読みかえる（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
@@ -137,7 +138,7 @@ Rust の側は、画面（webview）からの呼び出しを信じきらない�
 アクセントの色は彩度を落とした黄土色とし、選択の背景は無彩色とする。
 サイドバーと右サイドバーの表示の状態（どのパネルか、畳んだか）、縦と横、プレビュー、開いたフォルダ、ワークスペースと、ページとガントの拡大率は、アプリの設定の `config.json` の `ui` に置き、次に起動したときに戻す（[ADR 0004](adr/0004-workspaces-and-projects.md)）。画面の状態の鍵は、`sidebarPanel`、`showSidebar`、`rightSidebarPanel`、`showRightSidebar`、`vertical`、`previewMode`、`expanded`、`workspace` である。書くのはメインのウィンドウで、変わってから 0.5 秒後に、変わったときだけ書く。プレビューとプロットのウィンドウは、自分の拡大率の変更をメインのウィンドウに送る。
 
-[ADR 0082](adr/0082-ui-names-and-glossary.md) より前の版が書いた `config.json` は、読むときに古い名前を新しい名前に読みかえる。`ui` の鍵 `left`、`showLeft`、`right`、`showRight`、`side`、`showProblems`、`problemsHeight`、`problemsTab` は、順に `sidebarPanel`、`showSidebar`、`rightSidebarPanel`、`showRightSidebar`、`previewMode`、`showBottomPanel`、`bottomPanelHeight`、`bottomPanelTab` として読む。`bottomPanelTab` の値 `notes` と `build` は、`notifications` と `build-log` として読む。`keyBindings` と `ui` の `recentCommands` のコマンドの ID `view.toggleLeft`、`view.toggleRight`、`view.right.<パネル>`、`view.problems` は、順に `view.toggleSidebar`、`view.toggleRightSidebar`、`view.rightSidebar.<パネル>`、`view.bottomPanel` として読む。古い名前と新しい名前の両方があるときは、新しい名前の値を使う。書くときは新しい名前だけを書くので、古い名前は次に書くときに消える。読みかえの表は `app/legacy-names.ts` だけに置く。
+[ADR 0082](adr/0082-ui-names-and-glossary.md) より前の版が書いた `config.json` は、読むときに古い名前を新しい名前に読みかえる。`ui` の鍵 `left`、`showLeft`、`right`、`showRight`、`side`、`showProblems`、`problemsHeight`、`problemsTab` は、順に `sidebarPanel`、`showSidebar`、`rightSidebarPanel`、`showRightSidebar`、`previewMode`、`showBottomPanel`、`bottomPanelHeight`、`bottomPanelTab` として読む。`bottomPanelTab` の値 `notes` と `build` は、`notifications` と `build-log` として読む。`keyBindings` と `ui` の `recentCommands` のコマンドの ID `view.toggleLeft`、`view.toggleRight`、`view.left.<パネル>`、`view.right.<パネル>`、`view.problems` は、順に `view.toggleSidebar`、`view.toggleRightSidebar`、`view.sidebar.<パネル>`、`view.rightSidebar.<パネル>`、`view.bottomPanel` として読む（`view.left.<パネル>` は [ADR 0083](adr/0083-rename-sidebar-panel-command-ids.md)）。読みかえて同じ ID が二つになる最近使ったコマンドは、最初の一つだけを残す。古い名前と新しい名前の両方があるときは、新しい名前の値を使う。書くときは新しい名前だけを書くので、古い名前は次に書くときに消える。読みかえの表は `app/legacy-names.ts` だけに置く。
 
 ## ワークスペースとプロジェクト
 
@@ -328,7 +329,7 @@ Markdown のプレビューの改行の扱いを設定で選び、GFM の拡張�
 ## コマンドとコマンドパレット
 
 操作はコマンドとして一か所に登録する（[ADR 0023](adr/0023-command-palette.md)）。
-コマンドは、`<領域>.<操作>` の形の ID（`file.save`、`view.left.search`、`editor.format` など）、名前、使えるかどうかの判定、実行の処理、既定のキー、ほかの操作に出すかどうかを持つ。
+コマンドは、`<領域>.<操作>` の形の ID（`file.save`、`view.sidebar.search`、`editor.format` など）、名前、使えるかどうかの判定、実行の処理、既定のキー、ほかの操作に出すかどうかを持つ。
 ほかの操作（「…」）は、メニューに出すコマンドのうち使えるものを、名前と今の割り当ての初めのキー（⌃⌥⇧⌘ の順の記号、[キーの割り当て](#キーの割り当て)）で並べる。
 設定の画面の各節も `settings.<節の ID>` のコマンドとして登録し、Aleph のプラグインのコマンドは `plugin.<名前>.<連番>` の ID で登録する。
 

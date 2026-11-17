@@ -26,8 +26,11 @@ const COMMAND_IDS: Readonly<Record<string, string>> = {
   "view.problems": "view.bottomPanel",
 };
 
-/** The prefixes of command ids renamed: old → new (the right sidebar's panels). */
-const COMMAND_PREFIXES: readonly [string, string][] = [["view.right.", "view.rightSidebar."]];
+/** The prefixes of command ids renamed: old → new (the panels of the sidebar and the right sidebar). */
+const COMMAND_PREFIXES: readonly [string, string][] = [
+  ["view.left.", "view.sidebar."],
+  ["view.right.", "view.rightSidebar."],
+];
 
 /** The key of `ui` that keeps the command palette's recent command ids (palette.ts). */
 const RECENT_COMMANDS = "recentCommands";

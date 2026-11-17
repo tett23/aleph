@@ -159,7 +159,7 @@ export const mountBookmarks = (ctx: Ctx) => {
       run: (c) => toggle(c, focused(c.store.get())!.path),
     },
     {
-      id: "view.left.bookmarks",
+      id: "view.sidebar.bookmarks",
       label: "サイドバー：ブックマーク",
       icon: "map-pin",
       when: () => true,

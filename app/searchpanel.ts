@@ -234,7 +234,7 @@ export const mountSearch = (ctx: Ctx) => {
   };
   // ⇧⌘F, a command (docs/adr/0023): the search panel with its field focused
   addCommands(ctx.commands, {
-    id: "view.left.search",
+    id: "view.sidebar.search",
     keys: ["Mod-Shift-f"],
     label: "検索",
     icon: "search",
