@@ -1,6 +1,6 @@
 # ADR 0079: 保存したときにシートの見出しを読み直す
 
-Status: accepted-pending
+Status: accepted
 
 ## 文脈
 
