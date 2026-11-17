@@ -1,6 +1,6 @@
 # ADR 0081: 下部パネルに、ローカル LLM で動くアシスタントを置く
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
