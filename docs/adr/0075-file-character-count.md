@@ -1,6 +1,6 @@
 # ADR 0075: 本文文字数とファイル文字数を並べて表示する
 
-Status: accepted-pending
+Status: accepted
 
 ## 文脈
 

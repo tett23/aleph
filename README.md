@@ -75,6 +75,8 @@ npm test
 (cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 ```
 
+CI skips these checks when a change touches only documentation (README, CONTRIBUTING, the ADRs, the specification and the other files under `docs/` that `scripts/docs-only.sh` lists). The ADR and translation checks run on every change.
+
 Install [adr-guard](https://github.com/tett23/adr-guard) v0.13.1 or later, and enable the git hooks in each clone.
 
 ```sh
