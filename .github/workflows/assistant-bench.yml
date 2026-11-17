@@ -1,0 +1,266 @@
+name: Assistant benchmark
+
+# Measures the local models of the assistant on the standard macOS runner
+# (docs/adr/0081, 計測を CI で続ける): on every push to main that is not
+# docs only (docs/adr/0080), once a week, and by hand. It never runs on pull
+# requests, so it never blocks a merge.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  # Whether the push touches documentation only (docs/adr/0080). The schedule
+  # and a run by hand always measure.
+  changes:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      docs-only: ${{ steps.diff.outputs.docs-only }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: List the changed files
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          only=false
+          if [ "$EVENT" = push ]; then
+            case "$BASE_SHA" in ''|*[!0]*) ;; *) BASE_SHA= ;; esac
+            if [ -n "$BASE_SHA" ] && files=$(git diff --name-only "$BASE_SHA..$HEAD_SHA"); then
+              only=$(printf '%s\n' "$files" | sh scripts/docs-only.sh)
+              printf '%s\n' "$files" | sed 's/^/changed: /'
+            fi
+          fi
+          echo "docs-only: $only"
+          echo "docs-only=$only" >> "$GITHUB_OUTPUT"
+
+  # Every model of bench/assistant/models.json at both context lengths. No
+  # token beyond reading the repository: the benchmark runs llama-server and
+  # the downloaded models.
+  measure:
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true'
+    runs-on: macos-26
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [qwen3-0.6b, qwen3.5-0.8b, qwen3.5-2b, qwen3.5-4b]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      # The model files, llama.cpp and the manual, keyed by the pinned sources
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/Library/Caches/aleph-bench
+          key: assistant-bench-${{ matrix.model }}-${{ hashFiles('bench/assistant/models.json', 'bench/assistant/sources.json', 'tools.versions') }}
+      # The golem that Aleph bundles, for the golem check part of the judging
+      - name: Bundle golem
+        run: sh scripts/bundle-tools.sh
+      - name: Measure
+        env:
+          MODEL: ${{ matrix.model }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/bench"
+          bench/assistant/run --model "$MODEL" --out "$RUNNER_TEMP/bench/$MODEL.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: assistant-bench-${{ matrix.model }}
+          path: ${{ runner.temp }}/bench/${{ matrix.model }}.json
+
+  # The joined results of the previous four runs that have them, the most
+  # recent as history/1. Only gh, with a token that reads the runs; the
+  # repository is not checked out.
+  history:
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+    steps:
+      - name: Download the previous results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/history"
+          n=0
+          for id in $(gh run list --workflow assistant-bench.yml --branch main --limit 30 --json databaseId -q '.[].databaseId'); do
+            [ "$id" = "$RUN_ID" ] && continue
+            dir="$RUNNER_TEMP/history/$((n + 1))"
+            if gh run download "$id" -n assistant-bench -D "$dir" 2>/dev/null && [ -f "$dir/assistant-bench.json" ]; then
+              n=$((n + 1))
+              echo "history/$n: run $id"
+              [ "$n" -ge 4 ] && break
+            else
+              rm -rf "$dir"
+            fi
+          done
+          echo "previous runs with results: $n"
+          touch "$RUNNER_TEMP/history/.keep"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: assistant-bench-history
+          path: ${{ runner.temp }}/history
+          include-hidden-files: true
+
+  # Joins the results of this run and finds the regressions against the median
+  # of the previous four runs. Runs the repository's code, with no token.
+  analyze:
+    needs: [measure, history]
+    if: ${{ !cancelled() && needs.history.result == 'success' && needs.measure.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: assistant-bench-qwen*
+          path: ${{ runner.temp }}/current
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: assistant-bench-history
+          path: ${{ runner.temp }}/history
+      - name: Find the regressions
+        run: |
+          mkdir -p "$RUNNER_TEMP/joined"
+          node bench/assistant/regress.ts --out "$RUNNER_TEMP/joined/assistant-bench.json" --history "$RUNNER_TEMP/history" "$RUNNER_TEMP"/current/*.json | tee "$RUNNER_TEMP/joined/regressions.tsv"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: assistant-bench
+          path: ${{ runner.temp }}/joined
+          retention-days: 90
+
+  # One issue per model and metric, opened or added to when the same
+  # regression shows in two runs in a row. Only gh and jq; the repository is
+  # not checked out and none of its code runs here.
+  issues:
+    needs: analyze
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    concurrency:
+      group: assistant-bench-issues-${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: assistant-bench
+          path: ${{ runner.temp }}/joined
+      - name: Open or add to the issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          jq -r '.regressions[] | select(.consecutive) | [.key, .metric, (.value | tostring), (.baseline | tostring)] | @tsv' "$RUNNER_TEMP/joined/assistant-bench.json" |
+          while IFS="$(printf '\t')" read -r key metric value baseline; do
+            # the fields come from the measurement; take only the shapes they can have
+            printf '%s' "$key" | grep -Eq '^[a-z0-9.-]+@[0-9]+$' || { echo "skipped a bad key: $key"; continue; }
+            printf '%s' "$metric" | grep -Eq '^[a-z-]+$' || { echo "skipped a bad metric: $metric"; continue; }
+            printf '%s' "$value$baseline" | grep -Eq '^[0-9.e+-]+$' || { echo "skipped a bad value"; continue; }
+            title="アシスタントの計測の回帰: $key $metric"
+            body=$(printf '%s\n\n- 構成: `%s`\n- 値: `%s`\n- 今の値: %s\n- 前の 4 回の中央値: %s\n- 実行: %s\n\n二回続けて回帰した (docs/adr/0081)。\n' "$title" "$key" "$metric" "$value" "$baseline" "$RUN_URL")
+            number=$(gh issue list --state open --search "in:title \"$title\"" --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body "$body"
+              echo "commented on #$number: $title"
+            else
+              gh issue create --title "$title" --body "$body"
+              echo "opened: $title"
+            fi
+          done
+
+  # The budgets of docs/budgets.md, with tett23/dotfiles bin/budget-check
+  # (docs/adr/0081). Measuring runs the repository's code with no token;
+  # reporting writes the issues and runs none of it.
+  budget-measure:
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true'
+    runs-on: macos-26
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: tett23/dotfiles
+          ref: c4afd3b2dfeaaed088398a75f98e0334cf2a4c39
+          path: .dotfiles
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - name: The model the budgets measure
+        id: budget
+        run: echo "model=$(jq -r .budget.model bench/assistant/sources.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/Library/Caches/aleph-bench
+          key: assistant-bench-${{ steps.budget.outputs.model }}-${{ hashFiles('bench/assistant/models.json', 'bench/assistant/sources.json', 'tools.versions') }}
+      - name: Bundle golem
+        run: sh scripts/bundle-tools.sh
+      - name: Measure the budgets
+        run: |
+          mkdir -p "$RUNNER_TEMP/budget"
+          .dotfiles/bin/budget-check --measure-to "$RUNNER_TEMP/budget/results"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: budget-results
+          path: ${{ runner.temp }}/budget/results
+
+  budget-report:
+    needs: budget-measure
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: budget-${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: tett23/dotfiles
+          ref: c4afd3b2dfeaaed088398a75f98e0334cf2a4c39
+          path: .dotfiles
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: budget-results
+          path: ${{ runner.temp }}/budget
+      - name: Report the budgets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: .dotfiles/bin/budget-check --report-from "$RUNNER_TEMP/budget/results"
