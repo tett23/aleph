@@ -56,13 +56,17 @@ jobs:
     needs: changes
     if: needs.changes.outputs.docs-only != 'true'
     runs-on: macos-26
-    timeout-minutes: 180
+    # The longest a job may run on a GitHub-hosted runner. The runner answers
+    # about ten times slower than an M1 Max, so one job measures one model at
+    # one context length.
+    timeout-minutes: 360
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
         model: [qwen3-0.6b, qwen3.5-0.8b, qwen3.5-2b, qwen3.5-4b]
+        context: [4096, 8192]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,13 +85,14 @@ jobs:
       - name: Measure
         env:
           MODEL: ${{ matrix.model }}
+          CONTEXT: ${{ matrix.context }}
         run: |
           mkdir -p "$RUNNER_TEMP/bench"
-          bench/assistant/run --model "$MODEL" --out "$RUNNER_TEMP/bench/$MODEL.json"
+          bench/assistant/run --model "$MODEL" --context "$CONTEXT" --out "$RUNNER_TEMP/bench/$MODEL-$CONTEXT.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: assistant-bench-${{ matrix.model }}
-          path: ${{ runner.temp }}/bench/${{ matrix.model }}.json
+          name: assistant-bench-${{ matrix.model }}-${{ matrix.context }}
+          path: ${{ runner.temp }}/bench/${{ matrix.model }}-${{ matrix.context }}.json
 
   # The joined results of the previous four runs that have them, the most
   # recent as history/1. Only gh, with a token that reads the runs; the
@@ -206,7 +211,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.docs-only != 'true'
     runs-on: macos-26
-    timeout-minutes: 120
+    timeout-minutes: 360
     permissions:
       contents: read
     steps:
