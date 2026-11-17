@@ -32,7 +32,7 @@
       "",
       "本文。"
     ],
-    "command": "view.right.outline",
+    "command": "view.rightSidebar.outline",
     "essential": false
   },
   {
@@ -80,7 +80,7 @@
       "",
       "本文。"
     ],
-    "command": "view.problems",
+    "command": "view.bottomPanel",
     "essential": false
   },
   {
