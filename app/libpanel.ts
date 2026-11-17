@@ -1,15 +1,17 @@
 // The shared library in the app (docs/adr/0014): the cross-project panel on the
 // left, the open project's on the right, files dropped on them, fonts copied to
-// projects, and images dropped on the editor or the tree.
+// projects, and images dropped on the editor; files and folders dropped on the tree (docs/adr/0078).
 import { addCommands } from "./commands.ts";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api } from "./api.ts";
 import { adopt } from "./config.ts";
 import type { Ctx } from "./ctx.ts";
+import { copyWithProgress, dropTarget, type Hit, type Progress } from "./dropin.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
 import { FIGURE_KINDS, copyFonts, figureInsert, freeName, installItem, libSubdir, libraryFiles, stateOf, targetIn, type Fs, type LibFile, type LibState } from "./library.ts";
-import { basename, dirname, rel } from "./path.ts";
+import { basename, rel } from "./path.ts";
 import { allDocs, focused } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { item } from "./ui/settings.ts";
@@ -168,6 +170,59 @@ const dropOnEditor = async (ctx: Ctx, path: string, paths: string[], x: number, 
   ctx.refresh(["left"]);
 };
 
+// ---- dropping on the tree (docs/adr/0078) ----
+
+/** Where in the tree `el` is: a folder's or project's row, a file's row, or the tree without a row. */
+const treeHit = (el: HTMLElement | null): Hit => {
+  if (!el?.closest(".tree")) return null;
+  const row = el.closest<HTMLElement>("[data-dir],[data-file]");
+  if (row?.dataset.dir) return { kind: "dir", path: row.dataset.dir };
+  if (row?.dataset.file) return { kind: "file", path: row.dataset.file };
+  return { kind: "empty" };
+};
+
+/** Marks where a drop would go: the target's row and the rows in it, or the whole tree for the workspace. */
+let marked: string | null = null;
+const markTarget = (target: string | null, hit: Hit) => {
+  const key = target && `${hit?.kind === "empty" ? "tree" : "rows"}:${target}`;
+  if (key === marked) return;
+  marked = key;
+  document.querySelectorAll(".drop-into").forEach((e) => e.classList.remove("drop-into"));
+  if (!target) return;
+  if (hit?.kind === "empty") return void document.querySelector(".tree")?.classList.add("drop-into");
+  for (const r of document.querySelectorAll<HTMLElement>(".tree [data-dir], .tree [data-file]")) {
+    const p = r.dataset.dir ?? r.dataset.file ?? "";
+    if (p === target || p.startsWith(`${target}/`)) r.classList.add("drop-into");
+  }
+};
+
+/** The copies running, by the id Rust reports their progress with. */
+const copies = new Map<number, (p: Progress) => void>();
+let copySeq = 0;
+let hearing: Promise<unknown> | null = null;
+const hearProgress = () =>
+  (hearing ??= listen<Progress & { id: number }>("aleph:copy-progress", (e) => copies.get(e.payload.id)?.(e.payload)).catch(() => {}));
+
+/** Copies what was dropped into `dir`, off the main thread, with a toast if it takes a while. */
+const dropIntoTree = async (ctx: Ctx, dir: string, paths: string[]) => {
+  await hearProgress();
+  const id = ++copySeq;
+  const target = rel(ctx.store.get().workspace ?? "", dir) || basename(dir);
+  await copyWithProgress({
+    clock: { now: () => Date.now(), set: (fn, ms) => window.setTimeout(fn, ms), clear: (t) => clearTimeout(t) },
+    notify: ctx.notify,
+    key: `drop-copy-${id}`,
+    target,
+    run: (onProgress) => {
+      copies.set(id, onProgress);
+      return api.copyDropped(id, dir, paths).finally(() => copies.delete(id));
+    },
+  }).catch(() => {});
+  await reloadTree(ctx);
+  ctx.store.dispatch({ type: "expand", path: dir, on: true });
+  ctx.refresh(["left"]);
+};
+
 const mountDrops = (ctx: Ctx) => {
   const at = (p: { x: number; y: number }) => {
     const x = p.x / devicePixelRatio;
@@ -178,9 +233,17 @@ const mountDrops = (ctx: Ctx) => {
   void getCurrentWebview().onDragDropEvent(async (e) => {
     const right = document.querySelector<HTMLElement>(".right");
     const p = e.payload;
-    if (p.type === "leave") return void right?.classList.remove("drop-over");
+    if (p.type === "leave") {
+      markTarget(null, null);
+      return void right?.classList.remove("drop-over");
+    }
     const { x, y, el } = at(p.position);
-    if (p.type === "over" || p.type === "enter") return void right?.classList.toggle("drop-over", overLibrary(el));
+    if (p.type === "over" || p.type === "enter") {
+      const hit = treeHit(el);
+      markTarget(dropTarget(hit, ctx.store.get().workspace), hit);
+      return void right?.classList.toggle("drop-over", overLibrary(el));
+    }
+    markTarget(null, null);
     right?.classList.remove("drop-over");
     if (overLibrary(el)) return dropIntoLibrary(ctx, p.paths);
     // the editor of a .gm: images become figures
@@ -189,16 +252,9 @@ const mountDrops = (ctx: Ctx) => {
       const path = [...ctx.editors.entries()].find(([, ed]) => ed.edit?.view.root === editor)?.[0];
       if (path?.endsWith(".gm")) return dropOnEditor(ctx, path, p.paths, x, y);
     }
-    // a folder of the tree, or the folder of a file
-    const row = el?.closest<HTMLElement>("[data-dir],[data-file]");
-    const dir = row?.dataset.dir ?? (row?.dataset.file ? dirname(row.dataset.file) : null);
-    if (dir) {
-      const copied = await copyInto(dir, p.paths);
-      ctx.toast(`${rel(ctx.store.get().workspace ?? "", dir) || basename(dir)} にコピーしました：${copied.map(basename).join("、")}`);
-      await reloadTree(ctx);
-      ctx.store.dispatch({ type: "expand", path: dir, on: true });
-      ctx.refresh(["left"]);
-    }
+    // a folder of the tree, the folder of a file, or the workspace (docs/adr/0078)
+    const dir = dropTarget(treeHit(el), ctx.store.get().workspace);
+    if (dir) await dropIntoTree(ctx, dir, p.paths);
   });
 };
 

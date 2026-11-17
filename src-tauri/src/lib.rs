@@ -2,6 +2,7 @@
 //! needs (docs/adr/0003). Each concern is a module with its own tests.
 
 mod chapter_export;
+mod dropcopy;
 mod fsevents;
 mod fsops;
 mod guard;
@@ -302,6 +303,41 @@ fn copy_file(app: AppHandle, from: String, to: String) -> R<()> {
     may(&app, &from, RD)?;
     may(&app, &to, WR)?;
     fsops::copy_file(Path::new(&from), Path::new(&to)).map_err(err)
+}
+
+/// One report of a copy of dropped items, for the toast (docs/adr/0078).
+#[derive(Clone, serde::Serialize)]
+struct CopyProgress {
+    id: u64,
+    #[serde(flatten)]
+    progress: dropcopy::Progress,
+}
+
+/// Copies files and folders dropped on the tree into `target` (docs/adr/0078), off the
+/// main thread; reports `aleph:copy-progress` at most every 0.1 s.
+#[tauri::command]
+async fn copy_dropped(
+    app: AppHandle,
+    id: u64,
+    target: String,
+    paths: Vec<String>,
+) -> R<Vec<dropcopy::Outcome>> {
+    let reach = reach(&app)?;
+    blocking(move || {
+        let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+        let mut gate = dropcopy::throttle(std::time::Duration::from_millis(100));
+        Ok(dropcopy::copy_into(
+            Path::new(&target),
+            &sources,
+            &|p, a| reach.check(p, a),
+            &mut |p| {
+                if let Some(progress) = gate(std::time::Instant::now(), p) {
+                    let _ = app.emit("aleph:copy-progress", CopyProgress { id, progress });
+                }
+            },
+        ))
+    })
+    .await
 }
 
 /// The English words of a sheet that are spelled wrong (docs/adr/0030).
@@ -1154,6 +1190,7 @@ pub fn run_app() {
             create_entry,
             rename_path,
             copy_file,
+            copy_dropped,
             list_dir,
             temp_dir,
             git,

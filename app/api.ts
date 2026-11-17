@@ -1,5 +1,6 @@
 // Thin wrappers over the Rust commands (docs/adr/0003).
 import { invoke } from "@tauri-apps/api/core";
+import type { Outcome } from "./dropin.ts";
 
 export type Entry = { path: string; name: string; dir: boolean; children: Entry[] };
 export type Out = { code: number; stdout: string; stderr: string };
@@ -27,6 +28,8 @@ export const api = {
   makeDir: (path: string) => invoke<void>("make_dir", { path }),
   rename: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
   copyFile: (from: string, to: string) => invoke<void>("copy_file", { from, to }),
+  /** Copies what was dropped on the tree into `target` (docs/adr/0078); progress comes as `aleph:copy-progress` with `id`. */
+  copyDropped: (id: number, target: string, paths: string[]) => invoke<Outcome[]>("copy_dropped", { id, target, paths }),
   /** The trash (docs/adr/0033): its folder, and moving or removing a file or folder. */
   trashDir: () => invoke<string>("trash_dir"),
   movePath: (from: string, to: string) => invoke<void>("move_path", { from, to }),

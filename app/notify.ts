@@ -4,7 +4,9 @@
 export type Level = "info" | "warning" | "error";
 /** A button: `keep` leaves the notification open after it runs. */
 export type Action = { label: string; run: () => void; primary?: boolean; keep?: boolean };
-export type NotifyOpts = { message: string; level?: Level; sticky?: boolean; actions?: Action[]; key?: string };
+/** How far some work has gone (docs/adr/0078): `value` from 0 to 1, and a count to show beside the bar. */
+export type ProgressOpts = { value: number; text: string };
+export type NotifyOpts = { message: string; level?: Level; sticky?: boolean; actions?: Action[]; key?: string; progress?: ProgressOpts };
 
 export type Note = {
   id: number;
@@ -19,6 +21,8 @@ export type Note = {
   repeats: number;
   /** Still on the screen. */
   live: boolean;
+  /** A bar (docs/adr/0078): updated in place by its key, never kept in the history. */
+  progress: ProgressOpts | null;
 };
 
 export type Clock = { now: () => number; set: (fn: () => void, ms: number) => number; clear: (id: number) => void };
@@ -64,19 +68,28 @@ export const createNotifications = (clock: Clock) => {
   /** The live ones, oldest first. */
   const live = () => notes.filter((x) => x.live).reverse();
 
+  const clamp = (p: ProgressOpts): ProgressOpts => ({ value: Math.min(1, Math.max(0, p.value)), text: p.text });
+
   const add = (o: NotifyOpts, show: boolean): Note => {
     const key = o.key ?? null;
     let repeats = 1;
     if (key) {
       const before = notes.find((x) => x.key === key);
+      // a new value of a bar: the same toast, shown again only if it still is (docs/adr/0078)
+      if (before?.progress && o.progress) {
+        before.message = o.message;
+        before.progress = clamp(o.progress);
+        changed();
+        return before;
+      }
       if (before) {
-        repeats = before.repeats + 1;
+        repeats = before.progress ? 1 : before.repeats + 1;
         stopTimer(before.id);
         hovered.delete(before.id);
         notes = notes.filter((x) => x !== before);
       }
     }
-    const n: Note = { id: ++seq, message: o.message, level: o.level ?? "info", sticky: !!o.sticky, actions: o.actions ?? [], key, at: clock.now(), repeats, live: show };
+    const n: Note = { id: ++seq, message: o.message, level: o.level ?? "info", sticky: !!o.sticky, actions: o.actions ?? [], key, at: clock.now(), repeats, live: show, progress: o.progress ? clamp(o.progress) : null };
     notes.unshift(n);
     if (notes.length > HISTORY_MAX) {
       // the oldest that are not on the screen go
@@ -87,8 +100,10 @@ export const createNotifications = (clock: Clock) => {
         notes.splice(k, 1);
       }
     }
-    unseen++;
-    if (n.level === "error") unseenError = true;
+    if (!n.progress) {
+      unseen++;
+      if (n.level === "error") unseenError = true;
+    }
     if (show) {
       if (!n.sticky) startTimer(n, TIMEOUT);
       // too many on the screen: the oldest timed ones close; sticky ones never close for the count
@@ -149,7 +164,8 @@ export const createNotifications = (clock: Clock) => {
       expanded = on;
       changed();
     },
-    history: (): Note[] => notes,
+    /** Every one given, newest first, but the bars (docs/adr/0078). */
+    history: (): Note[] => notes.filter((x) => !x.progress),
     clearHistory: () => {
       notes = notes.filter((x) => x.live);
       changed();
