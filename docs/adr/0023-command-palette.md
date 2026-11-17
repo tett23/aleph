@@ -1,6 +1,6 @@
 # ADR 0023: コマンドパレットとコマンドの登録
 
-Status: accepted
+Status: superseded [{"part":"サイドバーのパネルのコマンドの ID view.left.*","by":["docs/adr/0083-rename-sidebar-panel-command-ids.md"]}]
 
 ## 文脈
 

@@ -1,6 +1,6 @@
 # ADR 0083: サイドバーのパネルのコマンドの ID を view.sidebar に変える
 
-Status: proposed
+Status: accepted
 
 ## 文脈
 

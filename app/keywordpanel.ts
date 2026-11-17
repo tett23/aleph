@@ -116,7 +116,7 @@ export const mountKeywords = (ctx: Ctx) => {
     },
   };
   addCommands(ctx.commands, {
-    id: "view.left.keywords",
+    id: "view.sidebar.keywords",
     label: "サイドバー：キーワード",
     icon: "tag",
     when: () => true,

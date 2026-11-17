@@ -211,7 +211,7 @@ export const mountTrash = (ctx: Ctx) => {
       },
     },
     {
-      id: "view.left.trash",
+      id: "view.sidebar.trash",
       label: "サイドバー：ゴミ箱",
       icon: "trash-2",
       when: () => true,

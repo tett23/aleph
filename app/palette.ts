@@ -194,7 +194,7 @@ export const mountCommands = (ctx: Ctx) => {
 
   for (const [panel, label, ic] of SIDEBAR)
     add({
-      id: `view.left.${panel}`,
+      id: `view.sidebar.${panel}`,
       label: `サイドバー：${label}`,
       icon: ic,
       when: () => true,
