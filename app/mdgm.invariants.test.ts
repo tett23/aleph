@@ -46,11 +46,14 @@ test("I7: each control character goes; a BOM goes and the heading after it stays
 });
 
 test("I9: a line of about 1 MB of unclosed openers is read and converted in 5 seconds", () => {
+  // this process's CPU time, not the wall clock: node --test runs the other test files at the same time,
+  // and on CI they stretched the wall clock of a linear run past 5 seconds
+  const cpuMs = (u: NodeJS.CpuUsage) => (u.user + u.system) / 1000;
   for (const s of longLines()) {
-    const t0 = performance.now();
+    const t0 = process.cpuUsage();
     parseMarkdown(s);
     mdToGm(s, "blank-line");
-    const ms = performance.now() - t0;
+    const ms = cpuMs(process.cpuUsage(t0));
     assert.ok(ms < 5000, `${JSON.stringify(s.slice(0, 6))}… took ${Math.round(ms)} ms`);
   }
 });
