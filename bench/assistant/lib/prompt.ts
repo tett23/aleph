@@ -5,15 +5,16 @@
 export type Command = { id: string; label: string };
 export type Message = { role: "system" | "user" | "assistant"; content: string };
 
-export const INSTRUCTION = `あなたは、原稿のエディタ Aleph のアシスタントです。
-書き手の頼みと対象のテキストを受け、書き換えの案と短い説明を JSON で返します。
+export const INTRO = `あなたは、原稿のエディタ Aleph のアシスタントです。
+書き手の頼みと対象のテキストを受け、書き換えの案と短い説明を JSON で返します。`;
 
-まず、頼みが次のどちらかを決めます。
+// how to tell a question about a command from a request to rewrite
+export const COMMAND_RULE = `まず、頼みが次のどちらかを決めます。
 
 - 下の資料の「Aleph のコマンド」に、頼みをそのまま行うコマンドがあるとき (画面を出す、組む、変換する、保存する、捨てる、並べる、記録する、作る、開くなど) は、テキストを書き換えません。edits を空にし、explanation に、そのコマンドの ID と名前を一覧に書かれたとおりに書きます。
-- そうでないときは、対象のテキストを書き換えます。
+- そうでないときは、対象のテキストを書き換えます。`;
 
-書き換えるときは、次の決まりに従います。
+export const REWRITE_RULES = `書き換えるときは、次の決まりに従います。
 
 - 書き換えは edits に、対象のテキストの一部 find と、それを置き換える文字列 replace の組で書きます。
 - find は、対象のテキストに書かれたとおりの文字列で、対象の中にちょうど一度だけ現れるものにします。一度だけにならないときは、前後の文字や行を含めます。
@@ -25,6 +26,8 @@ export const INSTRUCTION = `あなたは、原稿のエディタ Aleph のアシ
 - Golem の原稿 (.gm)、style.toml、manifest.toml の書き方は、下の資料の Golem のマニュアルに従います。
 
 explanation には、何をしたかを日本語で一文か二文で書きます。`;
+
+export const INSTRUCTION = [INTRO, COMMAND_RULE, REWRITE_RULES].join("\n\n");
 
 // Worked examples, one or two per kind of request. None of them is a task of
 // the benchmark (bench/assistant/lib/set.test.ts checks it).
