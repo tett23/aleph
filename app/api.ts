@@ -54,6 +54,11 @@ export const api = {
   openPluginsFolder: () => invoke<void>("open_plugins_folder"),
   /** Shows a file or folder in Finder, selected (docs/adr/0053). */
   revealPath: (path: string) => invoke<void>("reveal_path", { path }),
+  /** Handing the tree's files outside (docs/adr/0077): a folder's zip entries as on disk, the zip written where the writer picks (null when stopped), the pasteboard, a drag out of the window. */
+  zipEntries: (dir: string) => invoke<string[]>("zip_entries", { dir }),
+  zipFolder: (dir: string, names: [string, string][]) => invoke<string | null>("zip_folder", { dir, names }),
+  copyFiles: (paths: string[]) => invoke<void>("copy_files", { paths }),
+  dragOut: (paths: string[]) => invoke<void>("drag_out", { paths }),
   /** Paths the writer picks in native dialogs (docs/adr/0050): the settings written, or null. */
   addWorkspace: () => invoke<string | null>("add_workspace"),
   chooseLibrary: (make: boolean) => invoke<string | null>("choose_library", { make }),

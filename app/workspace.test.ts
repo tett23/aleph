@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Entry } from "./api.ts";
-import { OPEN_KINDS, TEXT_KINDS, collectProjects, projectsIn, workspaceRows, kindOf, projectOf, readGrid, titleOf, treeRows, workspaceOf } from "./workspace.ts";
+import { OPEN_KINDS, TEXT_KINDS, collectProjects, opensOnClick, projectsIn, workspaceRows, kindOf, projectOf, readGrid, titleOf, treeRows, workspaceOf } from "./workspace.ts";
 
 const f = (path: string): Entry => ({ path, name: path.slice(path.lastIndexOf("/") + 1), dir: false, children: [] });
 const d = (path: string, children: Entry[]): Entry => ({ path, name: path.slice(path.lastIndexOf("/") + 1), dir: true, children });
@@ -146,4 +146,38 @@ test("ADR 0067 invariant 1: a known project stays a project when its manifest is
   assert.equal(rows[1].t, "file");
   assert.equal(rows[1].plot, true);
   assert.equal(rows[3].project, "/w/book");
+});
+
+test("ADR 0077 I1: a project's build/ shows files of every kind", () => {
+  const book = [
+    d("/w/novel", [
+      d("/w/novel/build", [d("/w/novel/build/pdf", [f("/w/novel/build/pdf/x.pdf")]), d("/w/novel/build/html", [f("/w/novel/build/html/index.html")])]),
+      f("/w/novel/manifest.toml"),
+      f("/w/novel/notes.bin"),
+    ]),
+  ];
+  const rows = treeRows(book, new Set(["/w/novel", "/w/novel/build", "/w/novel/build/pdf", "/w/novel/build/html"]), () => []);
+  const paths = rows.map((r) => r.entry.path);
+  assert.ok(paths.includes("/w/novel/build/pdf/x.pdf"));
+  assert.ok(paths.includes("/w/novel/build/html/index.html"));
+  assert.ok(!paths.includes("/w/novel/notes.bin"), "outside build/, a kind Aleph cannot open stays hidden");
+});
+
+test("ADR 0077 I1: a root project's build/ shows files of every kind", () => {
+  const root = [d("/w/build", [f("/w/build/book.epub")]), f("/w/manifest.toml")];
+  const rows = workspaceRows("/w", root, new Set(["/w/build"]), () => []);
+  assert.ok(rows.some((r) => r.entry.path === "/w/build/book.epub"));
+});
+
+test("ADR 0077 I1: a build/ outside a project does not show kinds Aleph cannot open", () => {
+  const plain = [d("/w/notes", [d("/w/notes/build", [f("/w/notes/build/index.html")])])];
+  const rows = treeRows(plain, new Set(["/w/notes", "/w/notes/build"]), () => []);
+  assert.ok(!rows.some((r) => r.entry.path === "/w/notes/build/index.html"));
+});
+
+test("ADR 0077 I1: only kinds Aleph opens are opened by a click", () => {
+  assert.equal(opensOnClick("/w/novel/build/pdf/x.pdf"), true);
+  assert.equal(opensOnClick("/w/novel/chapters/01.gm"), true);
+  assert.equal(opensOnClick("/w/novel/build/html/index.html"), false);
+  assert.equal(opensOnClick("/w/novel/build/x.epub"), false);
 });

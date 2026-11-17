@@ -7,6 +7,7 @@ import { esc } from "./esc.ts";
 import { h } from "./icons.ts";
 import { figureInsert, figurePlan, freeName } from "./library.ts";
 import { basename } from "./path.ts";
+import { outsideWindow } from "./handover.ts";
 import { reloadTree } from "./ui/tree.ts";
 
 const THRESHOLD = 4;
@@ -82,6 +83,8 @@ export const mountImageDrag = (ctx: Ctx) => {
         document.body.classList.remove("dragging-image");
       };
       const move = (e: MouseEvent) => {
+        // past the window's edge the drag goes to other applications (docs/adr/0077, app/dragout.ts)
+        if (outsideWindow(e.clientX, e.clientY, innerWidth, innerHeight)) return end();
         if (!dragging) {
           if (Math.hypot(e.clientX - down.clientX, e.clientY - down.clientY) < THRESHOLD) return;
           dragging = true;
