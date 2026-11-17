@@ -1,0 +1,271 @@
+[
+  {
+    "id": "gm-ruby",
+    "request": "「東京」に「とうきょう」とルビを振って",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "東京へ行く。"
+    ],
+    "expected": [
+      [
+        "# はじめに",
+        "",
+        "[ruby: 東京|とうきょう]へ行く。"
+      ],
+      [
+        "# はじめに",
+        "",
+        "[ruby: 東京 | とうきょう]へ行く。"
+      ]
+    ],
+    "essential": true
+  },
+  {
+    "id": "gm-strong",
+    "request": "「大切」を強調して",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "これは大切なことです。"
+    ],
+    "expected": [
+      [
+        "# はじめに",
+        "",
+        "これは[strong: 大切]なことです。"
+      ]
+    ],
+    "essential": true
+  },
+  {
+    "id": "gm-kenten",
+    "request": "「ここ」に圏点を打って",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "答えはここにある。"
+    ],
+    "expected": [
+      [
+        "# はじめに",
+        "",
+        "答えは[kenten: ここ]にある。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "gm-nonumber",
+    "request": "見出し「まえがき」に番号を振らないようにして",
+    "file": "chapters/01.gm",
+    "target": [
+      "# まえがき",
+      "",
+      "本文。"
+    ],
+    "expected": [
+      [
+        "@nonumber",
+        "# まえがき",
+        "",
+        "本文。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "gm-md-bold",
+    "request": "Markdown の書き方で書いた太字を、Golem の書き方に直して",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "これは**重要**です。"
+    ],
+    "expected": [
+      [
+        "# はじめに",
+        "",
+        "これは[strong: 重要]です。"
+      ],
+      [
+        "# はじめに",
+        "",
+        "これは[bold: 重要]です。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "gm-md-link",
+    "request": "Markdown の書き方で書いたリンクを、Golem のリンクの書き方に直して",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "[Golem](https://example.com/golem) を使う。"
+    ],
+    "expected": [
+      [
+        "# はじめに",
+        "",
+        "[link \"https://example.com/golem\": Golem] を使う。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "gm-md-ordered-list",
+    "request": "番号付きのリストを、Golem の番号付きリストの書き方に直して",
+    "file": "chapters/01.gm",
+    "target": [
+      "# 手順",
+      "",
+      "1. 原稿を書く",
+      "2. 組む",
+      "3. 確かめる"
+    ],
+    "expected": [
+      [
+        "# 手順",
+        "",
+        "+ 原稿を書く",
+        "+ 組む",
+        "+ 確かめる"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "gm-blank-line",
+    "request": "「雪がやんだ。」と「翌朝、駅に着いた。」のあいだに、一行の行アキを入れて",
+    "file": "chapters/01.gm",
+    "target": [
+      "# 一",
+      "",
+      "雪がやんだ。",
+      "翌朝、駅に着いた。"
+    ],
+    "expected": [
+      [
+        "# 一",
+        "",
+        "雪がやんだ。",
+        "@blank-line",
+        "翌朝、駅に着いた。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "gm-comment",
+    "request": "「本文。」の後に「出典を確かめる」というコメントを書いて。組んだ紙面には出ないように",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "expected": [
+      [
+        "# はじめに",
+        "",
+        "本文。%% 出典を確かめる %%"
+      ],
+      [
+        "# はじめに",
+        "",
+        "本文。%%出典を確かめる%%"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "gm-tcy",
+    "request": "「!?」を縦中横にして",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本当に!?と思った。"
+    ],
+    "expected": [
+      [
+        "# はじめに",
+        "",
+        "本当に[tcy: !?]と思った。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "gm-page-break",
+    "request": "「第二章」の見出しの前で改ページして",
+    "file": "chapters/01.gm",
+    "target": [
+      "# 第一章",
+      "",
+      "本文。",
+      "",
+      "# 第二章",
+      "",
+      "続き。"
+    ],
+    "expected": [
+      [
+        "# 第一章",
+        "",
+        "本文。",
+        "",
+        "@page-break",
+        "# 第二章",
+        "",
+        "続き。"
+      ],
+      [
+        "# 第一章",
+        "",
+        "本文。",
+        "",
+        "@page-break",
+        "",
+        "# 第二章",
+        "",
+        "続き。"
+      ],
+      [
+        "# 第一章",
+        "",
+        "本文。",
+        "@page-break",
+        "",
+        "# 第二章",
+        "",
+        "続き。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "gm-note",
+    "request": "「吾輩」の後に、注「語り手の猫のこと。」を付けて",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "吾輩は猫である。"
+    ],
+    "expected": [
+      [
+        "# はじめに",
+        "",
+        "吾輩[note: 語り手の猫のこと。]は猫である。"
+      ]
+    ],
+    "essential": false
+  }
+]

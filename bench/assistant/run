@@ -1,0 +1,3 @@
+#!/bin/sh
+# The benchmark of the assistant (docs/adr/0081). See run.ts for the options.
+exec node "$(dirname "$0")/run.ts" "$@"
