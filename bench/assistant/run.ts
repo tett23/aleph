@@ -12,13 +12,17 @@ import { ANSWER_SCHEMA, errorsIn, judgeCommand, judgeEdit, judgeGolem, parseAnsw
 import { commandList, messages, type Command, type Message } from "./lib/prompt.ts";
 import { gpuLines, offloaded, serverArgs } from "./lib/server.ts";
 import { median, p95 } from "./lib/stats.ts";
+import { metricCacheName, metricOf, readMetrics } from "./lib/metric.ts";
 import { pickDefault, qualifies, type Summary } from "./lib/summary.ts";
 import { isGolem, KINDS, loadTasks, type Task } from "./lib/tasks.ts";
 
 const USAGE = `usage: bench/assistant/run [options]
   --metric first-answer-ms-p95|answer-ms-p95|peak-rss-mb
                         measure the model and context of sources.json "budget",
-                        and print the value as the last line of stdout
+                        and print the value as the last line of stdout; the
+                        values are kept in the temporary directory, and the
+                        next --metric of the same commit (with a clean tree)
+                        reads them instead of measuring again
   --model <id>          a model of models.json (repeatable; all by default)
   --context <n>         a context length (repeatable; 4096 and 8192 by default)
   --out <file>          write the full report as JSON
@@ -484,11 +488,14 @@ const validate = async (tasks: Task[]) => {
   log(`${tasks.filter(isGolem).length} Golem tasks: every expected text keeps the errors of golem check`);
 };
 
-const metricOf = (s: Summary, metric: string) => {
-  if (metric === "first-answer-ms-p95") return s.firstAnswerMsP95;
-  if (metric === "answer-ms-p95") return s.answerMsP95;
-  if (metric === "peak-rss-mb") return s.peakRssMb;
-  throw new Error(`unknown metric: ${metric}`);
+// The file that keeps the values of a --metric run for the other two budgets,
+// in the temporary directory, or null when it must not be kept (metricCacheName).
+// Untracked files do not count: the runner checks dotfiles out in the tree.
+const metricCache = async (model: string, context: number, coldStarts: number, partial: boolean) => {
+  const commit = (await run("git", ["-C", root, "rev-parse", "HEAD"])).stdout.trim();
+  const dirty = (await run("git", ["-C", root, "status", "--porcelain", "--untracked-files=no"])).stdout.trim() !== "";
+  const name = metricCacheName({ commit, dirty, partial, model, context, coldStarts });
+  return name === null ? null : join(tmpdir(), name);
 };
 
 const table = (runs: Awaited<ReturnType<typeof measure>>[]) =>
@@ -515,7 +522,14 @@ const main = async () => {
   const contexts = o.metric ? [sources.budget.context] : o.contexts.length > 0 ? o.contexts : sources.contexts;
   const unknown = chosen.filter((id) => !models.some((m) => m.id === id));
   if (unknown.length > 0) throw new Error(`unknown model: ${unknown.join(", ")}`);
-  if (o.metric) metricOf({ firstAnswerMsP95: 0, answerMsP95: 0, peakRssMb: 0 } as Summary, o.metric);
+  if (o.metric) metricOf({ firstAnswerMsP95: 0, answerMsP95: 0, peakRssMb: 0 }, o.metric);
+  const kept = o.metric ? await metricCache(chosen[0], contexts[0], o.coldStarts, o.only.length > 0) : null;
+  const reused = kept !== null && existsSync(kept) ? readMetrics(readFileSync(kept, "utf8")) : null;
+  if (o.metric && reused !== null) {
+    log(`the values of ${kept} (measured earlier for this commit)`);
+    process.stdout.write(`${metricOf(reused, o.metric)}\n`);
+    return;
+  }
 
   const bin = await llamaServer();
   const chapters = await manual();
@@ -542,6 +556,10 @@ const main = async () => {
   if (o.out) writeFileSync(o.out, `${JSON.stringify(report, null, 2)}\n`);
   log(table(runs));
   log(`the selection rule picks: ${report.selection.pick ?? "none"}`);
+  if (o.metric && kept !== null) {
+    const { firstAnswerMsP95, answerMsP95, peakRssMb } = runs[0].summary;
+    writeFileSync(kept, `${JSON.stringify({ firstAnswerMsP95, answerMsP95, peakRssMb })}\n`);
+  }
   if (o.metric) process.stdout.write(`${metricOf(runs[0].summary, o.metric)}\n`);
   else process.stdout.write(`${table(runs)}\n`);
 };
