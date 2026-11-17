@@ -2,7 +2,7 @@
 import { addCommands } from "./commands.ts";
 import type { Ctx } from "./ctx.ts";
 import { basename } from "./path.ts";
-import { openPalette } from "./palette.ts";
+import { openCommandPalette } from "./palette.ts";
 import { rankSheets, sheetsOf } from "./quickopen.ts";
 import { recentSheets } from "./recentpanel.ts";
 import { treeEntries } from "./ui/tree.ts";
@@ -30,6 +30,6 @@ export const mountQuickOpen = (ctx: Ctx) => {
     keys: ["Mod-p"],
     menu: true,
     when: (s) => !!s.workspace,
-    run: (c) => openPalette(c),
+    run: (c) => openCommandPalette(c),
   });
 };

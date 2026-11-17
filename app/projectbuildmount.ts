@@ -1,5 +1,5 @@
 // Building a project from Aleph (docs/adr/0058): the toolbar's button and its
-// popup, the commands, the status item, and the diagnostics for the problems panel.
+// popup, the commands, the status item, and the diagnostics for the bottom panel.
 import { api } from "./api.ts";
 import { createBuildLogs, revealBuildAction } from "./buildlog.ts";
 import { withBuildDir } from "./buildlock.ts";
@@ -32,7 +32,7 @@ const KEY = "buildOptions";
 const results = new Map<string, BuildResult>();
 export const buildLogs = createBuildLogs();
 
-/** The last build's diagnostics of a project, for the problems panel. */
+/** The last build's diagnostics of a project, for the bottom panel. */
 export const buildProblems = (project: string): Problem[] => fromGolem(project, "build", results.get(project)?.items ?? []);
 
 const LABEL: Record<string, string> = { all: "すべて", none: "なし", japanese: "日本式", western: "西洋式" };
@@ -47,15 +47,15 @@ export const mountProjectBuild = (ctx: Ctx) => {
     const started = performance.now();
     const args = buildArgs(options());
     const pending = buildLogs.run(project, args, () => withBuildDir(project, () => golem(ctx, project, args)));
-    ctx.refresh(["status", "problems"]);
+    ctx.refresh(["status", "bottomPanel"]);
     const o = await pending;
     const r: BuildResult = { ...readBuildResult(o.code, o.stderr, o.stdout), seconds: (performance.now() - started) / 1000 };
     results.set(project, r);
     // the outputs show in the tree's build/ (docs/adr/0077)
     await reloadTree(ctx);
-    ctx.refresh(["status", "problems", "left"]);
+    ctx.refresh(["status", "bottomPanel", "sidebar"]);
     const errors = r.items.filter((d) => d.severity === "error").length;
-    const open = [{ label: "問題のパネルを開く", run: () => ctx.statusActions.problems?.(ctx) }];
+    const open = [{ label: "下部パネルを開く", run: () => ctx.statusActions.problems?.(ctx) }];
     if (r.failed) ctx.notify({ message: "ビルドできませんでした", level: "error", sticky: true, actions: open, key: `build:${project}` });
     else if (errors) ctx.notify({ message: `ビルドでエラーが ${errors} 件あります`, level: "error", sticky: true, actions: open, key: `build:${project}` });
     else {
@@ -81,7 +81,7 @@ export const mountProjectBuild = (ctx: Ctx) => {
   };
   const openPopup = () => {
     const project = projectNow();
-    const anchor = document.querySelector<HTMLElement>('.toolbar [data-tb="build"]');
+    const anchor = document.querySelector<HTMLElement>('.toolbar [data-toolbar="build"]');
     if (!project) return ctx.toast("Golem のプロジェクトのシートを開いてから実行してください");
     closePopup();
     const draw = (o: BuildOptions) => {

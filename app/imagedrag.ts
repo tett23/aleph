@@ -57,7 +57,7 @@ const drop = async (ctx: Ctx, image: string, path: string, line: number) => {
   ctx.toast(plan.copy ? `images/ にコピーし、@figure を差し込みました` : `@figure ${figure} を差し込みました`);
   if (plan.copy) {
     await reloadTree(ctx);
-    ctx.refresh(["left"]);
+    ctx.refresh(["sidebar"]);
   }
 };
 
@@ -67,7 +67,7 @@ export const mountImageDrag = (ctx: Ctx) => {
     "mousedown",
     (down) => {
       if (down.button !== 0) return;
-      const row = (down.target as HTMLElement).closest<HTMLElement>(".tree [data-file]");
+      const row = (down.target as HTMLElement).closest<HTMLElement>(".file-tree [data-file]");
       const image = row?.dataset.file;
       if (!image || row.dataset.plot || !/\.(png|jpe?g|svg|pdf)$/i.test(image)) return;
       let dragging = false;

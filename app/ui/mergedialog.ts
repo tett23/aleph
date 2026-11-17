@@ -40,8 +40,8 @@ export const settleConflicts = (name: string, chunks: Chunk[]): Promise<string |
         return [at];
       });
     })();
-    const dim = h(`<div class="dim"><div class="modal merge"></div></div>`);
-    const box = dim.querySelector<HTMLElement>(".modal")!;
+    const dim = h(`<div class="dim"><div class="dialog merge"></div></div>`);
+    const box = dim.querySelector<HTMLElement>(".dialog")!;
     const draw = () => {
       box.innerHTML = `<div class="mtitle">${esc(name)} の食い違いを直す</div>
         <div class="msub">ほかのアプリと Aleph の両方で、同じ箇所が違うように直されています。箇所ごとに、残す方を選んでください。ほかの箇所の変更は、両方とも取り込み済みです。</div>

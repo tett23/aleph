@@ -88,7 +88,7 @@ const ganttSvg = (rows: PlotRow[], indices: number[], subplots: string[], calend
 
 const editCalendar = (labels: string[]): Promise<string[] | null> =>
   new Promise((resolve) => {
-    const dim = h(`<div class="dim"><div class="modal small cal">
+    const dim = h(`<div class="dim"><div class="dialog small cal">
       <div class="mtitle">暦</div>
       <div class="muted">物語の中の時を、早い順に 1 行に 1 つ書きます。表の「開始」と「終了」に書いた文字列をそのまま使い、plot-calendar.txt に保存します。</div>
       <textarea class="field">${esc(labels.join("\n"))}</textarea>

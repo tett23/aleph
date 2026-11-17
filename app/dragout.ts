@@ -22,7 +22,7 @@ export const mountDragOut = (ctx: Ctx) => {
     "mousedown",
     (down) => {
       if (down.button !== 0) return;
-      const row = (down.target as HTMLElement).closest<HTMLElement>(".tree [data-file], .tree [data-dir]");
+      const row = (down.target as HTMLElement).closest<HTMLElement>(".file-tree [data-file], .file-tree [data-dir]");
       const pressed = row?.dataset.file ?? row?.dataset.dir;
       if (!pressed) return;
       const end = () => {

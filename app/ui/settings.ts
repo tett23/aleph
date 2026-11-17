@@ -5,7 +5,7 @@ import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { h, icon } from "../icons.ts";
 
-export const openSettings = async (ctx: Ctx, sectionId?: string) => {
+export const openSettingsDialog = async (ctx: Ctx, sectionId?: string) => {
   // the version of the build (tauri.conf.json), not a number written here
   const version = await getVersion().catch(() => "");
   let current = sectionId ?? ctx.settings[0]?.id ?? "";
@@ -13,7 +13,7 @@ export const openSettings = async (ctx: Ctx, sectionId?: string) => {
   const groups = [...new Set(ctx.settings.map((s) => s.group))];
   const render = async () => {
     const sec = ctx.settings.find((s) => s.id === current);
-    dim.innerHTML = `<div class="modal">
+    dim.innerHTML = `<div class="dialog">
       <div class="mnav">${groups
         .map((g) => `<h6>${esc(g)}</h6>${ctx.settings.filter((s) => s.group === g).map((s) => `<div data-sec="${s.id}" class="${s.id === current ? "on" : ""}">${esc(s.label)}</div>`).join("")}`)
         .join("")}</div>

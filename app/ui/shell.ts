@@ -1,19 +1,19 @@
-// The screen's frame, drawn from the state (docs/adr/0005): ribbon, left sidebar,
-// toolbar, editor and preview panes, right panel, status bar.
+// The screen's frame, drawn from the state (docs/adr/0005): ribbon, sidebar, toolbar,
+// editor area, preview area, bottom panel, status bar and right sidebar (names: docs/glossary.md).
 import { devBadge } from "../build.ts";
 import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { basename, rel, stem } from "../path.ts";
-import { dirty, focused, type LeftPanel, type RightPanel, type State } from "../store.ts";
-import { canVertical, effectiveSide, previewLabel, previewsFor } from "../toolbar.ts";
+import { dirty, focused, type SidebarPanelId, type PreviewMode, type RightSidebarPanelId, type State } from "../store.ts";
+import { canVertical, effectivePreviewMode, previewLabel, previewsFor } from "../toolbar.ts";
 import { menuCommands } from "../commands.ts";
 import { hintOf } from "../keybind.ts";
 import { runCommand } from "../palette.ts";
 import { menu, onPress } from "./dom.ts";
-import { openSettings } from "./settings.ts";
+import { openSettingsDialog } from "./settings.ts";
 
-const RIBBON: [LeftPanel | "plot", string, string][] = [
+const RIBBON: [SidebarPanelId | "plot", string, string][] = [
   ["files", "files", "ファイル"],
   ["bookmarks", "map-pin", "ブックマークと最近開いたシート"],
   ["keywords", "tag", "キーワード"],
@@ -25,7 +25,7 @@ const RIBBON: [LeftPanel | "plot", string, string][] = [
   ["trash", "trash-2", "ゴミ箱"],
 ];
 
-const RIGHT: [RightPanel, string, string][] = [
+const RIGHT_SIDEBAR: [RightSidebarPanelId, string, string][] = [
   ["attach", "paperclip", "添付（目標、キーワード、書くこと、ノート）"],
   ["outline", "list", "アウトライン"],
   ["links", "link", "リンク（このシートを指すリンク、このシートから出るリンク）"],
@@ -33,17 +33,17 @@ const RIGHT: [RightPanel, string, string][] = [
 ];
 
 export type Shell = {
-  sideEl: HTMLElement;
-  leftBody: HTMLElement;
-  mainBody: HTMLElement;
-  sidePane: HTMLElement;
-  sideHead: HTMLElement;
-  sideBody: HTMLElement;
-  rightEl: HTMLElement;
-  rightBody: HTMLElement;
-  statusEl: HTMLElement;
-  /** The problems panel under the editor (docs/adr/0055). */
-  problemsEl: HTMLElement;
+  sidebarEl: HTMLElement;
+  sidebarBody: HTMLElement;
+  editorAreaBody: HTMLElement;
+  previewAreaEl: HTMLElement;
+  previewHead: HTMLElement;
+  previewBody: HTMLElement;
+  rightSidebarEl: HTMLElement;
+  rightSidebarBody: HTMLElement;
+  statusBarEl: HTMLElement;
+  /** The bottom panel under the editor area and the preview area (docs/adr/0055). */
+  bottomPanelEl: HTMLElement;
 };
 
 export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): Shell => {
@@ -53,65 +53,65 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
       <span class="grow" data-tauri-drag-region></span>
       <span class="iconbtn" data-settings title="設定">${icon("settings")}</span>
     </div>
-    <div class="side">
-      <div class="wsbar" data-tauri-drag-region><span class="name" data-wsmenu></span><span class="br"></span></div>
+    <div class="sidebar">
+      <div class="workspace-bar" data-tauri-drag-region><span class="name" data-wsmenu></span><span class="br"></span></div>
       <div class="leftbody"></div>
     </div>
     <div class="center">
       <div class="toolbar" data-tauri-drag-region></div>
       <div class="split">
-        <div class="pane main-pane"><div class="pbody"></div></div>
-        <div class="pane side-pane" hidden><div class="phead"></div><div class="pbody"></div></div>
+        <div class="editor-area"><div class="pbody"></div></div>
+        <div class="preview-area" hidden><div class="phead"></div><div class="pbody"></div></div>
       </div>
-      <div class="problems-panel" hidden></div>
-      <div class="status"></div>
+      <div class="bottom-panel" hidden></div>
+      <div class="status-bar"></div>
     </div>
-    <div class="right"><div class="rhead" data-tauri-drag-region></div><div class="rbody"></div></div>`;
+    <div class="right-sidebar"><div class="rhead" data-tauri-drag-region></div><div class="rbody"></div></div>`;
   const $ = (s: string) => root.querySelector<HTMLElement>(s)!;
   const shell: Shell = {
-    sideEl: $(".side"),
-    leftBody: $(".leftbody"),
-    mainBody: $(".main-pane .pbody"),
-    sidePane: $(".side-pane"),
-    sideHead: $(".side-pane .phead"),
-    sideBody: $(".side-pane .pbody"),
-    rightEl: $(".right"),
-    rightBody: $(".right .rbody"),
-    statusEl: $(".status"),
-    problemsEl: $(".problems-panel"),
+    sidebarEl: $(".sidebar"),
+    sidebarBody: $(".leftbody"),
+    editorAreaBody: $(".editor-area .pbody"),
+    previewAreaEl: $(".preview-area"),
+    previewHead: $(".preview-area .phead"),
+    previewBody: $(".preview-area .pbody"),
+    rightSidebarEl: $(".right-sidebar"),
+    rightSidebarBody: $(".right-sidebar .rbody"),
+    statusBarEl: $(".status-bar"),
+    bottomPanelEl: $(".bottom-panel"),
   };
   const toolbar = $(".toolbar");
 
   onPress($(".ribbon"), (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>("[data-rib],[data-settings]");
     if (!t) return;
-    if (t.dataset.settings !== undefined) return void openSettings(ctx);
+    if (t.dataset.settings !== undefined) return void openSettingsDialog(ctx);
     if (t.dataset.rib === "plot") return onPlot();
-    ctx.store.dispatch({ type: "left", panel: t.dataset.rib as LeftPanel });
+    ctx.store.dispatch({ type: "sidebarPanel", panel: t.dataset.rib as SidebarPanelId });
   });
 
-  onPress($(".wsbar"), (e) => {
+  onPress($(".workspace-bar"), (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>("[data-wsmenu]");
     if (!t) return;
     const s = ctx.store.get();
     menu(t, [
       ...s.workspaces.map((w) => ({ label: basename(w), icon: icon(w === s.workspace ? "check" : "dot", 14), run: () => ctx.store.dispatch({ type: "workspace", path: w }) })),
       "-",
-      { label: "ワークスペースを足す…", icon: icon("plus", 14), run: () => void openSettings(ctx, "workspaces") },
+      { label: "ワークスペースを足す…", icon: icon("plus", 14), run: () => void openSettingsDialog(ctx, "workspaces") },
     ]);
   });
 
   onPress(toolbar, (e) => {
-    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-tb],[data-side],[data-vert]");
+    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-toolbar],[data-preview-mode],[data-vert]");
     if (!t) return;
     const s = ctx.store.get();
-    if (t.dataset.side) ctx.store.dispatch({ type: "side", side: t.dataset.side as State["side"] });
+    if (t.dataset.previewMode) ctx.store.dispatch({ type: "previewMode", mode: t.dataset.previewMode as PreviewMode });
     if (t.dataset.vert) ctx.store.dispatch({ type: "vertical", on: t.dataset.vert === "1" });
-    if (t.dataset.tb === "left") ctx.store.dispatch({ type: "left", panel: s.left });
-    if (t.dataset.tb === "right") ctx.store.dispatch({ type: "toggleRight" });
+    if (t.dataset.toolbar === "sidebar") ctx.store.dispatch({ type: "sidebarPanel", panel: s.sidebarPanel });
+    if (t.dataset.toolbar === "right-sidebar") ctx.store.dispatch({ type: "toggleRightSidebar" });
     // the build popup (docs/adr/0058)
-    if (t.dataset.tb === "build") ctx.statusActions.buildOptions?.(ctx);
-    if (t.dataset.tb === "more")
+    if (t.dataset.toolbar === "build") ctx.statusActions.buildOptions?.(ctx);
+    if (t.dataset.toolbar === "more-actions")
       menu(
         t,
         menuCommands(ctx.commands, s).map((c) => ({ label: c.label, icon: c.icon ? icon(c.icon, 14) : "", hint: hintOf(ctx, c), run: () => void runCommand(ctx, c) })),
@@ -120,19 +120,19 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
 
   onPress($(".rhead"), (e) => {
     const r = (e.target as HTMLElement).closest<HTMLElement>("[data-r]")?.dataset.r;
-    if (r) ctx.store.dispatch({ type: "right", panel: r as RightPanel });
+    if (r) ctx.store.dispatch({ type: "rightSidebarPanel", panel: r as RightSidebarPanelId });
   });
 
   return shell;
 };
 
 export const renderRibbon = (root: HTMLElement, s: State) =>
-  root.querySelectorAll<HTMLElement>("[data-rib]").forEach((b) => b.classList.toggle("on", s.showLeft && b.dataset.rib === s.left || b.dataset.rib === "plot" && s.plot !== null));
+  root.querySelectorAll<HTMLElement>("[data-rib]").forEach((b) => b.classList.toggle("on", s.showSidebar && b.dataset.rib === s.sidebarPanel || b.dataset.rib === "plot" && s.plot !== null));
 
-export const renderWsbar = (root: HTMLElement, s: State, branch: string) => {
-  const name = root.querySelector<HTMLElement>(".wsbar .name")!;
+export const renderWorkspaceBar = (root: HTMLElement, s: State, branch: string) => {
+  const name = root.querySelector<HTMLElement>(".workspace-bar .name")!;
   name.innerHTML = `${icon("chevrons-up-down", 13)}<span>${esc(s.workspace ? basename(s.workspace) : "ワークスペースなし")}</span>`;
-  root.querySelector<HTMLElement>(".wsbar .br")!.innerHTML = branch ? `${icon("git-branch", 12)}<span>${esc(branch)}</span>` : "";
+  root.querySelector<HTMLElement>(".workspace-bar .br")!.innerHTML = branch ? `${icon("git-branch", 12)}<span>${esc(branch)}</span>` : "";
 };
 
 /** The title of the focused sheet, the plot, or nothing. */
@@ -148,31 +148,31 @@ export const titleHtml = (s: State, titles: Map<string, string>) => {
 export const renderToolbar = (root: HTMLElement, s: State, ctx: Ctx, titles: Map<string, string>) => {
   const toolbar = root.querySelector<HTMLElement>(".toolbar")!;
   const d = focused(s);
-  const sides = d ? previewsFor(d.kind) : [];
-  const side = d ? effectiveSide(d.kind, s.side) : "none";
+  const modes = d ? previewsFor(d.kind) : [];
+  const mode = d ? effectivePreviewMode(d.kind, s.previewMode) : "none";
   // the editor's switch on the left, the preview's on the right (docs/adr/0005)
   toolbar.innerHTML = `
-    <span class="iconbtn" data-tb="left" title="サイドバー">${icon("panel-left")}</span>
+    <span class="iconbtn" data-toolbar="sidebar" title="サイドバー">${icon("panel-left")}</span>
     ${s.open.length && s.open.every((x) => canVertical(x.kind)) ? `<span class="seg"><span data-vert="1" class="${s.vertical ? "on" : ""}">縦</span><span data-vert="0" class="${s.vertical ? "" : "on"}">横</span></span>` : ""}
     <span class="title" data-tauri-drag-region>${devBadge(ctx.debug)}${titleHtml(s, titles)}</span>
-    ${sides.length ? `<span class="seg">${sides.map((k) => `<span data-side="${k}" class="${side === k ? "on" : ""}">${previewLabel(d!.kind, k)}</span>`).join("")}</span>` : ""}
-    ${d?.project ? `<span class="iconbtn" data-tb="build" title="ビルド">${icon("hammer")}</span>` : ""}
-    ${menuCommands(ctx.commands, s).length ? `<span class="iconbtn" data-tb="more" title="ほかの操作">${icon("more-horizontal")}</span>` : ""}
-    <span class="iconbtn ${s.showRight ? "on" : ""}" data-tb="right" title="右のパネル">${icon("panel-right")}</span>`;
+    ${modes.length ? `<span class="seg">${modes.map((k) => `<span data-preview-mode="${k}" class="${mode === k ? "on" : ""}">${previewLabel(d!.kind, k)}</span>`).join("")}</span>` : ""}
+    ${d?.project ? `<span class="iconbtn" data-toolbar="build" title="ビルド">${icon("hammer")}</span>` : ""}
+    ${menuCommands(ctx.commands, s).length ? `<span class="iconbtn" data-toolbar="more-actions" title="ほかの操作">${icon("more-horizontal")}</span>` : ""}
+    <span class="iconbtn ${s.showRightSidebar ? "on" : ""}" data-toolbar="right-sidebar" title="右サイドバー">${icon("panel-right")}</span>`;
 };
 
-export const renderRightHead = (shell: Shell, s: State) => {
-  shell.rightEl.classList.toggle("hidden", !s.showRight);
-  shell.rightEl.querySelector<HTMLElement>(".rhead")!.innerHTML = RIGHT.map(
-    ([k, i, t]) => `<span class="iconbtn ${s.right === k ? "on" : ""}" data-r="${k}" title="${t}">${icon(i)}</span>`,
+export const renderRightSidebarHead = (shell: Shell, s: State) => {
+  shell.rightSidebarEl.classList.toggle("hidden", !s.showRightSidebar);
+  shell.rightSidebarEl.querySelector<HTMLElement>(".rhead")!.innerHTML = RIGHT_SIDEBAR.map(
+    ([k, i, t]) => `<span class="iconbtn ${s.rightSidebarPanel === k ? "on" : ""}" data-r="${k}" title="${t}">${icon(i)}</span>`,
   ).join("");
-  shell.rightBody.className = `rbody ${s.right}`;
+  shell.rightSidebarBody.className = `rbody ${s.rightSidebarPanel}`;
 };
 
 export const renderStatus = (shell: Shell, s: State, ctx: Ctx) => {
   const parts = ctx.status.map((f) => f(s, ctx)).filter(Boolean);
-  shell.statusEl.innerHTML = parts.join("");
-  shell.statusEl.onclick = (e) => {
+  shell.statusBarEl.innerHTML = parts.join("");
+  shell.statusBarEl.onclick = (e) => {
     const k = (e.target as HTMLElement).closest<HTMLElement>("[data-status]")?.dataset.status;
     if (k) ctx.statusActions[k]?.(ctx);
   };

@@ -116,7 +116,7 @@ const zipFolder = async (ctx: Ctx, dir: string) => {
     if (!written) return;
     ctx.notify({ message: `${basename(written)} に書き出しました` });
     await reloadTree(ctx);
-    ctx.refresh(["left"]);
+    ctx.refresh(["sidebar"]);
   } catch (error) {
     notifyError(`zip に書き出せませんでした: ${String(error)}`);
   }
@@ -133,7 +133,7 @@ const copyFiles = async (ctx: Ctx, pressed: string) => {
 };
 
 // the tree is drawn anew on every change (a sheet chosen, a row opened); it stays where it was scrolled
-const draw = (el: HTMLElement, ctx: Ctx) => keepScroll(el, ".tree", () => drawRows(el, ctx));
+const draw = (el: HTMLElement, ctx: Ctx) => keepScroll(el, ".file-tree", () => drawRows(el, ctx));
 
 const drawRows = (el: HTMLElement, ctx: Ctx) => {
   const s = ctx.store.get();
@@ -145,7 +145,7 @@ const drawRows = (el: HTMLElement, ctx: Ctx) => {
       <span class="iconbtn" data-act="refresh" title="読みなおす">${icon("refresh-cw")}</span>
       <span class="iconbtn" data-act="collapse" title="すべて閉じる">${icon("chevrons-down-up")}</span>
     </div>
-    <div class="tree">${
+    <div class="file-tree">${
       !s.workspace
         ? `<div class="empty">ワークスペースを足してください。<br><span class="btn" data-act="add-ws">フォルダを選ぶ</span></div>`
         : rowsNow(ctx).map((r) => row(r, ctx)).join("") || `<div class="empty">空のワークスペースです。</div>`
@@ -191,7 +191,7 @@ const renameTreeItem = async (ctx: Ctx, from: string) => {
     ctx.store.dispatch({ type: "rename", from, to });
     for (const f of ctx.onRename) await f(from, to, ctx);
     await reloadTree(ctx);
-    ctx.refresh(["left"]);
+    ctx.refresh(["sidebar"]);
   } catch (error) {
     if (!renamed && prepared) {
       try { await prepared.rollback(); }
@@ -213,7 +213,7 @@ const createAt = async (ctx: Ctx, parent: string, dir: boolean) => {
     await api.createEntry(path, dir);
     await reloadTree(ctx);
     ctx.store.dispatch({ type: "expand", path: parent, on: true });
-    ctx.refresh(["left"]);
+    ctx.refresh(["sidebar"]);
     if (!dir) await ctx.open([path]);
   } catch (error) {
     notifyError(String(error));
@@ -254,7 +254,7 @@ export const runTreeAct = async (ctx: Ctx, act: string) => {
       return addWorkspace(ctx);
     case "refresh":
       await reloadTree(ctx);
-      return ctx.refresh(["left"]);
+      return ctx.refresh(["sidebar"]);
     case "collapse":
       return ctx.store.dispatch({ type: "collapseAll" });
     case "new-folder": {
@@ -320,7 +320,7 @@ const toggleChapter = async (ctx: Ctx, path: string, project: string) => {
       ctx.store.dispatch({ type: "saved", path: manifestPath, text: updated });
     }
     await reloadTree(ctx);
-    ctx.refresh(["left"]);
+    ctx.refresh(["sidebar"]);
   } catch (error) {
     notifyError(`manifest.toml の更新に失敗しました: ${String(error)}`);
   }
@@ -341,7 +341,7 @@ const exportSelected = async (ctx: Ctx, paths: string[]) => {
 
 export const mountTree = (ctx: Ctx) => {
   let projectOrderSave = Promise.resolve();
-  ctx.left.files = {
+  ctx.sidebar.files = {
     icon: "files",
     title: "ファイル",
     render: async (el) => {
@@ -397,7 +397,7 @@ export const mountTree = (ctx: Ctx) => {
     return (["up", "down"] as const).flatMap((direction): MenuItem[] => neighbors[direction]
       ? [{ label: direction === "up" ? "一つ上へ" : "一つ下へ", run: () => {
           ctx.config.projectOrder = moveProject(ws, entries, new Set(ctx.projects), ctx.config.projectOrder, path, direction);
-          ctx.refresh(["left"]);
+          ctx.refresh(["sidebar"]);
           projectOrderSave = projectOrderSave.then(() => ctx.saveConfig()).catch((error) => { notifyError(String(error)); });
         } }]
       : []);
@@ -428,7 +428,7 @@ export const mountTree = (ctx: Ctx) => {
 
   // a row's right-click: the items the other parts add
   document.addEventListener("contextmenu", (e) => {
-    const row = (e.target as HTMLElement).closest<HTMLElement>(".tree [data-file]:not([data-plot]), .tree [data-dir]");
+    const row = (e.target as HTMLElement).closest<HTMLElement>(".file-tree [data-file]:not([data-plot]), .file-tree [data-dir]");
     const path = row?.dataset.file ?? row?.dataset.dir;
     if (!row || !path) return;
     if (row.dataset.file && !ctx.store.get().selected.includes(path)) {
@@ -458,7 +458,7 @@ export const mountTree = (ctx: Ctx) => {
       c.config[setting] = !c.config[setting];
       await c.saveConfig();
       await reloadTree(c);
-      c.refresh(["left"]);
+      c.refresh(["sidebar"]);
       return true;
     },
   });

@@ -8,9 +8,9 @@ import { fuzzy } from "./fuzzy.ts";
 import { icon } from "./icons.ts";
 import { hintOf } from "./keybind.ts";
 import { openWindow } from "./preview/mount.ts";
-import { focused, type LeftPanel, type RightPanel, type SidePane } from "./store.ts";
+import { focused, type SidebarPanelId, type RightSidebarPanelId, type PreviewMode } from "./store.ts";
 import { previewsFor, verticalOn, canVertical } from "./toolbar.ts";
-import { openSettings } from "./ui/settings.ts";
+import { openSettingsDialog } from "./ui/settings.ts";
 import { runTreeAct } from "./ui/tree.ts";
 import { uiState } from "./uistate.ts";
 
@@ -47,11 +47,11 @@ const commandItems = (ctx: Ctx, q: string): PaletteItem[] =>
   }));
 
 /** Opens the box with some text in its input (">" for commands); with `alt`, a pick acts as with ⌘↩. */
-export const openPalette = (ctx: Ctx, initial = "", opts: { alt?: boolean } = {}) => {
-  document.querySelector(".palette")?.remove();
+export const openCommandPalette = (ctx: Ctx, initial = "", opts: { alt?: boolean } = {}) => {
+  document.querySelector(".command-palette")?.remove();
   const back = document.activeElement as HTMLElement | null;
   const box = document.createElement("div");
-  box.className = "palette";
+  box.className = "command-palette";
   box.innerHTML = `<input class="field" spellcheck="false" autocomplete="off"><ul></ul>`;
   const input = box.querySelector("input")!;
   const ul = box.querySelector("ul")!;
@@ -147,19 +147,19 @@ const editorCommand = (id: string, label: string, icon: string, keys?: Command["
   },
 });
 
-const LEFT: [LeftPanel, string, string][] = [
+const SIDEBAR: [SidebarPanelId, string, string][] = [
   ["files", "ファイル", "files"],
   ["git", "Git", "git-branch"],
   ["diagnostics", "診断", "triangle-alert"],
   ["library", "共有ライブラリ", "library-big"],
 ];
-const RIGHT: [RightPanel, string, string][] = [
+const RIGHT_SIDEBAR: [RightSidebarPanelId, string, string][] = [
   ["attach", "添付", "paperclip"],
   ["outline", "アウトライン", "list"],
   ["links", "リンク", "link"],
   ["library", "このプロジェクトの共有ライブラリ", "library-big"],
 ];
-const PREVIEW: [SidePane, string][] = [
+const PREVIEW: [PreviewMode, string][] = [
   ["none", "原稿のみ"],
   ["plain", "本文"],
   ["pages", "ページ"],
@@ -170,9 +170,9 @@ export const mountCommands = (ctx: Ctx) => {
   const hasEdit = () => !!focusedEdit(ctx);
   const withEdit = (id: string, c: Command): Command => ({ ...c, when: () => hasEdit() && !!focusedEdit(ctx)?.hasCommand(id) });
 
-  add({ id: "palette.open", label: "コマンドパレット", icon: "search", keys: ["Mod-Shift-p"], when: () => true, run: (c) => openPalette(c, ">") });
-  add({ id: "settings.open", label: "設定", icon: "settings", keys: ["Mod-,"], when: () => true, run: (c) => void openSettings(c) });
-  for (const s of ctx.settings) add({ id: `settings.${s.id}`, label: `設定：${s.label}`, icon: "settings", when: () => true, run: (c) => void openSettings(c, s.id) });
+  add({ id: "palette.open", label: "コマンドパレット", icon: "search", keys: ["Mod-Shift-p"], when: () => true, run: (c) => openCommandPalette(c, ">") });
+  add({ id: "settings.open", label: "設定", icon: "settings", keys: ["Mod-,"], when: () => true, run: (c) => void openSettingsDialog(c) });
+  for (const s of ctx.settings) add({ id: `settings.${s.id}`, label: `設定：${s.label}`, icon: "settings", when: () => true, run: (c) => void openSettingsDialog(c, s.id) });
 
   add({ id: "file.newSheet", label: "新しいシート", icon: "square-pen", when: (s) => !!s.workspace, run: (c) => runTreeAct(c, "new-file") });
   add({ id: "file.newFolder", label: "新しいフォルダ", icon: "folder-plus", when: (s) => !!s.workspace, run: (c) => runTreeAct(c, "new-folder") });
@@ -192,7 +192,7 @@ export const mountCommands = (ctx: Ctx) => {
     },
   });
 
-  for (const [panel, label, ic] of LEFT)
+  for (const [panel, label, ic] of SIDEBAR)
     add({
       id: `view.left.${panel}`,
       label: `サイドバー：${label}`,
@@ -200,12 +200,12 @@ export const mountCommands = (ctx: Ctx) => {
       when: () => true,
       run: (c) => {
         const s = c.store.get();
-        if (!(s.showLeft && s.left === panel)) c.store.dispatch({ type: "left", panel });
+        if (!(s.showSidebar && s.sidebarPanel === panel)) c.store.dispatch({ type: "sidebarPanel", panel });
       },
     });
-  add({ id: "view.toggleLeft", label: "サイドバーを出し入れ", icon: "panel-left", when: () => true, run: (c) => c.store.dispatch({ type: "left", panel: c.store.get().left }) });
-  for (const [panel, label, ic] of RIGHT) add({ id: `view.right.${panel}`, label: `右のパネル：${label}`, icon: ic, when: () => true, run: (c) => c.store.dispatch({ type: "right", panel }) });
-  add({ id: "view.toggleRight", label: "右のパネルを出し入れ", icon: "panel-right", when: () => true, run: (c) => c.store.dispatch({ type: "toggleRight" }) });
+  add({ id: "view.toggleSidebar", label: "サイドバーを出し入れ", icon: "panel-left", when: () => true, run: (c) => c.store.dispatch({ type: "sidebarPanel", panel: c.store.get().sidebarPanel }) });
+  for (const [panel, label, ic] of RIGHT_SIDEBAR) add({ id: `view.rightSidebar.${panel}`, label: `右サイドバー：${label}`, icon: ic, when: () => true, run: (c) => c.store.dispatch({ type: "rightSidebarPanel", panel }) });
+  add({ id: "view.toggleRightSidebar", label: "右サイドバーを出し入れ", icon: "panel-right", when: () => true, run: (c) => c.store.dispatch({ type: "toggleRightSidebar" }) });
   add({
     id: "view.plot",
     label: "プロット",
@@ -230,7 +230,7 @@ export const mountCommands = (ctx: Ctx) => {
         const d = focused(s);
         return !!d && previewsFor(d.kind).includes(side);
       },
-      run: (c) => c.store.dispatch({ type: "side", side }),
+      run: (c) => c.store.dispatch({ type: "previewMode", mode: side }),
     });
   add({
     id: "preview.window",
@@ -243,7 +243,7 @@ export const mountCommands = (ctx: Ctx) => {
     run: (c) => {
       const s = c.store.get();
       const d = focused(s)!;
-      void openWindow(c, s.side === "pages" ? "pages" : "plain", d.project!);
+      void openWindow(c, s.previewMode === "pages" ? "pages" : "plain", d.project!);
     },
   });
 

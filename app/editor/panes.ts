@@ -13,7 +13,7 @@ import { loadManifest } from "../separator.ts";
 import { closeTarget, dirty, type Doc, type State, type Tab } from "../store.ts";
 import { canVertical } from "../toolbar.ts";
 import { uiState } from "../uistate.ts";
-import { openPalette } from "../palette.ts";
+import { openCommandPalette } from "../palette.ts";
 import { api } from "../api.ts";
 import { revealItems, tabTarget } from "../reveal.ts";
 import { menu } from "../ui/dom.ts";
@@ -45,7 +45,7 @@ export const closeTab = async (ctx: Ctx, pane: number, index: number) => {
 };
 
 export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, index: number, scroller: HTMLElement | undefined) => Editor) => {
-  ctx.view.main = (el) => {
+  ctx.view.editorArea = (el) => {
     const root = h(`<div class="panes"></div>`);
     el.append(root);
     const views = new Map<string, View>();
@@ -109,7 +109,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       // the views are kept across a re-layout; only their panes change
       views.forEach((v) => v.el.remove());
       root.innerHTML = "";
-      paneEls = s.panes.map((_, i) => h(`<div class="epane" data-pane="${i}"><div class="tabbar"></div><div class="ebody"></div></div>`));
+      paneEls = s.panes.map((_, i) => h(`<div class="pane" data-pane="${i}"><div class="tabbar"></div><div class="ebody"></div></div>`));
       paneEls.forEach((p, i) => {
         if (i > 0) root.append(h(`<div class="ediv" title="ドラッグして幅を変える"></div>`));
         root.append(p);
@@ -172,7 +172,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
     root.addEventListener(
       "mousedown",
       (e) => {
-        const pe = (e.target as HTMLElement).closest<HTMLElement>(".epane");
+        const pe = (e.target as HTMLElement).closest<HTMLElement>(".pane");
         const pi = Number(pe?.dataset.pane);
         if (pe && pi !== ctx.store.get().pane) ctx.store.dispatch({ type: "selectPane", pane: pi });
       },
@@ -184,13 +184,13 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       if (t.closest(".ediv")) return dragDivider(e);
       const tab = t.closest<HTMLElement>("[data-tab]");
       if (!tab || t.closest("[data-tab-x]")) return;
-      dragTab(e, Number(tab.closest<HTMLElement>(".epane")!.dataset.pane), Number(tab.dataset.tab));
+      dragTab(e, Number(tab.closest<HTMLElement>(".pane")!.dataset.pane), Number(tab.dataset.tab));
     });
     root.addEventListener("mouseup", (e) => {
       const t = e.target as HTMLElement;
       if (e.button !== 0) return;
       const x = t.closest<HTMLElement>("[data-tab-x]");
-      const pane = Number(t.closest<HTMLElement>(".epane")?.dataset.pane);
+      const pane = Number(t.closest<HTMLElement>(".pane")?.dataset.pane);
       if (x) return void closeTab(ctx, pane, Number(x.dataset.tabX));
       if (t.closest("[data-tab-add]")) {
         const c = ctx.commands.find((c) => c.id === "file.newTab");
@@ -201,7 +201,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
     // a tab's right-click: "Finder で表示" for the sheet or plot it shows (docs/adr/0053)
     root.addEventListener("contextmenu", (e) => {
       const tab = (e.target as HTMLElement).closest<HTMLElement>("[data-tab]");
-      const pane = Number(tab?.closest<HTMLElement>(".epane")?.dataset.pane);
+      const pane = Number(tab?.closest<HTMLElement>(".pane")?.dataset.pane);
       const t = tab ? ctx.store.get().panes[pane]?.tabs[Number(tab.dataset.tab)] : undefined;
       const path = t ? tabTarget(t) : null;
       if (!tab || !path) return;
@@ -217,7 +217,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
         root.querySelectorAll(".tab.drop, .tabbar.drop").forEach((x) => x.classList.remove("drop", "after"));
         const bar = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>(".tabbar");
         if (!bar) return void (target = null);
-        const toPane = Number(bar.closest<HTMLElement>(".epane")!.dataset.pane);
+        const toPane = Number(bar.closest<HTMLElement>(".pane")!.dataset.pane);
         const tabs = [...bar.querySelectorAll<HTMLElement>("[data-tab]")];
         let k = tabs.findIndex((x) => e.clientX < x.getBoundingClientRect().left + x.getBoundingClientRect().width / 2);
         if (k < 0) k = tabs.length;
@@ -269,7 +269,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
 
   const tabCount = (st: State) => st.panes[st.pane]?.tabs.length ?? 0;
   addCommands(ctx.commands, 
-    { id: "file.newTab", label: "新しいタブでシートを開く", icon: "plus", when: (st) => !!st.workspace, run: (c) => openPalette(c, "", { alt: true }) },
+    { id: "file.newTab", label: "新しいタブでシートを開く", icon: "plus", when: (st) => !!st.workspace, run: (c) => openCommandPalette(c, "", { alt: true }) },
     {
       id: "file.closeTab",
       label: "タブを閉じる",

@@ -41,7 +41,7 @@ export type TextEditor = {
   setDiagnostics: (list: Diag[], source?: string) => void;
   /** The tokenizer's colours, turned off once the server's semantic tokens arrive. */
   setFallbackColors: (on: boolean) => void;
-  /** Every source's diagnostics, with 1-based lines and columns, for the problems panel (docs/adr/0055). */
+  /** Every source's diagnostics, with 1-based lines and columns, for the bottom panel (docs/adr/0055). */
   diagnostics: () => { line: number; col: number; severity: Severity; message: string; source?: string }[];
   /** Runs one of the editor's commands by id (docs/adr/0023); false when it has none by that id. */
   command: (id: string) => boolean;
@@ -100,7 +100,7 @@ export type EditorOptions = {
   keys?: (e: KeyboardEvent) => boolean;
   /** How the file's paragraphs are separated, for the page break estimates. */
   separator?: () => "blank-line" | "line";
-  /** After the diagnostics change (the problems panel, docs/adr/0055). */
+  /** After the diagnostics change (the bottom panel, docs/adr/0055). */
   onDiagnostics?: () => void;
 };
 

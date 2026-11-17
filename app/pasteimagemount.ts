@@ -37,7 +37,7 @@ const paste = async (ctx: Ctx, t: TextEditor, path: string, kind: string, files:
   t.apply([{ from: at, insert }], "input.paste-image");
   ctx.toast(kind === "gm" ? "images/ に保存し、@figure を差し込みました" : "画像を差し込みました");
   await reloadTree(ctx);
-  ctx.refresh(["left"]);
+  ctx.refresh(["sidebar"]);
 };
 
 export const mountPasteImage = (ctx: Ctx) => {

@@ -150,7 +150,7 @@ const replaceRun = async (ctx: Ctx, all: boolean, rerun: () => Promise<Found | s
   // as after a save: the marks, the tree, the Git panel and the lint
   if (open.some((d) => touched.has(d.path))) await ctx.save(open.filter((d) => touched.has(d.path)).map((d) => d.path));
   await reloadTree(ctx);
-  ctx.refresh(["left"]);
+  ctx.refresh(["sidebar"]);
   await rerun();
   // the files changed on disk get their lint and preflight too (docs/adr/0041)
   await diagHooks.recheck(projectsTouched([...touched], ctx.projects));
@@ -158,7 +158,7 @@ const replaceRun = async (ctx: Ctx, all: boolean, rerun: () => Promise<Found | s
 
 export const mountSearch = (ctx: Ctx) => {
   let built: HTMLElement | null = null;
-  ctx.left.search = {
+  ctx.sidebar.search = {
     icon: "search",
     title: "検索",
     render: (el) => {
@@ -241,7 +241,7 @@ export const mountSearch = (ctx: Ctx) => {
     when: () => true,
     run: (c) => {
       const s = c.store.get();
-      if (s.left !== "search" || !s.showLeft) c.store.dispatch({ type: "left", panel: "search" });
+      if (s.sidebarPanel !== "search" || !s.showSidebar) c.store.dispatch({ type: "sidebarPanel", panel: "search" });
       setTimeout(() => document.querySelector<HTMLInputElement>(".search [data-q]")?.focus(), 50);
     },
   });

@@ -16,7 +16,7 @@ import { finishWrite, mayWrite, mountWatch } from "./watchmount.ts";
 import { guardLinks } from "./links.ts";
 import { item } from "./ui/settings.ts";
 import { debugBuild } from "./build.ts";
-import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
+import { mountShell, renderRibbon, renderRightSidebarHead, renderStatus, renderToolbar, renderWorkspaceBar, type Shell } from "./ui/shell.ts";
 import { openPaths, saveSheets } from "./docs.ts";
 import { mountTree, reloadTree, treeReloaded } from "./ui/tree.ts";
 import { readTitleOnSave } from "./savedtitles.ts";
@@ -42,7 +42,7 @@ import { mountImageDrag } from "./imagedrag.ts";
 import { mountDragOut } from "./dragout.ts";
 import { mountDiagnostics } from "./diag/mount.ts";
 import { mountSearch } from "./searchpanel.ts";
-import { mountProblems } from "./problemsmount.ts";
+import { mountBottomPanel } from "./problemsmount.ts";
 import { mountProjectBuild } from "./projectbuildmount.ts";
 import { mountMdConvert } from "./mdconvert.ts";
 import { mountPlugins } from "./plugins/mount.ts";
@@ -50,7 +50,7 @@ import { currentBranch, mountGit } from "./gitpanel.ts";
 import { rel } from "./path.ts";
 
 /** The parts of the state kept between launches, in config.json's `ui` (docs/adr/0004). */
-const KEPT = ["left", "showLeft", "right", "showRight", "side", "vertical", "expanded", "workspace"] as const;
+const KEPT = ["sidebarPanel", "showSidebar", "rightSidebarPanel", "showRightSidebar", "previewMode", "vertical", "expanded", "workspace"] as const;
 const keep = (s: State) => uiState().merge(Object.fromEntries(KEPT.map((k) => [k, s[k]])));
 const kept = (ui: Record<string, unknown>): Partial<State> => Object.fromEntries(KEPT.filter((k) => k in ui).map((k) => [k, ui[k]]));
 
@@ -91,8 +91,8 @@ const start = async () => {
     },
     toast,
     notify,
-    left: {},
-    right: {},
+    sidebar: {},
+    rightSidebar: {},
     status: [],
     statusActions: {},
     gitChanged: [],
@@ -127,7 +127,7 @@ const start = async () => {
       return out && out.code === 0 ? out.stdout : null;
     },
     // before the frame is drawn there is nothing to redraw (the daily commit may finish first)
-    refresh: (what = ["left", "right", "status", "side"]) => void (shell && draw(store.get(), store.get(), what)),
+    refresh: (what = ["sidebar", "rightSidebar", "status", "previewArea"]) => void (shell && draw(store.get(), store.get(), what)),
   };
 
   ctx.settings.push({
@@ -153,27 +153,27 @@ const start = async () => {
 
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(config));
 
-  let cleanupMain: (() => void) | void;
+  let cleanupEditorArea: (() => void) | void;
   const draw = (s: State, prev: State | null, what: string[] = []) => {
     const changed = (k: keyof State) => !prev || prev[k] !== s[k];
     renderRibbon(document.body, s);
-    shell.sideEl.classList.toggle("hidden", !s.showLeft);
-    if (changed("workspace")) renderWsbar(document.body, s, currentBranch());
+    shell.sidebarEl.classList.toggle("hidden", !s.showSidebar);
+    if (changed("workspace")) renderWorkspaceBar(document.body, s, currentBranch());
     renderToolbar(document.body, s, ctx, titles);
-    renderRightHead(shell, s);
-    if (what.includes("left") || changed("left") || changed("workspace") || changed("showLeft") || changed("expanded") || changed("selected") || changed("open") && !prev)
-      void ctx.left[s.left]?.render(shell.leftBody, ctx);
-    if (what.includes("right") || changed("right") || changed("focus") || changed("open") || changed("showRight"))
-      if (s.showRight) void ctx.right[s.right]?.render(shell.rightBody, ctx);
+    renderRightSidebarHead(shell, s);
+    if (what.includes("sidebar") || changed("sidebarPanel") || changed("workspace") || changed("showSidebar") || changed("expanded") || changed("selected") || changed("open") && !prev)
+      void ctx.sidebar[s.sidebarPanel]?.render(shell.sidebarBody, ctx);
+    if (what.includes("rightSidebar") || changed("rightSidebarPanel") || changed("focus") || changed("open") || changed("showRightSidebar"))
+      if (s.showRightSidebar) void ctx.rightSidebar[s.rightSidebarPanel]?.render(shell.rightSidebarBody, ctx);
     // the panes and tabs follow the store themselves (docs/adr/0024); made again only when asked
-    if (what.includes("main") || !prev) {
-      cleanupMain?.();
-      shell.mainBody.innerHTML = "";
-      cleanupMain = ctx.view.main?.(shell.mainBody, ctx);
+    if (what.includes("editorArea") || !prev) {
+      cleanupEditorArea?.();
+      shell.editorAreaBody.innerHTML = "";
+      cleanupEditorArea = ctx.view.editorArea?.(shell.editorAreaBody, ctx);
     }
-    if (what.includes("side") || changed("side") || changed("open") || changed("focus") || changed("vertical")) ctx.view.side?.(shell.sideHead, shell.sideBody, ctx);
-    if (!ctx.view.side) shell.sidePane.hidden = true;
-    if (what.includes("problems") || changed("focus") || changed("open") || !prev) ctx.view.problems?.(shell.problemsEl, ctx);
+    if (what.includes("previewArea") || changed("previewMode") || changed("open") || changed("focus") || changed("vertical")) ctx.view.previewArea?.(shell.previewHead, shell.previewBody, ctx);
+    if (!ctx.view.previewArea) shell.previewAreaEl.hidden = true;
+    if (what.includes("bottomPanel") || changed("focus") || changed("open") || !prev) ctx.view.bottomPanel?.(shell.bottomPanelEl, ctx);
     renderStatus(shell, s, ctx);
     keep(s);
   };
@@ -181,7 +181,7 @@ const start = async () => {
   mountTree(ctx);
   mountTools(ctx);
   mountEditors(ctx);
-  mountProblems(ctx); // before the LSP: the counts sit left of its state in the status bar
+  mountBottomPanel(ctx); // before the LSP: the counts sit left of its state in the status bar
   mountLsp(ctx);
   mountJson(ctx);
   mountDiagnostics(ctx); // lint and preflight sit beside the LSP in the status bar
@@ -212,12 +212,12 @@ const start = async () => {
   void listen<{ path: string }>("aleph:open", (e) => void ctx.open([e.payload.path]));
   await reloadTree(ctx);
   store.subscribe((s, prev) => {
-    if (s.workspace !== prev.workspace) void reloadTree(ctx).then(() => ctx.refresh(["left"]));
+    if (s.workspace !== prev.workspace) void reloadTree(ctx).then(() => ctx.refresh(["sidebar"]));
   });
   // a saved sheet's title is read again from what was saved; drawn again only when it changed (docs/adr/0079)
   store.subscribe((s, prev, a) =>
     void readTitleOnSave(s, prev, a, ctx.titles, {
-      redraw: () => ctx.refresh(["left"]),
+      redraw: () => ctx.refresh(["sidebar"]),
       reloaded: async () => {
         for (const f of treeReloaded) await f(ctx);
       },

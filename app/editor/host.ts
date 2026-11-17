@@ -41,7 +41,7 @@ const editorFor = (el: HTMLElement, doc: Doc, ctx: Ctx, _index: number, scroller
     },
     onCaret: () => ctx.refresh(["status"]),
     onCompletionChange: () => keyContextChanged(ctx),
-    onDiagnostics: () => ctx.refresh(["problems", "status"]),
+    onDiagnostics: () => ctx.refresh(["bottomPanel", "status"]),
     plugins: ctx.editorPlugins.flatMap((f) => f(doc, ctx) ?? []),
     keys: (e) => dispatchKey(ctx, e, true),
     separator: () => separatorOf(doc.project, doc.path, ctx.editors.get(doc.path)?.text() ?? doc.text),
@@ -101,7 +101,7 @@ export const mountEditors = (ctx: Ctx) => {
         c.config.markdownBreaks = mb;
         await c.saveConfig();
         markdownHook.version++;
-        c.refresh(["side"]);
+        c.refresh(["previewArea"]);
         return true;
       }
       const k = el.closest<HTMLElement>("[data-toggle]")?.dataset.toggle;

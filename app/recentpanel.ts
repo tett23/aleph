@@ -33,7 +33,7 @@ export const mountRecent = (ctx: Ctx) => {
       const kept = keepExisting(next, new Set(ok.filter((p): p is string => !!p)));
       if (kept.length !== next.length && all()[ws]?.join("\n") === next.join("\n")) put({ ...all(), [ws]: kept });
     });
-    if (s.showLeft && s.left === "bookmarks") ctx.refresh(["left"]);
+    if (s.showSidebar && s.sidebarPanel === "bookmarks") ctx.refresh(["sidebar"]);
   });
 
   bookmarkSections.push(async (c, ws) => {
@@ -49,7 +49,7 @@ export const mountRecent = (ctx: Ctx) => {
     const ws = c.store.get().workspace;
     if (t.closest("[data-recent-clear]") && ws) {
       put({ ...all(), [ws]: [] });
-      c.refresh(["left"]);
+      c.refresh(["sidebar"]);
       return true;
     }
     const p = t.closest<HTMLElement>("[data-recent]")?.dataset.recent;
