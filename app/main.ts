@@ -18,7 +18,8 @@ import { item } from "./ui/settings.ts";
 import { debugBuild } from "./build.ts";
 import { mountShell, renderRibbon, renderRightHead, renderStatus, renderToolbar, renderWsbar, type Shell } from "./ui/shell.ts";
 import { openPaths, saveSheets } from "./docs.ts";
-import { mountTree, reloadTree } from "./ui/tree.ts";
+import { mountTree, reloadTree, treeReloaded } from "./ui/tree.ts";
+import { readTitleOnSave } from "./savedtitles.ts";
 import { git, gitOk, mountTools } from "./tools.ts";
 import { startRecorder } from "./ed/recorder.ts";
 import { mountEditors } from "./editor/host.ts";
@@ -211,6 +212,15 @@ const start = async () => {
   store.subscribe((s, prev) => {
     if (s.workspace !== prev.workspace) void reloadTree(ctx).then(() => ctx.refresh(["left"]));
   });
+  // a saved sheet's title is read again from what was saved; drawn again only when it changed (docs/adr/0079)
+  store.subscribe((s, prev, a) =>
+    void readTitleOnSave(s, prev, a, ctx.titles, {
+      redraw: () => ctx.refresh(["left"]),
+      reloaded: async () => {
+        for (const f of treeReloaded) await f(ctx);
+      },
+    }),
+  );
 
   shell = mountShell(document.getElementById("app")!, ctx, () => {
     const s = store.get();
