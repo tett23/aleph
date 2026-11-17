@@ -1,7 +1,7 @@
 // The right panel's attachments and outline, the counts in the status bar, and
-// the characters and goal rings in the tree (docs/adr/0012).
+// the characters and goal rings in the tree (docs/adr/0012, docs/adr/0075).
 import { api } from "./api.ts";
-import { countText, type Stats } from "./count.ts";
+import { countsStatus, countText, goalProgress, sheetCounts, type Stats } from "./count.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { gmBlocks } from "./gm.ts";
@@ -130,7 +130,7 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
   const prose = ["gm", "md", "txt"].includes(d.kind);
   el.innerHTML = `
     ${prose ? `<div class="sec"><h5>目標 <small>${g.from === "hand" ? "手で決めた値" : g.from === "plot" ? "プロットの予定字数" : ""}</small></h5>
-      <div class="goal">${ring(g.goal ? st.chars / g.goal : 0, 44, 5)}
+      <div class="goal">${ring(goalProgress(st, g.goal), 44, 5)}
         <div class="t"><b>${st.chars.toLocaleString()}</b> / <input class="field" data-goal type="number" min="0" step="100" value="${m.goal ?? ""}" placeholder="${g.from === "plot" ? g.goal : "—"}"> 字<br>${
           g.goal ? `残り ${Math.max(0, g.goal - st.chars).toLocaleString()} 字 · ` : ""
         }原稿用紙 ${st.sheets} 枚</div>
@@ -223,9 +223,10 @@ export const mountAttach = (ctx: Ctx) => {
 
   ctx.status.push((s) => {
     const d = focused(s);
-    if (!d || !["gm", "md", "txt"].includes(d.kind)) return "";
-    const st = count(ctx, d.kind, d.project, d.path, d.text);
-    return `<span>${st.chars.toLocaleString()} 字</span><span>${st.words.toLocaleString()} 語</span><span>原稿用紙 ${st.sheets} 枚</span>`;
+    if (!d) return "";
+    // the editor's buffer, unsaved edits included: it follows input, undo, redo and sheet switches (docs/adr/0075)
+    const c = sheetCounts(d.kind, d.text, ctx.config.manuscript, separatorOf(d.project, d.path, d.text));
+    return c ? countsStatus(c) : "";
   });
 
   // the tree: characters of each .gm, and a ring for sheets with a goal
