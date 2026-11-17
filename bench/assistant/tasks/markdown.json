@@ -1,0 +1,217 @@
+[
+  {
+    "id": "md-heading-space",
+    "request": "見出しの # の後に空白が無いので直して",
+    "file": "notes.md",
+    "target": [
+      "#はじめに",
+      "",
+      "本文。"
+    ],
+    "expected": [
+      [
+        "# はじめに",
+        "",
+        "本文。"
+      ]
+    ],
+    "essential": true
+  },
+  {
+    "id": "md-bold-close",
+    "request": "「大切」を太字にしたかったのに、閉じる記号が抜けているので直して",
+    "file": "notes.md",
+    "target": [
+      "これは**大切なことです。"
+    ],
+    "expected": [
+      [
+        "これは**大切**なことです。"
+      ]
+    ],
+    "essential": true
+  },
+  {
+    "id": "md-link-space",
+    "request": "リンクにならないので、リンクの書き方を直して",
+    "file": "notes.md",
+    "target": [
+      "[Golem] (https://example.com/golem) を見る。"
+    ],
+    "expected": [
+      [
+        "[Golem](https://example.com/golem) を見る。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "md-close-fence",
+    "request": "コードブロックが閉じていないので閉じて",
+    "file": "notes.md",
+    "target": [
+      "手順：",
+      "",
+      "```sh",
+      "npm test"
+    ],
+    "expected": [
+      [
+        "手順：",
+        "",
+        "```sh",
+        "npm test",
+        "```"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "md-bullets",
+    "request": "箇条書きの記号を - にそろえて",
+    "file": "notes.md",
+    "target": [
+      "- 一つめ",
+      "* 二つめ",
+      "+ 三つめ"
+    ],
+    "expected": [
+      [
+        "- 一つめ",
+        "- 二つめ",
+        "- 三つめ"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "md-renumber",
+    "request": "番号付きリストの番号を 1 から順に振り直して",
+    "file": "notes.md",
+    "target": [
+      "1. 書く",
+      "1. 組む",
+      "5. 確かめる"
+    ],
+    "expected": [
+      [
+        "1. 書く",
+        "2. 組む",
+        "3. 確かめる"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "md-table-delimiter",
+    "request": "表の見出しの行の下に、区切りの行が無いので足して",
+    "file": "notes.md",
+    "target": [
+      "| 名前 | 値 |",
+      "| a | 1 |"
+    ],
+    "expected": [
+      [
+        "| 名前 | 値 |",
+        "| --- | --- |",
+        "| a | 1 |"
+      ],
+      [
+        "| 名前 | 値 |",
+        "|---|---|",
+        "| a | 1 |"
+      ],
+      [
+        "| 名前 | 値 |",
+        "| :--- | :--- |",
+        "| a | 1 |"
+      ],
+      [
+        "| 名前 | 値 |",
+        "|:---|:---|",
+        "| a | 1 |"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "md-image",
+    "request": "リンクではなく画像として表示されるように直して",
+    "file": "notes.md",
+    "target": [
+      "[表紙](cover.png)"
+    ],
+    "expected": [
+      [
+        "![表紙](cover.png)"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "md-quote-space",
+    "request": "引用の行の > の後に空白を入れて",
+    "file": "notes.md",
+    "target": [
+      ">引用です。",
+      ">二行目。"
+    ],
+    "expected": [
+      [
+        "> 引用です。",
+        "> 二行目。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "md-heading-level",
+    "request": "見出しの階層が飛んでいるので、### を ## にして",
+    "file": "notes.md",
+    "target": [
+      "# 章",
+      "",
+      "### 節",
+      "",
+      "本文。"
+    ],
+    "expected": [
+      [
+        "# 章",
+        "",
+        "## 節",
+        "",
+        "本文。"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "md-italic",
+    "request": "斜体の記号を * にそろえて",
+    "file": "notes.md",
+    "target": [
+      "_斜体_ と *斜体*"
+    ],
+    "expected": [
+      [
+        "*斜体* と *斜体*"
+      ]
+    ],
+    "essential": false
+  },
+  {
+    "id": "md-url-space",
+    "request": "リンクの URL に空白が入っているので、空白を %20 にして",
+    "file": "notes.md",
+    "target": [
+      "[資料](docs/my file.md)"
+    ],
+    "expected": [
+      [
+        "[資料](docs/my%20file.md)"
+      ]
+    ],
+    "essential": false
+  }
+]

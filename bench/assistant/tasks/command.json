@@ -1,0 +1,158 @@
+[
+  {
+    "id": "command-build",
+    "request": "原稿を PDF に組みたい。どのコマンドを使えばいい？",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "project.build",
+    "essential": true
+  },
+  {
+    "id": "command-convert-md",
+    "request": "Markdown で書いたこのファイルを、Golem の原稿の形式に変えたい",
+    "file": "notes.md",
+    "target": [
+      "# メモ",
+      "",
+      "本文。"
+    ],
+    "command": "md.convertToGm",
+    "essential": true
+  },
+  {
+    "id": "command-outline",
+    "request": "見出しの一覧を横に出して、構成を見ながら書きたい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "view.rightSidebar.outline",
+    "essential": false
+  },
+  {
+    "id": "command-keys",
+    "request": "キーの割り当てを変えたい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "settings.keys",
+    "essential": false
+  },
+  {
+    "id": "command-bookmark",
+    "request": "いま書いている行に印を付けて、あとで戻ってこられるようにしたい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "bookmark.toggle",
+    "essential": false
+  },
+  {
+    "id": "command-preview-pages",
+    "request": "組み上がりのページの形でプレビューを見たい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "preview.pages",
+    "essential": false
+  },
+  {
+    "id": "command-problems",
+    "request": "原稿の誤りや警告の一覧を見たい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "view.bottomPanel",
+    "essential": false
+  },
+  {
+    "id": "command-split",
+    "request": "二つのシートを左右に並べて書きたい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "view.split",
+    "essential": false
+  },
+  {
+    "id": "command-commit",
+    "request": "ここまでの変更を、履歴に残る形で記録したい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "git.commit",
+    "essential": false
+  },
+  {
+    "id": "command-trash",
+    "request": "要らなくなったこのシートを捨てたい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "file.trash",
+    "essential": false
+  },
+  {
+    "id": "command-copy-fonts",
+    "request": "共有ライブラリにあるフォントを、このプロジェクトに入れたい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "library.copyFonts",
+    "essential": false
+  },
+  {
+    "id": "command-replace",
+    "request": "シートの中の語を、まとめて別の語に置き換えたい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "editor.find",
+    "essential": false
+  },
+  {
+    "id": "command-new-project",
+    "request": "新しく本のプロジェクトを作りたい",
+    "file": "chapters/01.gm",
+    "target": [
+      "# はじめに",
+      "",
+      "本文。"
+    ],
+    "command": "file.newProject",
+    "essential": false
+  }
+]
