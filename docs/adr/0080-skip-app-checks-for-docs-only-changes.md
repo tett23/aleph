@@ -1,6 +1,6 @@
 # ADR 0080: 文書だけの変更では CI のビルドとテストを省く
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
