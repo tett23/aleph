@@ -87,6 +87,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0082](adr/0082-ui-names-and-glossary.md) | 画面の要素の正式な名前と英語の名前を決めて [用語集](glossary.md) にまとめ、画面の文言、仕様書、コードの名前を合わせる。古い名前で保存された `config.json` の画面の状態とキーの割り当ては読みかえる（実装済み） |
 | [ADR 0083](adr/0083-rename-sidebar-panel-command-ids.md) | サイドバーのパネルを開くコマンドの ID を `view.left.<パネル>` から `view.sidebar.<パネル>` に変え、古い ID を読みかえる（実装済み） |
 | [ADR 0084](adr/0084-docs-read-by-tests-are-not-docs-only.md) | テストが読む文書の変更では、CI のビルドとテストを省かない（実装済み） |
+| [ADR 0085](adr/0085-run-assistant-benchmark-nightly.md) | アシスタントのローカルのモデルの計測と予算の確かめを、push ごとではなく毎晩一度にし、main が前の計測から変わらない夜は省く（実装済み） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
@@ -102,6 +103,7 @@ Aleph は Tauri 2 のアプリで、画面を TypeScript（`app/`）、ファイ
 - テストは、TypeScript は `node --test`（Node が型を取り除いて実行する）、Rust は `cargo test` で書く。CI の `app` のジョブが macOS で、型検査、`node --test`、Vite のビルド、rustfmt、clippy、`cargo test` を実行する。
 - 変更したファイルがすべて文書（`README.md`、`README.ja.md`、`CONTRIBUTING.md`、`CONTRIBUTING.ja.md`、`docs/adr/`、`docs/specifications.md`、`docs/roadmap.md`、`docs/glossary.md`、`docs/research/`、`docs/audits/`、`docs/audit/`、`docs/benchmarks/`、`docs/benchmark/` の下）のときは、CI の `changes` のジョブが `scripts/docs-only.sh` でそれを見分け、`app` のジョブを省く（[ADR 0080](adr/0080-skip-app-checks-for-docs-only-changes.md)）。ただし、テストが読む文書（`docs/glossary.md`、`docs/specifications.md`、`docs/adr/0082-ui-names-and-glossary.md`）は文書とみなさず、変えると `app` のジョブを走らせる。テストのファイルが引用符で名指す文書を `scripts/docs-only.sh` が文書とみなすと、テストが落ちる（[ADR 0084](adr/0084-docs-read-by-tests-are-not-docs-only.md)）。変更したファイルの一覧を作れないとき、変更したファイルが無いとき、ほかのファイル（ワークフローを含む）を変えたときは、`app` を走らせる。`adr` と `translations` のジョブと `audit` のワークフローは、どの変更でも走る。
 - CI の `audit` のジョブ（`.github/workflows/audit.yml`）が、プルリクエスト、main、週に一度の定期の実行で、`npm audit --omit=dev --audit-level=high` と、版を固定した `cargo audit` を走らせる（[ADR 0049](adr/0049-dependency-audit-in-ci.md)）。既知の脆弱性を一時的に許すときは、advisory の ID、理由、見直す日を書く（cargo は `src-tauri/.cargo/audit.toml`）。理由のない許可は置かない。
+- アシスタントのローカルのモデルの計測（`.github/workflows/assistant-bench.yml`、`bench/assistant/run`）は、標準の macOS のランナーで、毎晩一度、日本時間の午前 3 時 17 分（cron は UTC の `17 18 * * *`）と、手で動かしたときに走る（[ADR 0085](adr/0085-run-assistant-benchmark-nightly.md)）。main への push とプルリクエストでは走らず、マージを止めない。毎晩の実行は、main の先頭のコミットが、最も新しい計測を終えた実行のコミットと同じなら、計測と予算の確かめを省く。計測を終えた実行とは、計測のジョブのすべてと、`analyze`、`budget-measure`、`budget-report` が成功した main の実行である。どれかが止まるか失敗した実行は数えないので、次の夜にもう一度計測する。手で動かした実行は、いつも計測する。計測のジョブは、モデルとコンテキストの組ごとに一つで、時間の上限は 360 分である。前の計測との比べ（回帰）は、計測を終えた前の 4 回の実行と比べる。予算（[`docs/budgets.md`](budgets.md)）は、同じ実行の中で、一度の計測の値を三つの指標に使って確かめる。
 
 ## 画面と Rust の信頼の境界
 

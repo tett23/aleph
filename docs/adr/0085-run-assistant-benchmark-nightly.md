@@ -1,6 +1,6 @@
 # ADR 0085: アシスタントの計測と予算の確かめを、毎晩一度にする
 
-Status: proposed
+Status: accepted
 
 ## 文脈
 
