@@ -14,6 +14,7 @@ import { flatten, IMAGE_KINDS, kindOf, opensOnClick, projectOf, projectsIn, sele
 import { handedOver, zipNames } from "../handover.ts";
 import { golem } from "../tools.ts";
 import { ask, choiceDialog, menu, toast, type MenuItem } from "./dom.ts";
+import { keepScroll } from "./scroll.ts";
 import { item, toggle } from "./settings.ts";
 import { revealItems } from "../reveal.ts";
 import { canRenameTreeItem, renameTarget } from "../tree-rename.ts";
@@ -131,7 +132,10 @@ const copyFiles = async (ctx: Ctx, pressed: string) => {
   }
 };
 
-const draw = (el: HTMLElement, ctx: Ctx) => {
+// the tree is drawn anew on every change (a sheet chosen, a row opened); it stays where it was scrolled
+const draw = (el: HTMLElement, ctx: Ctx) => keepScroll(el, ".tree", () => drawRows(el, ctx));
+
+const drawRows = (el: HTMLElement, ctx: Ctx) => {
   const s = ctx.store.get();
   el.innerHTML = `<div class="acts">
       <span class="iconbtn" data-act="new-file" title="新しいシート">${icon("square-pen")}</span>
