@@ -1,6 +1,6 @@
 # ADR 0082: 画面の要素の名前を決め、用語集にまとめる
 
-Status: accepted-pending
+Status: accepted
 
 ## 文脈
 

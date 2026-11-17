@@ -14,11 +14,11 @@ export type Doc = {
   grid: Grid;
 };
 
-export type LeftPanel = "files" | "bookmarks" | "keywords" | "search" | "git" | "diagnostics" | "library" | "trash";
-export type RightPanel = "attach" | "outline" | "links" | "library";
-export type SidePane = "none" | "plain" | "pages";
+export type SidebarPanelId = "files" | "bookmarks" | "keywords" | "search" | "git" | "diagnostics" | "library" | "trash";
+export type RightSidebarPanelId = "attach" | "outline" | "links" | "library";
+export type PreviewMode = "none" | "plain" | "pages";
 
-/** A tab: one sheet, chapters opened together (and the one the right panel follows), or a project's plot (docs/adr/0024). */
+/** A tab: one sheet, chapters opened together (and the one the right sidebar follows), or a project's plot (docs/adr/0024). */
 export type Tab = { id: number; open: Doc[]; focus: number; plot: string | null };
 /** A pane of the editor area: its tabs and the selected one. */
 export type Pane = { tabs: Tab[]; active: number };
@@ -26,11 +26,11 @@ export type Pane = { tabs: Tab[]; active: number };
 export type State = {
   workspaces: string[];
   workspace: string | null;
-  left: LeftPanel;
-  showLeft: boolean;
-  right: RightPanel;
-  showRight: boolean;
-  side: SidePane;
+  sidebarPanel: SidebarPanelId;
+  showSidebar: boolean;
+  rightSidebarPanel: RightSidebarPanelId;
+  showRightSidebar: boolean;
+  previewMode: PreviewMode;
   vertical: boolean;
   /** The editor area's panes (one, or two side by side), and the selected one. */
   panes: Pane[];
@@ -39,7 +39,7 @@ export type State = {
   seq: number;
   /** The selected tab's sheets, in order (a copy kept by the reducer). One sheet is an array of one. */
   open: Doc[];
-  /** The index in `open` of the sheet the right panel and the status bar follow. */
+  /** The index in `open` of the sheet the right sidebar and the status bar follow. */
   focus: number;
   /** The rows selected in the tree, and where a shift-click range starts. */
   selected: string[];
@@ -67,10 +67,10 @@ export type Action =
   | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "automatic" | "intermediate"; beforeFormat?: string }
   | { type: "rename"; from: string; to: string }
   | { type: "select"; paths: string[]; anchor?: string | null }
-  | { type: "left"; panel: LeftPanel }
-  | { type: "right"; panel: RightPanel }
-  | { type: "toggleRight" }
-  | { type: "side"; side: SidePane }
+  | { type: "sidebarPanel"; panel: SidebarPanelId }
+  | { type: "rightSidebarPanel"; panel: RightSidebarPanelId }
+  | { type: "toggleRightSidebar" }
+  | { type: "previewMode"; mode: PreviewMode }
   | { type: "vertical"; on: boolean }
   | { type: "expand"; path: string; on: boolean }
   | { type: "collapseAll" }
@@ -79,11 +79,11 @@ export type Action =
 export const initialState = (): State => ({
   workspaces: [],
   workspace: null,
-  left: "files",
-  showLeft: true,
-  right: "attach",
-  showRight: true,
-  side: "none",
+  sidebarPanel: "files",
+  showSidebar: true,
+  rightSidebarPanel: "attach",
+  showRightSidebar: true,
+  previewMode: "none",
   vertical: false,
   panes: [{ tabs: [], active: 0 }],
   pane: 0,
@@ -290,15 +290,15 @@ export const reduce = (s: State, a: Action): State => {
     }
     case "select":
       return { ...s, selected: a.paths, anchor: a.anchor === undefined ? s.anchor : a.anchor };
-    case "left":
+    case "sidebarPanel":
       // the same icon again folds the sidebar
-      return s.left === a.panel && s.showLeft ? { ...s, showLeft: false } : { ...s, left: a.panel, showLeft: true };
-    case "right":
-      return { ...s, right: a.panel, showRight: true };
-    case "toggleRight":
-      return { ...s, showRight: !s.showRight };
-    case "side":
-      return { ...s, side: a.side };
+      return s.sidebarPanel === a.panel && s.showSidebar ? { ...s, showSidebar: false } : { ...s, sidebarPanel: a.panel, showSidebar: true };
+    case "rightSidebarPanel":
+      return { ...s, rightSidebarPanel: a.panel, showRightSidebar: true };
+    case "toggleRightSidebar":
+      return { ...s, showRightSidebar: !s.showRightSidebar };
+    case "previewMode":
+      return { ...s, previewMode: a.mode };
     case "vertical":
       return { ...s, vertical: a.on };
     case "expand": {
@@ -369,7 +369,7 @@ export const dropMissing = (t: TabsUi, exists: (path: string) => boolean): TabsU
   return { pane: Math.max(0, Math.min(t.pane, panes.length - 1)), panes: panes.length ? panes : [{ active: 0, tabs: [] }] };
 };
 
-/** The sheet the right panel and the status bar follow. */
+/** The sheet the right sidebar and the status bar follow. */
 export const focused = (s: State): Doc | null => s.open[s.focus] ?? null;
 
 export const dirty = (d: Doc) => d.text !== d.saved;

@@ -197,7 +197,7 @@ export const mountWatch = (ctx: Ctx) => {
     for (const d of allDocs(ctx.store.get())) if (paths.includes(d.path) || under(d.path, rescan)) void followChange(ctx, d.path);
     if (paths.length || rescan.length) {
       clearTimeout(treeTimer);
-      treeTimer = window.setTimeout(() => void reloadTree(ctx).then(() => ctx.refresh(["left"])), 500);
+      treeTimer = window.setTimeout(() => void reloadTree(ctx).then(() => ctx.refresh(["sidebar"])), 500);
     }
     if (git) {
       clearTimeout(gitTimer);

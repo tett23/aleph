@@ -1,4 +1,4 @@
-// The keywords panel in the left sidebar (docs/adr/0028): the writer's keywords
+// The keywords panel in the sidebar (docs/adr/0028): the writer's keywords
 // of every root of the workspace with their counts, and the plot's names by
 // column; pressing one lists its sheets, ⌘ narrows to sheets with all chosen.
 import { addCommands } from "./commands.ts";
@@ -46,7 +46,7 @@ const draw = async (el: HTMLElement, ctx: Ctx) => {
   el.innerHTML = `<div class="keywords">
     <div class="sec"><h5>キーワード</h5>${
       mine.map((c) => `<div class="kwr ${on("mine", c.keyword) ? "on" : ""}" data-kw="${esc(c.keyword)}"><span>${esc(c.keyword)}</span><small>${c.count}</small></div>`).join("") ||
-      `<div class="empty">右のパネルの「添付」で、シートにキーワードを付けます。</div>`
+      `<div class="empty">右サイドバーの「添付」で、シートにキーワードを付けます。</div>`
     }</div>
     ${SOURCES.filter(([k]) => fromPlot[k].length)
       .map(([k, label]) => `<div class="sec"><h5>プロットから：${label}</h5>${fromPlot[k].map((n) => `<div class="kwr ${on("plot", n) ? "on" : ""}" data-kw-plot="${esc(n)}"><span>${esc(n)}</span></div>`).join("")}</div>`)
@@ -61,11 +61,11 @@ const everywhere = async (ctx: Ctx, f: (m: Root["meta"]) => Root["meta"]) => {
     const next = f(r.meta);
     if (JSON.stringify(next) !== JSON.stringify(r.meta)) await putMeta(r.root, next);
   }
-  ctx.refresh(["left", "right"]);
+  ctx.refresh(["sidebar", "rightSidebar"]);
 };
 
 export const mountKeywords = (ctx: Ctx) => {
-  ctx.left.keywords = {
+  ctx.sidebar.keywords = {
     icon: "tag",
     title: "キーワード",
     render: async (el) => {
@@ -82,7 +82,7 @@ export const mountKeywords = (ctx: Ctx) => {
           chosen = { kind: "mine", names };
         } else if (p !== undefined) chosen = { kind: "plot", names: chosen.kind === "plot" && chosen.names[0] === p ? [] : [p] };
         else return;
-        ctx.refresh(["left"]);
+        ctx.refresh(["sidebar"]);
       };
       el.oncontextmenu = (e) => {
         const row = (e.target as HTMLElement).closest<HTMLElement>("[data-kw]");
@@ -122,7 +122,7 @@ export const mountKeywords = (ctx: Ctx) => {
     when: () => true,
     run: (c) => {
       const s = c.store.get();
-      if (!(s.showLeft && s.left === "keywords")) c.store.dispatch({ type: "left", panel: "keywords" });
+      if (!(s.showSidebar && s.sidebarPanel === "keywords")) c.store.dispatch({ type: "sidebarPanel", panel: "keywords" });
     },
   });
 };

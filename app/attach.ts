@@ -1,4 +1,4 @@
-// The right panel's attachments and outline, the counts in the status bar, and
+// The right sidebar's attachments and outline, the counts in the status bar, and
 // the characters and goal rings in the tree (docs/adr/0012, docs/adr/0075).
 import { api } from "./api.ts";
 import { countsStatus, countText, goalProgress, sheetCounts, type Stats } from "./count.ts";
@@ -74,7 +74,7 @@ const charsOf = (ctx: Ctx, path: string): number | null => {
       counts.set(path, count(ctx, "gm", project, path, await api.readText(path).catch(() => "")).chars);
       pending.delete(path);
       clearTimeout(redraw);
-      redraw = window.setTimeout(() => ctx.refresh(["left"]), 200);
+      redraw = window.setTimeout(() => ctx.refresh(["sidebar"]), 200);
     })();
   }
   return null;
@@ -92,10 +92,10 @@ const ring = (pct: number, size: number, stroke: number) => {
 const goalFor = (ctx: Ctx, path: string) => {
   const root = rootOf(ctx, path);
   const m = root ? metas.get(root) : undefined;
-  if (root && !metas.has(root)) void loadMeta(root).then(() => ctx.refresh(["left"]));
+  if (root && !metas.has(root)) void loadMeta(root).then(() => ctx.refresh(["sidebar"]));
   const project = projectOf(path, ctx.projects);
   const rows = project ? plotRowsNow(project) : null;
-  if (project && !rows) void plotRows(project).then(() => ctx.refresh(["left"]));
+  if (project && !rows) void plotRows(project).then(() => ctx.refresh(["sidebar"]));
   return goalOf(m && root ? metaFor(m, rel(root, path)).goal : undefined, project && rows ? targetFor(rows, project, path) : null);
 };
 
@@ -171,13 +171,13 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
     if (x.dataset.kwAdd === undefined || e.key !== "Enter" || e.isComposing) return;
     e.preventDefault();
     meta[key] = { ...metaFor(meta, key), keywords: addKeyword(metaFor(meta, key).keywords ?? [], x.value) };
-    void saveMeta(root).then(() => ctx.refresh(["right", "left"]));
+    void saveMeta(root).then(() => ctx.refresh(["rightSidebar", "sidebar"]));
   };
   el.onclick = (e) => {
     const k = (e.target as HTMLElement).closest<HTMLElement>("[data-kw-rm]")?.dataset.kwRm;
     if (k === undefined) return;
     meta[key] = { ...metaFor(meta, key), keywords: removeKeyword(metaFor(meta, key).keywords ?? [], k) };
-    void saveMeta(root).then(() => ctx.refresh(["right", "left"]));
+    void saveMeta(root).then(() => ctx.refresh(["rightSidebar", "sidebar"]));
   };
   el.onchange = (e) => {
     const x = e.target as HTMLInputElement;
@@ -185,7 +185,7 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
       const k = x.dataset.must;
       update((v) => ({ ...v, done: x.checked ? [...v.done.filter((d) => d !== k), k] : v.done.filter((d) => d !== k) }));
       x.closest("label")?.classList.toggle("done", x.checked);
-    } else if (x.dataset.goal !== undefined) ctx.refresh(["right", "left"]);
+    } else if (x.dataset.goal !== undefined) ctx.refresh(["rightSidebar", "sidebar"]);
   };
 };
 
@@ -218,8 +218,8 @@ export const mountAttach = (ctx: Ctx) => {
     pendingMetaSaves.clear();
     await Promise.all(roots.map(saveMeta));
   });
-  ctx.right.attach = { icon: "paperclip", title: "添付", render: (el) => drawAttach(el, ctx) };
-  ctx.right.outline = { icon: "list", title: "アウトライン", render: (el) => drawOutline(el, ctx) };
+  ctx.rightSidebar.attach = { icon: "paperclip", title: "添付", render: (el) => drawAttach(el, ctx) };
+  ctx.rightSidebar.outline = { icon: "list", title: "アウトライン", render: (el) => drawOutline(el, ctx) };
 
   ctx.status.push((s) => {
     const d = focused(s);
@@ -293,7 +293,7 @@ export const mountAttach = (ctx: Ctx) => {
       if (!k) return false;
       c.config.manuscript = { ...c.config.manuscript, [k]: Number(el.value) || 20 };
       await c.saveConfig();
-      c.refresh(["status", "right"]);
+      c.refresh(["status", "rightSidebar"]);
       return true;
     },
   });

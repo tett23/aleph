@@ -1,6 +1,6 @@
 # ADR 0005: 画面の構成と見た目
 
-Status: accepted
+Status: superseded [{"part":"名前「右のパネル」","by":["docs/adr/0082-ui-names-and-glossary.md"]}]
 
 ## 文脈
 

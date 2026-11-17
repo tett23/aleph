@@ -11,7 +11,7 @@ import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { argPath, basename, dirname, stem } from "../path.ts";
 import { allDocs, focused, type Doc, type State } from "../store.ts";
-import { effectiveSide, verticalOn } from "../toolbar.ts";
+import { effectivePreviewMode, verticalOn } from "../toolbar.ts";
 import { golem, shem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { IMAGE_KINDS } from "../workspace.ts";
@@ -61,7 +61,7 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
   htmlBuilds.set(project, b);
   if (b.busy) return void (b.again = true);
   b.busy = true;
-  ctx.refresh(["side"]);
+  ctx.refresh(["previewArea"]);
   try {
     const o = await withBuildDir(project, () => golem(ctx, project, ["build", "--target", "html"]));
     b.error = o.code === 0 ? "" : out(o) || "golem build に失敗しました";
@@ -75,7 +75,7 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
     b.error = String(e);
   }
   b.busy = false;
-  ctx.refresh(["side"]);
+  ctx.refresh(["previewArea"]);
   void sendPlain(ctx);
   if (b.again) {
     b.again = false;
@@ -85,7 +85,7 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
 
 /** The dpi the main window's pane wants now. */
 const wantedDpi = (ctx: Ctx, project: string) => {
-  const body = document.querySelector<HTMLElement>(".side-pane .pbody");
+  const body = document.querySelector<HTMLElement>(".preview-area .pbody");
   return autoDpi({ width: body?.clientWidth || 500, ratio: devicePixelRatio, zoom, inches: styles.get(project) ?? 148 / 25.4, fixed: ctx.config.dpi });
 };
 
@@ -100,7 +100,7 @@ const publishPages = async (ctx: Ctx, project: string, p: Pages) => {
   pages.set(project, p);
   pageUrls.get(project)?.forEach((u) => URL.revokeObjectURL(u));
   pageUrls.set(project, await Promise.all(p.pngs.map(fileUrl)));
-  ctx.refresh(["side"]);
+  ctx.refresh(["previewArea"]);
   await emit("aleph:pages", { project, ...p }).catch(() => {});
 };
 
@@ -123,11 +123,11 @@ const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wante
   }
   const inputs = pageSaves.inputsFor(project);
   if (onlyChanged && !inputs.changed()) {
-    ctx.refresh(["side"]);
+    ctx.refresh(["previewArea"]);
     return;
   }
   b.busy = true;
-  ctx.refresh(["side"]);
+  ctx.refresh(["previewArea"]);
   try {
     let snapshot: Map<string, string> | undefined;
     const prev = pages.get(project);
@@ -154,7 +154,7 @@ const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wante
     pages.set(project, { ...(pages.get(project) ?? { pdf: "", pngs: [], dpi }), ok: false, log: String(e) });
   } finally {
     b.busy = false;
-    ctx.refresh(["side"]);
+    ctx.refresh(["previewArea"]);
     if (b.again) {
       const next = b.again;
       b.again = null;
@@ -180,8 +180,8 @@ const chaptersShown = (s: State) => s.open.filter((d) => d.kind === "gm");
 const drawSide = (head: HTMLElement, body: HTMLElement, ctx: Ctx) => {
   const s = ctx.store.get();
   const d = focused(s);
-  const pane = body.closest<HTMLElement>(".side-pane")!;
-  const side = d && !s.plot ? effectiveSide(d.kind, s.side) : "none";
+  const pane = body.closest<HTMLElement>(".preview-area")!;
+  const side = d && !s.plot ? effectivePreviewMode(d.kind, s.previewMode) : "none";
   pane.hidden = side === "none";
   if (side === "none") {
     lastKey = "";
@@ -253,7 +253,7 @@ const drawPages = (head: HTMLElement, body: HTMLElement, ctx: Ctx, doc: Doc) => 
 const setZoom = (ctx: Ctx, project: string, z: number) => {
   zoom = z;
   saveZoom(z);
-  ctx.refresh(["side"]);
+  ctx.refresh(["previewArea"]);
   sharpen(ctx, project);
 };
 
@@ -329,9 +329,9 @@ const imageView = (el: HTMLElement, doc: Doc): Editor => {
 };
 
 export const mountPreview = (ctx: Ctx) => {
-  ctx.view.side = (head, body) => {
+  ctx.view.previewArea = (head, body) => {
     const d = focused(ctx.store.get());
-    if (d?.project && !styles.has(d.project)) void inchesOf(d.project).then(() => ctx.refresh(["side"]));
+    if (d?.project && !styles.has(d.project)) void inchesOf(d.project).then(() => ctx.refresh(["previewArea"]));
     drawSide(head, body, ctx);
   };
   ctx.kindViews.pdf = pdfView;
@@ -343,9 +343,9 @@ export const mountPreview = (ctx: Ctx) => {
       const before = allDocs(prev).find((d) => d.path === action.path);
       if (before?.project) {
         const project = before.project;
-        const eligible = ctx.config.rebuildOnSave && (pages.has(project) || effectiveSide(before.kind, s.side) === "pages");
+        const eligible = ctx.config.rebuildOnSave && (pages.has(project) || effectivePreviewMode(before.kind, s.previewMode) === "pages");
         pageSaves.saved(project, action, before.saved, eligible, () => void buildPages(ctx, project, false, undefined, true));
-        if (waiter.waiting(project)) ctx.refresh(["side"]);
+        if (waiter.waiting(project)) ctx.refresh(["previewArea"]);
       }
     }
     for (const d of allDocs(s)) {

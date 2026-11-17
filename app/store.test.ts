@@ -59,23 +59,23 @@ test("renaming follows the open sheet, the selection and the anchor", () => {
 });
 
 test("the same left icon twice folds the sidebar; another opens it", () => {
-  const s1 = run([{ type: "left", panel: "files" }]);
-  assert.equal(s1.showLeft, false);
-  const s2 = run([{ type: "left", panel: "search" }], s1);
-  assert.equal(s2.showLeft, true);
-  assert.equal(s2.left, "search");
+  const s1 = run([{ type: "sidebarPanel", panel: "files" }]);
+  assert.equal(s1.showSidebar, false);
+  const s2 = run([{ type: "sidebarPanel", panel: "search" }], s1);
+  assert.equal(s2.showSidebar, true);
+  assert.equal(s2.sidebarPanel, "search");
 });
 
 test("panels and switches", () => {
   const s = run([
-    { type: "right", panel: "outline" },
-    { type: "toggleRight" },
-    { type: "side", side: "pages" },
+    { type: "rightSidebarPanel", panel: "outline" },
+    { type: "toggleRightSidebar" },
+    { type: "previewMode", mode: "pages" },
     { type: "vertical", on: true },
   ]);
-  assert.equal(s.right, "outline");
-  assert.equal(s.showRight, false);
-  assert.equal(s.side, "pages");
+  assert.equal(s.rightSidebarPanel, "outline");
+  assert.equal(s.showRightSidebar, false);
+  assert.equal(s.previewMode, "pages");
   assert.equal(s.vertical, true);
 });
 
@@ -110,7 +110,7 @@ test("the store notifies only on change", () => {
   let calls = 0;
   store.subscribe(() => calls++);
   store.dispatch({ type: "focus", index: 3 }); // no sheet: no change
-  store.dispatch({ type: "side", side: "plain" });
+  store.dispatch({ type: "previewMode", mode: "plain" });
   assert.equal(calls, 1);
 });
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canVertical, effectiveSide, previewLabel, previewsFor, verticalOn } from "./toolbar.ts";
+import { canVertical, effectivePreviewMode, previewLabel, previewsFor, verticalOn } from "./toolbar.ts";
 
 test("previews by kind", () => {
   assert.deepEqual(previewsFor("gm"), ["none", "plain", "pages"]);
@@ -24,9 +24,9 @@ test("labels", () => {
 });
 
 test("a preview the kind lacks is not shown", () => {
-  assert.equal(effectiveSide("md", "pages"), "none");
-  assert.equal(effectiveSide("gm", "pages"), "pages");
-  assert.equal(effectiveSide("toml", "plain"), "none");
+  assert.equal(effectivePreviewMode("md", "pages"), "none");
+  assert.equal(effectivePreviewMode("gm", "pages"), "pages");
+  assert.equal(effectivePreviewMode("toml", "plain"), "none");
 });
 
 test("vertical holds for several sheets when all of them are prose (docs/adr/0019)", () => {

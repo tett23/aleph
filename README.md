@@ -43,7 +43,7 @@ In the text editor, press Escape or Control-E to dismiss suggestions. With sugge
 ## Status
 
 The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, the conversion from Markdown, and plugins.
-Each decision is an ADR (Architecture Decision Record) under [docs/adr/](docs/adr/), and the current behaviour is in [docs/specifications.md](docs/specifications.md).
+Each decision is an ADR (Architecture Decision Record) under [docs/adr/](docs/adr/), and the current behaviour is in [docs/specifications.md](docs/specifications.md). The names of the elements of the screen, such as the sidebar, the right sidebar and the bottom panel, are in [docs/glossary.md](docs/glossary.md).
 It targets macOS on Apple Silicon first.
 
 ## Running

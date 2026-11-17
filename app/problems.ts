@@ -1,4 +1,4 @@
-// The problems panel (docs/adr/0055): the editors' diagnostics and golem's
+// The problems tab of the bottom panel (docs/adr/0055): the editors' diagnostics and golem's
 // check, lint and preflight, grouped by file under the editor.
 import type { Diagnostic } from "./diag/parse.ts";
 import { rel } from "./path.ts";

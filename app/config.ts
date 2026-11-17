@@ -3,6 +3,7 @@
 import { clampTimeout, DEFAULT_LEADER, DEFAULT_TIMEOUT, leaderOf, isBinding, type Binding } from "./keymap.ts";
 import { defaultProofread, readProofread, type ProofreadConfig } from "./proofread.ts";
 import type { ProjectOrder } from "./project-order.ts";
+import { readKeyBindings, readUi } from "./legacy-names.ts";
 
 export type Theme = "auto" | "light" | "dark";
 
@@ -126,14 +127,15 @@ export const normalize = (raw: unknown): Config => {
     keyBindings:
       r.keyBindings && typeof r.keyBindings === "object" && !Array.isArray(r.keyBindings)
         ? Object.fromEntries(
-            Object.entries(r.keyBindings).flatMap(([id, v]) => (Array.isArray(v) ? [[id, v.filter(isBinding)]] : [])),
+            Object.entries(readKeyBindings(r.keyBindings as Record<string, unknown>)).flatMap(([id, v]) => (Array.isArray(v) ? [[id, v.filter(isBinding)]] : [])),
           )
         : d.keyBindings,
     leaderKey: leaderOf(r.leaderKey),
     keySequenceTimeout: clampTimeout(r.keySequenceTimeout),
     proofread: readProofread(r.proofread),
     markdownBreaks: r.markdownBreaks === "blank-line" ? "blank-line" : "newline",
-    ui: r.ui && typeof r.ui === "object" && !Array.isArray(r.ui) ? (r.ui as Record<string, unknown>) : d.ui,
+    // the old names of the screen's state and of the command ids are read as the new ones (docs/adr/0082)
+    ui: r.ui && typeof r.ui === "object" && !Array.isArray(r.ui) ? readUi(r.ui as Record<string, unknown>) : d.ui,
   };
 };
 

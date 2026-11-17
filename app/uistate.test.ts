@@ -8,8 +8,8 @@ test("values are read from the kept state, written through the save function, me
   assert.equal(ui.get("pageZoom", 1), 2);
   assert.equal(ui.get("ganttZoom", 1), 1);
   ui.set("ganttZoom", 1.5);
-  ui.merge({ left: "git", vertical: true });
-  assert.deepEqual(saved.at(-1), { pageZoom: 2, ganttZoom: 1.5, left: "git", vertical: true });
+  ui.merge({ sidebarPanel: "git", vertical: true });
+  assert.deepEqual(saved.at(-1), { pageZoom: 2, ganttZoom: 1.5, sidebarPanel: "git", vertical: true });
   assert.equal(ui.get("ganttZoom", 1), 1.5);
 });
 
@@ -21,7 +21,7 @@ test("a value of another type is the default", () => {
 test("a preview or plot window sends only what it changed", async () => {
   const { windowUiState } = await import("./uistate.ts");
   const sent: Record<string, unknown>[] = [];
-  const ui = windowUiState({ left: "git", pageZoom: 1 }, (p) => sent.push(p));
+  const ui = windowUiState({ sidebarPanel: "git", pageZoom: 1 }, (p) => sent.push(p));
   ui.set("pageZoom", 2);
   assert.equal(ui.get("pageZoom", 1), 2);
   assert.deepEqual(sent, [{ pageZoom: 2 }]);

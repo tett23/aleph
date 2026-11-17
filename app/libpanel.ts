@@ -140,7 +140,7 @@ const dropIntoLibrary = async (ctx: Ctx, paths: string[]) => {
     }
   }
   ctx.toast([done.length ? `共有ライブラリにコピーしました：${done.join("、")}` : "", skipped.length ? `扱えないファイル：${skipped.join("、")}` : ""].filter(Boolean).join("\n"));
-  ctx.refresh(["left", "right"]);
+  ctx.refresh(["sidebar", "rightSidebar"]);
 };
 
 /** Copies files into a directory without overwriting; returns the new paths. */
@@ -167,14 +167,14 @@ const dropOnEditor = async (ctx: Ctx, path: string, paths: string[], x: number, 
   t.apply([{ from: at, insert }], "input.drop");
   ctx.toast(`images/ にコピーし、@figure を差し込みました`);
   await reloadTree(ctx);
-  ctx.refresh(["left"]);
+  ctx.refresh(["sidebar"]);
 };
 
 // ---- dropping on the tree (docs/adr/0078) ----
 
 /** Where in the tree `el` is: a folder's or project's row, a file's row, or the tree without a row. */
 const treeHit = (el: HTMLElement | null): Hit => {
-  if (!el?.closest(".tree")) return null;
+  if (!el?.closest(".file-tree")) return null;
   const row = el.closest<HTMLElement>("[data-dir],[data-file]");
   if (row?.dataset.dir) return { kind: "dir", path: row.dataset.dir };
   if (row?.dataset.file) return { kind: "file", path: row.dataset.file };
@@ -189,8 +189,8 @@ const markTarget = (target: string | null, hit: Hit) => {
   marked = key;
   document.querySelectorAll(".drop-into").forEach((e) => e.classList.remove("drop-into"));
   if (!target) return;
-  if (hit?.kind === "empty") return void document.querySelector(".tree")?.classList.add("drop-into");
-  for (const r of document.querySelectorAll<HTMLElement>(".tree [data-dir], .tree [data-file]")) {
+  if (hit?.kind === "empty") return void document.querySelector(".file-tree")?.classList.add("drop-into");
+  for (const r of document.querySelectorAll<HTMLElement>(".file-tree [data-dir], .file-tree [data-file]")) {
     const p = r.dataset.dir ?? r.dataset.file ?? "";
     if (p === target || p.startsWith(`${target}/`)) r.classList.add("drop-into");
   }
@@ -220,7 +220,7 @@ const dropIntoTree = async (ctx: Ctx, dir: string, paths: string[]) => {
   }).catch(() => {});
   await reloadTree(ctx);
   ctx.store.dispatch({ type: "expand", path: dir, on: true });
-  ctx.refresh(["left"]);
+  ctx.refresh(["sidebar"]);
 };
 
 const mountDrops = (ctx: Ctx) => {
@@ -229,9 +229,9 @@ const mountDrops = (ctx: Ctx) => {
     const y = p.y / devicePixelRatio;
     return { x, y, el: document.elementFromPoint(x, y) as HTMLElement | null };
   };
-  const overLibrary = (el: HTMLElement | null) => !!el?.closest(".libhost, .right .rbody.library");
+  const overLibrary = (el: HTMLElement | null) => !!el?.closest(".libhost, .right-sidebar .rbody.library");
   void getCurrentWebview().onDragDropEvent(async (e) => {
-    const right = document.querySelector<HTMLElement>(".right");
+    const right = document.querySelector<HTMLElement>(".right-sidebar");
     const p = e.payload;
     if (p.type === "leave") {
       markTarget(null, null);
@@ -259,8 +259,8 @@ const mountDrops = (ctx: Ctx) => {
 };
 
 export const mountLibrary = (ctx: Ctx) => {
-  ctx.left.library = { icon: "library-big", title: "共有ライブラリ", render: (el) => drawAll(el, ctx) };
-  ctx.right.library = { icon: "library-big", title: "このプロジェクトの共有ライブラリ", render: (el) => drawProject(el, ctx) };
+  ctx.sidebar.library = { icon: "library-big", title: "共有ライブラリ", render: (el) => drawAll(el, ctx) };
+  ctx.rightSidebar.library = { icon: "library-big", title: "このプロジェクトの共有ライブラリ", render: (el) => drawProject(el, ctx) };
   mountDrops(ctx);
 
   // new projects take their fonts from the library (made with golem new --no-fonts)
@@ -304,7 +304,7 @@ export const mountLibrary = (ctx: Ctx) => {
         adopt(c.config, written);
       }
       await c.saveConfig();
-      c.refresh(["left", "right"]);
+      c.refresh(["sidebar", "rightSidebar"]);
       return true;
     },
   });

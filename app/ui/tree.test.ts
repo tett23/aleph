@@ -67,14 +67,14 @@ test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tr
     api.rename = async (from: string, to: string) => { renamed.push([from, to]); };
     const state = { workspace: "/w", workspaces: ["/w"], expanded: [], panes: [], open: [], selected: [], plot: null };
     const ctx = {
-      left: {}, settings: [], beforeRename: [], onRename: [], projects: ["/w/book"], decor: [], titles: new Map(), editors: new Map(),
+      sidebar: {}, settings: [], beforeRename: [], onRename: [], projects: ["/w/book"], decor: [], titles: new Map(), editors: new Map(),
       config: normalize({}), saveConfig: async () => {},
       store: { get: () => state, dispatch: () => {} },
       save: async () => {}, refresh: () => {}, toast: () => {},
     } as unknown as Ctx;
     mountTree(ctx);
     const tree = element();
-    await ctx.left.files!.render(tree as unknown as HTMLElement, ctx);
+    await ctx.sidebar.files!.render(tree as unknown as HTMLElement, ctx);
     const eventFor = (path: string, dir = false) => ({ target: { closest: () => Object.assign(element(), { dataset: dir ? { dir: path } : { file: path } }) } });
 
     for (const name of ["plot.csv", "manifest.toml", "style.toml"]) {
@@ -151,7 +151,7 @@ test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tr
     const down = projectMenu.find((item: { label: string }) => item.label === "一つ下へ");
     assert.ok(down);
     down.run();
-    await ctx.left.files!.render(tree as unknown as HTMLElement, ctx);
+    await ctx.sidebar.files!.render(tree as unknown as HTMLElement, ctx);
     assert.ok(tree.innerHTML.indexOf('data-dir="/w/second"') < tree.innerHTML.indexOf('data-dir="/w/notes"'));
     assert.ok(tree.innerHTML.indexOf('data-dir="/w/notes"') < tree.innerHTML.indexOf('data-dir="/w/book"'));
     assert.deepEqual(ctx.config.projectOrder["/w"][""], ["second", "book"]);

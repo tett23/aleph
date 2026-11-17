@@ -121,7 +121,7 @@ test("splitting moves the selected tab to a new right pane and selects it", () =
   assert.deepEqual(paths(s), [[A], [B]]);
   assert.equal(s.pane, 1);
   assert.equal(s.open[0].path, B);
-  // the right panel follows the selected pane
+  // the right sidebar follows the selected pane
   assert.equal(run([{ type: "selectPane", pane: 0 }], s).open[0].path, A);
   // a pane of one tab is not split
   const one = run([{ type: "open", docs: [doc(A)] }]);

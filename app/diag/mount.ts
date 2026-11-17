@@ -1,5 +1,5 @@
 // The diagnostics of golem check, lint and preflight (docs/adr/0015): the
-// left panel, the status bar items, and the runs after opening and saving.
+// sidebar's panel, the status bar items, and the runs after opening and saving.
 import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
@@ -21,14 +21,14 @@ export const runDiag = async (ctx: Ctx, project: string, kind: Kind) => {
   const k = key(project, kind);
   if (running.has(k)) return;
   running.add(k);
-  ctx.refresh(["status", "left", "problems"]);
+  ctx.refresh(["status", "sidebar", "bottomPanel"]);
   const args = kind === "preflight" ? ["preflight", "--format", "json"] : [kind, "--format", "json", "-v"];
   const out = await golem(ctx, project, args).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
   const r = parseDiagnostics(out.stderr);
   const done = { result: r.raw === "" && out.code !== 0 ? { items: [], raw: out.stdout.trim() || `終了コード ${out.code}` } : r, at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) };
   results.set(k, done);
   running.delete(k);
-  ctx.refresh(["status", "left", "problems"]);
+  ctx.refresh(["status", "sidebar", "bottomPanel"]);
   return done.result;
 };
 
@@ -90,11 +90,11 @@ export const showDiag = (ctx: Ctx, project: string, kind: Kind) => {
   shown = { project, kind };
   const s = ctx.store.get();
   // the same panel's icon folds it, so only switch when it is not shown
-  if (s.left !== "diagnostics" || !s.showLeft) ctx.store.dispatch({ type: "left", panel: "diagnostics" });
-  else ctx.refresh(["left"]);
+  if (s.sidebarPanel !== "diagnostics" || !s.showSidebar) ctx.store.dispatch({ type: "sidebarPanel", panel: "diagnostics" });
+  else ctx.refresh(["sidebar"]);
 };
 
-/** The last results of check, lint and preflight for a project (the problems panel, docs/adr/0055); a run that failed is left out. */
+/** The last results of check, lint and preflight for a project (the bottom panel, docs/adr/0055); a run that failed is left out. */
 export const golemResults = (project: string): { kind: Kind; items: Diagnostic[] }[] =>
   KINDS.flatMap((kind) => {
     const r = results.get(key(project, kind))?.result;
@@ -105,7 +105,7 @@ export const golemResults = (project: string): { kind: Kind; items: Diagnostic[]
 export const diagHooks: { recheck: (projects: string[]) => Promise<void> } = { recheck: async () => {} };
 
 export const mountDiagnostics = (ctx: Ctx) => {
-  ctx.left.diagnostics = { icon: "list-checks", title: "診断", render: (el) => drawPanel(el, ctx) };
+  ctx.sidebar.diagnostics = { icon: "list-checks", title: "診断", render: (el) => drawPanel(el, ctx) };
 
   // lint and preflight beside the LSP in the status bar
   ctx.status.push((s) => {
@@ -115,13 +115,13 @@ export const mountDiagnostics = (ctx: Ctx) => {
       .map((kind) => {
         const r = results.get(key(project, kind));
         const st = statusOf(r?.result ?? null);
-        return `<span class="chk ${st.cls} ${running.has(key(project, kind)) ? "running" : ""}" data-status="diag-${kind}" title="${kind} の結果を問題のパネルに出す">● ${kind}${st.count ? ` ${st.count}` : ""}</span>`;
+        return `<span class="chk ${st.cls} ${running.has(key(project, kind)) ? "running" : ""}" data-status="diag-${kind}" title="${kind} の結果を下部パネルに出す">● ${kind}${st.count ? ` ${st.count}` : ""}</span>`;
       })
       .join("");
   });
   for (const kind of ["lint", "preflight"] as const)
     ctx.statusActions[`diag-${kind}`] = (c) => {
-      // the problems panel shows them (docs/adr/0055)
+      // the bottom panel shows them (docs/adr/0055)
       c.statusActions.problems?.(c);
     };
 

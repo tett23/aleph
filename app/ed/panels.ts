@@ -4,8 +4,8 @@
 import { esc } from "../esc.ts";
 import type { CompletionItem } from "./editor.ts";
 
-/** The element floating panels go into: the editor pane, so they stay put while the text scrolls. */
-export const panelHost = (root: HTMLElement): HTMLElement => root.closest<HTMLElement>(".main-pane") ?? document.body;
+/** The element floating panels go into: the editor area, so they stay put while the text scrolls. */
+export const panelHost = (root: HTMLElement): HTMLElement => root.closest<HTMLElement>(".editor-area") ?? document.body;
 
 /** A popup at a rectangle of the text: below it in horizontal writing, left of it in vertical. */
 export const popup = (cls: string, at: DOMRect, vertical: boolean, html: string): HTMLElement => {

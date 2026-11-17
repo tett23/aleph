@@ -1,5 +1,5 @@
 // The plot in the app (docs/adr/0013): in place of the editor, from the ribbon
-// and the tree; in its own window; its rows for the right panel and the tree.
+// and the tree; in its own window; its rows for the right sidebar and the tree.
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
@@ -47,7 +47,7 @@ export const mountPlotFeature = (ctx: Ctx) => {
   void listen<{ project: string; from: string }>("aleph:plot-saved", (e) => {
     cache.delete(e.payload.project);
     if (e.payload.from !== me) for (const active of views) if (active.project === e.payload.project) void active.v.reload();
-    void plotRows(e.payload.project).then(() => ctx.refresh(["left", "right"]));
+    void plotRows(e.payload.project).then(() => ctx.refresh(["sidebar", "rightSidebar"]));
   });
   ctx.beforeRename.push(async (from) => {
     if (!ctx.projects.some((project) => project === from || project.startsWith(`${from}/`))) return;

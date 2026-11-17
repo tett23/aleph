@@ -3,7 +3,7 @@
 import type { Config } from "./config.ts";
 import type { Handle, NotifyOpts } from "./notify.ts";
 import type { Editor, EditorPlugin } from "./ed/editor.ts";
-import type { Doc, LeftPanel, RightPanel, State, Store } from "./store.ts";
+import type { Doc, SidebarPanelId, RightSidebarPanelId, State, Store } from "./store.ts";
 
 export type SaveOptions = { explicit?: boolean; pageSave?: "automatic" | "intermediate"; beforeFormat?: string };
 
@@ -26,14 +26,14 @@ export type { Command } from "./commands.ts";
 import type { Command } from "./commands.ts";
 import type { PaletteItem } from "./palette.ts";
 
-/** The view of the editor pane and of the pane beside it. */
+/** The views of the editor area, of the preview area beside it and of the bottom panel under them. */
 export type View = {
-  /** Draws the open sheets into the editor pane; returns a cleanup. */
-  main?: (el: HTMLElement, ctx: Ctx) => (() => void) | void;
-  /** Draws the preview pane. */
-  side?: (head: HTMLElement, body: HTMLElement, ctx: Ctx) => void;
-  /** Draws the problems panel under the editor (docs/adr/0055). */
-  problems?: (el: HTMLElement, ctx: Ctx) => void;
+  /** Draws the open sheets into the editor area; returns a cleanup. */
+  editorArea?: (el: HTMLElement, ctx: Ctx) => (() => void) | void;
+  /** Draws the preview area. */
+  previewArea?: (head: HTMLElement, body: HTMLElement, ctx: Ctx) => void;
+  /** Draws the bottom panel under the editor area and the preview area (docs/adr/0055, docs/adr/0082). */
+  bottomPanel?: (el: HTMLElement, ctx: Ctx) => void;
 };
 
 export type OpenOpts = { newTab?: boolean };
@@ -48,8 +48,8 @@ export type Ctx = {
   toast: (msg: string) => void;
   /** A notification of docs/adr/0064: timed or sticky, with buttons. */
   notify: (o: NotifyOpts) => Handle;
-  left: Partial<Record<LeftPanel, Panel>>;
-  right: Partial<Record<RightPanel, Panel>>;
+  sidebar: Partial<Record<SidebarPanelId, Panel>>;
+  rightSidebar: Partial<Record<RightSidebarPanelId, Panel>>;
   status: StatusItem[];
   /** What a click on a status item with `data-status="<key>"` does. */
   statusActions: Record<string, (ctx: Ctx) => void>;
@@ -96,5 +96,5 @@ export type Ctx = {
   /** HEAD's text of a file, for the change marks; null when not in HEAD. */
   baseText: (doc: Doc) => Promise<string | null | false>;
   /** Draws the panels and the status bar again (after a change outside the store). */
-  refresh: (what?: ("left" | "right" | "status" | "side" | "main" | "problems")[]) => void;
+  refresh: (what?: ("sidebar" | "rightSidebar" | "status" | "previewArea" | "editorArea" | "bottomPanel")[]) => void;
 };

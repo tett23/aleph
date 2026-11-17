@@ -97,7 +97,7 @@ export const moveToTrash = async (ctx: Ctx, path: string): Promise<boolean> => {
   await api.movePath(path, `${dir}/${basename(path)}`);
   await api.writeText(`${dir}/entry.json`, JSON.stringify(entry, null, 2) + "\n");
   await reloadTree(ctx);
-  ctx.refresh(["left"]);
+  ctx.refresh(["sidebar"]);
   toastWith("ゴミ箱に移しました", "戻す", () => void restore(ctx, entry));
   return true;
 };
@@ -135,7 +135,7 @@ export const restore = async (ctx: Ctx, entry: Entry) => {
   await api.removePath(dir).catch(() => {});
   if (to !== entry.original) ctx.toast(`同じ名前があったので ${name} として戻しました`);
   await reloadTree(ctx);
-  ctx.refresh(["left"]);
+  ctx.refresh(["sidebar"]);
 };
 
 const purge = async (entry: Entry) => api.removePath(`${await api.trashDir()}/${entry.id}`);
@@ -165,11 +165,11 @@ const draw = async (el: HTMLElement, ctx: Ctx) => {
 /** Whether the keys belong to the tree (not to an editor or a field, where ⌘⌫ edits). */
 const outsideText = () => {
   const a = document.activeElement;
-  return !a?.closest(".ed, input, textarea, [contenteditable]") || !!a.closest(".palette");
+  return !a?.closest(".ed, input, textarea, [contenteditable]") || !!a.closest(".command-palette");
 };
 
 export const mountTrash = (ctx: Ctx) => {
-  ctx.left.trash = {
+  ctx.sidebar.trash = {
     icon: "trash-2",
     title: "ゴミ箱",
     render: async (el) => {
@@ -180,7 +180,7 @@ export const mountTrash = (ctx: Ctx) => {
         if (t.closest("[data-trash-empty]")) {
           if (!(await confirmDialog(`ゴミ箱の ${list.length} 項目を完全に消しますか。元に戻せません`, "完全に消す"))) return;
           for (const x of list) await purge(x);
-          return ctx.refresh(["left"]);
+          return ctx.refresh(["sidebar"]);
         }
         const id = t.closest<HTMLElement>("[data-te]")?.dataset.te;
         const entry = list.find((x) => x.id === id);
@@ -190,7 +190,7 @@ export const mountTrash = (ctx: Ctx) => {
           if (!(await confirmDialog(`${basename(entry.original)} を完全に消しますか。元に戻せません`, "完全に消す"))) return;
           await purge(entry);
         }
-        ctx.refresh(["left"]);
+        ctx.refresh(["sidebar"]);
       };
     },
   };
@@ -217,7 +217,7 @@ export const mountTrash = (ctx: Ctx) => {
       when: () => true,
       run: (c) => {
         const s = c.store.get();
-        if (!(s.showLeft && s.left === "trash")) c.store.dispatch({ type: "left", panel: "trash" });
+        if (!(s.showSidebar && s.sidebarPanel === "trash")) c.store.dispatch({ type: "sidebarPanel", panel: "trash" });
       },
     },
   );

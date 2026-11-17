@@ -12,8 +12,8 @@ import { icon } from "./icons.ts";
 import { basename, rel } from "./path.ts";
 import { allDocs, dirty, type State } from "./store.ts";
 import { git, gitChanged, gitNow, gitOk } from "./tools.ts";
-import { item, openSettings, toggle } from "./ui/settings.ts";
-import { renderWsbar } from "./ui/shell.ts";
+import { item, openSettingsDialog, toggle } from "./ui/settings.ts";
+import { renderWorkspaceBar } from "./ui/shell.ts";
 import { reloadTree } from "./ui/tree.ts";
 import { mayWrite } from "./watchmount.ts";
 import { OPEN_KINDS, kindOf } from "./workspace.ts";
@@ -38,7 +38,7 @@ export const refreshStatus = async (ctx: Ctx, ws: string) => {
 const refreshBranch = async (ctx: Ctx, ws: string) => {
   const o = await git(ctx, ws, ["branch", "--show-current"]).catch(() => null);
   branch = o && o.code === 0 ? o.stdout.trim() : "";
-  if (document.querySelector(".wsbar")) renderWsbar(document.body, ctx.store.get(), branch);
+  if (document.querySelector(".workspace-bar")) renderWorkspaceBar(document.body, ctx.store.get(), branch);
 };
 
 /** Saves every open sheet, then `git add -A` and commits; the change marks then compare with the new HEAD. */
@@ -50,7 +50,7 @@ export const commit = async (ctx: Ctx, ws: string, message: string): Promise<boo
   if (c.code !== 0) return ctx.notify({ message: lines(c) || "コミットに失敗しました", level: "error", sticky: true }), false;
   for (const d of allDocs(ctx.store.get())) if (d.workspace === ws) ctx.editors.get(d.path)?.refreshMarks(true);
   await refreshStatus(ctx, ws);
-  ctx.refresh(["left"]);
+  ctx.refresh(["sidebar"]);
   return true;
 };
 
@@ -70,7 +70,7 @@ const autoCommit = async (ctx: Ctx) => {
       ctx.toast(`${basename(ws)} を自動でコミットしました`);
     }
   }
-  ctx.refresh(["left"]);
+  ctx.refresh(["sidebar"]);
 };
 
 // ---- the panel ----
@@ -128,7 +128,7 @@ const run = async (el: HTMLElement, ctx: Ctx, a: string) => {
     else ctx.notify({ message: "git はまだ使えません", level: "warning" });
     return;
   }
-  if (a === "settings") return void openSettings(ctx, "tools");
+  if (a === "settings") return void openSettingsDialog(ctx, "tools");
   const ws = ctx.store.get().workspace;
   if (!ws) return;
   if (a === "commit") {
@@ -153,7 +153,7 @@ const run = async (el: HTMLElement, ctx: Ctx, a: string) => {
 /** push and pull from the command palette: the Git panel shows the result. */
 const gitCommand = async (ctx: Ctx, a: "push" | "pull") => {
   const s = ctx.store.get();
-  if (!s.showLeft || s.left !== "git") ctx.store.dispatch({ type: "left", panel: "git" });
+  if (!s.showSidebar || s.sidebarPanel !== "git") ctx.store.dispatch({ type: "sidebarPanel", panel: "git" });
   const el = document.querySelector<HTMLElement>(".git")?.parentElement;
   if (el) await run(el, ctx, a);
 };
@@ -161,12 +161,12 @@ const gitCommand = async (ctx: Ctx, a: "push" | "pull") => {
 /** ⌘⇧K: the Git panel with the message field focused. */
 const startCommit = (ctx: Ctx) => {
   const s = ctx.store.get();
-  if (!s.showLeft || s.left !== "git") ctx.store.dispatch({ type: "left", panel: "git" });
+  if (!s.showSidebar || s.sidebarPanel !== "git") ctx.store.dispatch({ type: "sidebarPanel", panel: "git" });
   setTimeout(() => document.querySelector<HTMLTextAreaElement>(".git .commitmsg")?.focus(), 150);
 };
 
 export const mountGit = (ctx: Ctx) => {
-  ctx.left.git = {
+  ctx.sidebar.git = {
     icon: "git-branch",
     title: "Git",
     render: async (el) => {
@@ -220,9 +220,9 @@ export const mountGit = (ctx: Ctx) => {
     const saved = allDocs(s).some((d) => allDocs(prev).find((x) => x.path === d.path && x.saved !== d.saved));
     if (saved && s.workspace) {
       clearTimeout(statusTimer);
-      statusTimer = window.setTimeout(() => void refreshStatus(ctx, s.workspace!).then(() => ctx.refresh(["left"])), 500);
+      statusTimer = window.setTimeout(() => void refreshStatus(ctx, s.workspace!).then(() => ctx.refresh(["sidebar"])), 500);
     }
-    if (s.workspace !== prev.workspace && s.workspace) void refreshBranch(ctx, s.workspace).then(() => refreshStatus(ctx, s.workspace!)).then(() => ctx.refresh(["left"]));
+    if (s.workspace !== prev.workspace && s.workspace) void refreshBranch(ctx, s.workspace).then(() => refreshStatus(ctx, s.workspace!)).then(() => ctx.refresh(["sidebar"]));
   });
 
   // quitting: save first (the menu's Quit, ⌘Q, asks through the Rust side; the window's close button here)
@@ -238,8 +238,8 @@ export const mountGit = (ctx: Ctx) => {
   ctx.gitChanged.push(() => {
     for (const d of allDocs(ctx.store.get())) ctx.editors.get(d.path)?.refreshMarks(true);
     const w = ctx.store.get().workspace;
-    if (w) void refreshBranch(ctx, w).then(() => refreshStatus(ctx, w)).then(() => ctx.refresh(["left"]));
-    else ctx.refresh(["left"]);
+    if (w) void refreshBranch(ctx, w).then(() => refreshStatus(ctx, w)).then(() => ctx.refresh(["sidebar"]));
+    else ctx.refresh(["sidebar"]);
   });
 
   // the daily commit: at start and every hour; without git, said once at start (docs/adr/0060)

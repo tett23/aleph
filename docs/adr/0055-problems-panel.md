@@ -1,6 +1,6 @@
 # ADR 0055: 診断を画面の下の「問題」のパネルにまとめる
 
-Status: accepted
+Status: superseded [{"part":"コマンドの名前「問題のパネル」","by":["docs/adr/0082-ui-names-and-glossary.md"]}]
 
 ## 文脈
 

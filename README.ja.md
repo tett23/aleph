@@ -43,7 +43,7 @@ gm の文書を右クリックすると、プロジェクトの章に追加す�
 ## 状態
 
 最初の版を実装しました。横書きと縦書きを一つで書くエディタ、golem lsp、本文とページのプレビュー、保存と Git、目標とノート、プロットとガントチャート、共有ライブラリ、診断と検索、プロジェクトのビルド、Markdown からの変換、プラグインがあります。
-決定はそれぞれ [docs/adr/](docs/adr/) の ADR（Architecture Decision Record）にあり、今の振る舞いは [docs/specifications.md](docs/specifications.md) にあります。
+決定はそれぞれ [docs/adr/](docs/adr/) の ADR（Architecture Decision Record）にあり、今の振る舞いは [docs/specifications.md](docs/specifications.md) にあります。サイドバー、右サイドバー、下部パネルなど、画面の要素の名前は [docs/glossary.md](docs/glossary.md) にあります。
 まず Apple Silicon の macOS を対象にしています。
 
 ## 動かし方

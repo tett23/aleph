@@ -8,7 +8,7 @@ import { swallowLatePress } from "./press.ts";
 export const toast = (msg: string) => void notify({ message: msg });
 
 const dialog = (title: string, body: string, ok: string) =>
-  h(`<div class="dim"><div class="modal small"><div class="mtitle">${esc(title)}</div>${body}
+  h(`<div class="dim"><div class="dialog small"><div class="mtitle">${esc(title)}</div>${body}
      <div class="mbuttons"><span class="btn" data-x>やめる</span><span class="btn pri" data-ok>${esc(ok)}</span></div></div></div>`);
 
 /** A one-line question. Resolves to the text, or null when cancelled. */
@@ -83,7 +83,7 @@ export const menu = (anchor: HTMLElement, items: MenuItem[]) => {
 /** A question with several answers (docs/adr/0063): the index chosen, or null when cancelled. The last is the main one. */
 export const choiceDialog = (title: string, message: string, options: string[]): Promise<number | null> =>
   new Promise((resolve) => {
-    const dim = h(`<div class="dim"><div class="modal small choice"><div class="mtitle">${esc(title)}</div>${message ? `<div class="mmsg">${esc(message)}</div>` : ""}
+    const dim = h(`<div class="dim"><div class="dialog small choice"><div class="mtitle">${esc(title)}</div>${message ? `<div class="mmsg">${esc(message)}</div>` : ""}
       <div class="mbuttons"><span class="btn" data-x>やめる</span>${options.map((o, i) => `<span class="btn${i === options.length - 1 ? " pri" : ""}" data-i="${i}">${esc(o)}</span>`).join("")}</div></div></div>`);
     const done = (v: number | null) => (dim.remove(), swallowLatePress(), resolve(v));
     // taken at mouseup: in this window a click was seen not to arrive on the first press

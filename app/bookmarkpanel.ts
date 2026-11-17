@@ -1,4 +1,4 @@
-// Bookmarks in the left sidebar (docs/adr/0025): sheets and lines, kept in the
+// Bookmarks in the sidebar (docs/adr/0025): sheets and lines, kept in the
 // workspace's .aleph/bookmarks.json, toggled with ⌘D and from the tree's menu.
 // The recently opened sheets (docs/adr/0026) are drawn below them.
 import { addCommands } from "./commands.ts";
@@ -25,7 +25,7 @@ export const loadBookmarks = async (ws: string): Promise<Bookmark[]> => {
 const save = async (ctx: Ctx, ws: string, list: Bookmark[]) => {
   cache.set(ws, list);
   await api.writeText(fileOf(ws), writeBookmarks(list));
-  ctx.refresh(["left"]);
+  ctx.refresh(["sidebar"]);
 };
 
 /** A section drawn under the bookmarks (the recent sheets of docs/adr/0026). */
@@ -90,7 +90,7 @@ const startDrag = (ctx: Ctx, ws: string, el: HTMLElement, from: number, down: Mo
     document.removeEventListener("mousemove", move, true);
     document.removeEventListener("mouseup", up, true);
     if (to !== from) await save(ctx, ws, moveBookmark(await loadBookmarks(ws), from, to));
-    else ctx.refresh(["left"]);
+    else ctx.refresh(["sidebar"]);
   };
   down.preventDefault();
   document.addEventListener("mousemove", move, true);
@@ -109,7 +109,7 @@ const toggle = async (ctx: Ctx, abs: string, line?: { n: number; text: string })
 };
 
 export const mountBookmarks = (ctx: Ctx) => {
-  ctx.left.bookmarks = {
+  ctx.sidebar.bookmarks = {
     icon: "map-pin",
     title: "ブックマーク",
     render: async (el) => {
@@ -165,7 +165,7 @@ export const mountBookmarks = (ctx: Ctx) => {
       when: () => true,
       run: (c) => {
         const s = c.store.get();
-        if (!(s.showLeft && s.left === "bookmarks")) c.store.dispatch({ type: "left", panel: "bookmarks" });
+        if (!(s.showSidebar && s.sidebarPanel === "bookmarks")) c.store.dispatch({ type: "sidebarPanel", panel: "bookmarks" });
       },
     },
   );

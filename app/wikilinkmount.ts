@@ -1,5 +1,5 @@
 // Wikilinks in the app (docs/adr/0027): the index of the workspace's Markdown
-// links, the right panel's 「リンク」, the editor's colours, marks, ⌘-click and
+// links, the right sidebar's 「リンク」, the editor's colours, marks, ⌘-click and
 // completion, the preview's links, and rewriting links when a file is renamed.
 // The rules are in wikilink.ts.
 import { api } from "./api.ts";
@@ -43,7 +43,7 @@ const reindex = (ctx: Ctx) => {
   index = buildIndex(texts, sheets, wsOf(ctx));
   editors.forEach((t, path) => mark(ctx, path, t));
   const s = ctx.store.get();
-  if (s.showRight && s.right === "links") ctx.refresh(["right"]);
+  if (s.showRightSidebar && s.rightSidebarPanel === "links") ctx.refresh(["rightSidebar"]);
 };
 
 /** Every Markdown sheet of the workspace read again, with the sheets the links can point at. */
@@ -92,7 +92,7 @@ const follow = async (ctx: Ctx, from: string, l: Pick<Wikilink, "target" | "head
     if (await api.exists(path)) return ctx.toast(`${basename(path)} はすでにあります`);
     await api.writeText(path, `# ${basename(name)}\n`);
     await reloadTree(ctx);
-    ctx.refresh(["left"]);
+    ctx.refresh(["sidebar"]);
     return ctx.open([path], { line: 1, col: 0 });
   }
   if (!l.heading) return ctx.open([target]);
@@ -103,7 +103,7 @@ const follow = async (ctx: Ctx, from: string, l: Pick<Wikilink, "target" | "head
   ctx.editors.get(target)?.goto(line ?? 1, 0);
 };
 
-// ---- the right panel ----
+// ---- the right sidebar ----
 
 const drawPanel = (el: HTMLElement, ctx: Ctx) => {
   const d = focused(ctx.store.get());
@@ -163,7 +163,7 @@ const expand = async (ctx: Ctx, src: string, path: string) => {
 export const mountWikilinks = (ctx: Ctx) => {
   treeReloaded.push(rebuild);
   markdownHook.expand = (src, path) => expand(ctx, src, path);
-  ctx.right.links = { icon: "link", title: "リンク", render: (el) => {
+  ctx.rightSidebar.links = { icon: "link", title: "リンク", render: (el) => {
     drawPanel(el, ctx);
     el.onclick = async (e) => {
       const t = (e.target as HTMLElement).closest<HTMLElement>("[data-lk-open],[data-lk-target]");
@@ -268,10 +268,10 @@ export const mountWikilinks = (ctx: Ctx) => {
       const f = focused(s);
       if (f?.kind === "md" && f.path !== d.path) {
         markdownHook.version++;
-        ctx.refresh(["side"]);
+        ctx.refresh(["previewArea"]);
       }
     }
-    if (s.right === "links" && s.showRight && (s.focus !== prev.focus || s.open !== prev.open)) ctx.refresh(["right"]);
+    if (s.rightSidebarPanel === "links" && s.showRightSidebar && (s.focus !== prev.focus || s.open !== prev.open)) ctx.refresh(["rightSidebar"]);
   });
 
   // a renamed file: the links that named it by path or by file name follow, after asking
