@@ -126,3 +126,15 @@ test("the log tells how many layers went to the GPU", () => {
   assert.equal(offloaded("nothing"), null);
   assert.equal(gpuLines(log).length, 2);
 });
+
+test("the worked examples of the prompt are not tasks of the benchmark, and their edits apply", async () => {
+  const { EXAMPLES } = await import("./prompt.ts");
+  const ids = new Map(commands.map((c) => [c.id, c.label]));
+  for (const e of EXAMPLES) {
+    assert.ok(!tasks.some((t) => t.request === e.request || (t.target === e.target && t.file === e.file)), e.request);
+    if (e.answer.edits.length === 0) {
+      const named = [...ids].filter(([id, label]) => e.answer.explanation.includes(id) && e.answer.explanation.includes(label));
+      assert.equal(named.length, 1, e.request);
+    } else assert.ok(applyEdits(e.target, e.answer.edits).ok, e.request);
+  }
+});

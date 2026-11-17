@@ -7,9 +7,27 @@ import { cpSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileS
 import { request } from "node:http";
 import { homedir, loadavg, tmpdir } from "node:os";
 import { join } from "node:path";
-import { chapterFor, joinMaterial, materialLimit, rankSections, selectMaterial, splitSections, terms } from "../../app/assistant/material.ts";
+import { chapterFor, joinMaterial, materialLimit, selectMaterial, splitSections } from "../../app/assistant/material.ts";
 import { ANSWER_SCHEMA, errorsIn, judgeCommand, judgeEdit, judgeGolem, parseAnswer, type Verdict } from "./lib/judge.ts";
-import { commandList, messages, type Command, type Message } from "./lib/prompt.ts";
+import { commandList, type Command, type Message } from "./lib/prompt.ts";
+import {
+  CLASSIFY_SCHEMA,
+  classifyMessages,
+  commandAnswer,
+  commandMessages,
+  commandSchema,
+  DEFAULT_VARIANT,
+  extraAnswerTokens,
+  parseCommand,
+  parseKind,
+  parseVariant,
+  rankedSections,
+  rewriteMessages,
+  serverExtra,
+  singleMessages,
+  THINKING_TOKENS,
+  type Feature,
+} from "./lib/variant.ts";
 import { gpuLines, offloaded, serverArgs } from "./lib/server.ts";
 import { median, p95 } from "./lib/stats.ts";
 import { metricCacheName, metricOf, readMetrics } from "./lib/metric.ts";
@@ -28,6 +46,9 @@ const USAGE = `usage: bench/assistant/run [options]
   --out <file>          write the full report as JSON
   --cold-starts <n>     starts of llama-server for the first-answer time (5)
   --only <id,...>       only these tasks
+  --variant <name>      how the prompt and the material are handed to the model:
+                        examples (the default), or features of
+                        lib/variant.ts joined with +
   --validate-tasks      check the expected texts with golem check; no model
   env ALEPH_BENCH_CACHE the cache of llama.cpp, the models, the manual and the
                         Golem project (~/Library/Caches/aleph-bench)`;
@@ -52,7 +73,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // --- arguments ---------------------------------------------------------------
 
-type Options = { metric: string | null; models: string[]; contexts: number[]; out: string | null; coldStarts: number; only: string[]; validate: boolean };
+type Options = { metric: string | null; models: string[]; contexts: number[]; out: string | null; coldStarts: number; only: string[]; validate: boolean; variant: string };
 
 const parseArgs = (argv: string[]): Options => {
   const take = (i: number) => {
@@ -69,13 +90,14 @@ const parseArgs = (argv: string[]): Options => {
     if (a === "--cold-starts") return step(i + 2, { ...o, coldStarts: Number(take(i)) });
     if (a === "--only") return step(i + 2, { ...o, only: take(i).split(",") });
     if (a === "--validate-tasks") return step(i + 1, { ...o, validate: true });
+    if (a === "--variant") return step(i + 2, { ...o, variant: take(i) });
     if (a === "--help" || a === "-h") {
       process.stdout.write(`${USAGE}\n`);
       process.exit(0);
     }
     throw new Error(`unknown argument: ${a}\n${USAGE}`);
   };
-  return step(0, { metric: null, models: [], contexts: [], out: null, coldStarts: 5, only: [], validate: false });
+  return step(0, { metric: null, models: [], contexts: [], out: null, coldStarts: 5, only: [], validate: false, variant: DEFAULT_VARIANT });
 };
 
 // --- processes and files ------------------------------------------------------
@@ -266,43 +288,91 @@ const count = async (s: Server, text: string) => {
 
 // The tokens of the rendered chat with the material left empty: the fixed
 // instruction, the request, the target and the chat template
-const fixedTokens = async (s: Server, ms: Message[]) => {
-  const r = await call(s.socket, "POST", "/apply-template", { messages: ms, chat_template_kwargs: { enable_thinking: false } });
+const fixedTokens = async (s: Server, ms: Message[], thinking: boolean) => {
+  const r = await call(s.socket, "POST", "/apply-template", { messages: ms, chat_template_kwargs: { enable_thinking: thinking } });
   const prompt = (JSON.parse(r.body) as { prompt: string }).prompt;
   const t = await call(s.socket, "POST", "/tokenize", { content: prompt, add_special: true, parse_special: true });
   return (JSON.parse(t.body) as { tokens: unknown[] }).tokens.length;
 };
 
 type Sections = Map<string, { title: string; text: string }[]>;
+type Budget = { fixed: number; limit: number; materialTokens: number; sections: number; titles: string[] };
 
-// The messages of a task, with the material chosen within the budget (I9)
-const prompt = async (s: Server, context: number, chapters: Sections, t: Task) => {
-  const fixed = await fixedTokens(s, messages("", t.request, t.file, t.target));
-  const limit = materialLimit(context, fixed);
+// The messages of a call whose material is the command list (when
+// `withCommands`) and the ranked sections, chosen within the budget (I9).
+// `build` makes the messages from the material.
+const prompt = async (s: Server, context: number, chapters: Sections, t: Task, fs: readonly Feature[], withCommands: boolean, build: (material: string) => Message[]) => {
+  const fixed = await fixedTokens(s, build(""), fs.includes("thinking"));
+  const limit = Math.max(0, materialLimit(context, fixed) - extraAnswerTokens(fs));
   const chapter = chapterFor(t.file);
-  const ranked = rankSections(chapter ? (chapters.get(chapter) ?? []) : [], terms(t.request, t.target)).map((x) => x.text);
+  const sections = rankedSections(t.file, chapter ? (chapters.get(chapter) ?? []) : [], t.request, t.target, fs);
+  const ranked = sections.map((x) => x.text);
+  const items = withCommands ? [commandList(commands), ...ranked] : ranked;
   const costs = new Map<string, number>();
-  await Promise.all([commandList(commands), ...ranked].map(async (x) => costs.set(x, await count(s, `${x}\n\n`))));
-  const chosen = selectMaterial(commandList(commands), ranked, limit, (x) => costs.get(x.slice(0, -2)) ?? Infinity);
-  return { messages: messages(joinMaterial(chosen), t.request, t.file, t.target), fixed, limit, materialTokens: chosen.reduce((n, x) => n + (costs.get(x) ?? 0), 0), sections: chosen.length - (chosen[0] === commandList(commands) ? 1 : 0) };
+  await Promise.all(items.map(async (x) => costs.set(x, await count(s, `${x}\n\n`))));
+  const chosen = items.length === 0 ? [] : selectMaterial(items[0], items.slice(1), limit, (x) => costs.get(x.slice(0, -2)) ?? Infinity);
+  const titles = sections.filter((x) => chosen.includes(x.text)).map((x) => x.title);
+  const budget: Budget = { fixed, limit, materialTokens: chosen.reduce((n, x) => n + (costs.get(x) ?? 0), 0), sections: titles.length, titles };
+  return { messages: build(joinMaterial(chosen)), budget };
 };
 
-const ask = async (s: Server, ms: Message[]) => {
+type AskOptions = { schema: unknown; thinking: boolean };
+
+const ask = async (s: Server, ms: Message[], o: AskOptions) => {
   const t0 = performance.now();
   const r = await call(s.socket, "POST", "/v1/chat/completions", {
     messages: ms,
     temperature: 0,
     seed: 0,
-    max_tokens: 1024,
-    json_schema: ANSWER_SCHEMA,
-    chat_template_kwargs: { enable_thinking: false },
+    max_tokens: 1024 + (o.thinking ? THINKING_TOKENS : 0),
+    json_schema: o.schema,
+    chat_template_kwargs: { enable_thinking: o.thinking },
   });
   const ms_ = performance.now() - t0;
-  const body = JSON.parse(r.body) as { choices?: { message?: { content?: string }; finish_reason?: string }[]; error?: unknown; timings?: Record<string, number> };
+  const body = JSON.parse(r.body) as {
+    choices?: { message?: { content?: string; reasoning_content?: string }; finish_reason?: string }[];
+    error?: unknown;
+    timings?: Record<string, number>;
+  };
   const choice = body.choices?.[0];
   const t = body.timings ?? {};
   const timings = { promptTokens: t.prompt_n, cachedTokens: t.cache_n, promptMs: Math.round(t.prompt_ms ?? 0), predictedTokens: t.predicted_n, predictedMs: Math.round(t.predicted_ms ?? 0) };
-  return { ms: ms_, content: choice?.message?.content ?? "", finish: choice?.finish_reason ?? `error ${JSON.stringify(body.error ?? r.status)}`, timings };
+  return {
+    ms: ms_,
+    content: choice?.message?.content ?? "",
+    reasoning: choice?.message?.reasoning_content ?? "",
+    finish: choice?.finish_reason ?? `error ${JSON.stringify(body.error ?? r.status)}`,
+    timings,
+  };
+};
+
+type Step = { kind: "command" | "rewrite"; ms: number; raw?: string };
+
+// The answer to a task under a variant: one call, or two (the kind, then a
+// prompt for that kind). The content has the form of ADR 0081 either way.
+const respond = async (s: Server, context: number, chapters: Sections, t: Task, fs: readonly Feature[]) => {
+  const thinking = fs.includes("thinking");
+  if (!fs.includes("two-step")) {
+    const p = await prompt(s, context, chapters, t, fs, true, (m) => singleMessages(fs, m, t.request, t.file, t.target));
+    const a = await ask(s, p.messages, { schema: ANSWER_SCHEMA, thinking });
+    return { ...a, budget: p.budget, step: null as Step | null };
+  }
+  const list = commandList(commands);
+  const k = await ask(s, classifyMessages(list, t.request, t.file, t.target, fs), { schema: CLASSIFY_SCHEMA, thinking });
+  const kind = parseKind(k.content);
+  if (kind === "command") {
+    const ms = commandMessages(list, commands, t.request, t.file, t.target, fs);
+    const fixed = await fixedTokens(s, ms, thinking);
+    const a = await ask(s, ms, { schema: commandSchema(commands), thinking });
+    const c = parseCommand(a.content, commands);
+    // the answer of ADR 0081's form, made from the chosen command
+    const content = c !== null && a.finish === "stop" ? JSON.stringify(commandAnswer(c)) : a.content;
+    const budget: Budget = { fixed, limit: Math.max(0, materialLimit(context, fixed) - extraAnswerTokens(fs)), materialTokens: 0, sections: 0, titles: [] };
+    return { ...a, ms: k.ms + a.ms, content, budget, step: { kind, ms: Math.round(k.ms), raw: a.content } as Step | null };
+  }
+  const p = await prompt(s, context, chapters, t, fs, false, (m) => rewriteMessages(fs, m, t.request, t.file, t.target));
+  const a = await ask(s, p.messages, { schema: ANSWER_SCHEMA, thinking });
+  return { ...a, ms: k.ms + a.ms, budget: p.budget, step: { kind, ms: Math.round(k.ms) } as Step | null };
 };
 
 // --- memory -------------------------------------------------------------------
@@ -345,6 +415,11 @@ type TaskResult = {
   answer: string;
   timings: Record<string, number | undefined>;
   golem?: { before: number; after: number };
+  // the titles of the manual's sections that went in
+  sections: string[];
+  // the first step of two-step: the kind it chose
+  step?: Step;
+  reasoning?: string;
 };
 
 const judge = async (g: Golem, t: Task, content: string, finish: string): Promise<{ verdict: Verdict; golem?: { before: number; after: number } }> => {
@@ -368,7 +443,7 @@ const coldTasks = (tasks: Task[], n: number) => {
   return Array.from({ length: n }, (_, i) => pool[i % pool.length]);
 };
 
-const measure = async (bin: string, m: Model, context: number, tasks: Task[], chapters: Sections, g: Golem, coldStarts: number) => {
+const measure = async (bin: string, m: Model, context: number, tasks: Task[], chapters: Sections, g: Golem, coldStarts: number, fs: readonly Feature[]) => {
   const file = await modelFile(m);
   const loadBefore = loadavg();
   log(`== ${m.name} @ ${context} (load average ${loadBefore.map((x) => x.toFixed(1)).join(" ")})`);
@@ -378,11 +453,10 @@ const measure = async (bin: string, m: Model, context: number, tasks: Task[], ch
   const coldPeaks: number[] = [];
   for (const t of coldTasks(tasks, coldStarts)) {
     const t0 = performance.now();
-    const s = await start(bin, file, context);
+    const s = await start(bin, file, context, serverExtra(fs));
     const sample = sampler(s.proc.pid ?? 0);
     try {
-      const p = await prompt(s, context, chapters, t);
-      await ask(s, p.messages);
+      await respond(s, context, chapters, t, fs);
       cold.push(performance.now() - t0);
     } finally {
       coldPeaks.push(await sample.stop());
@@ -393,18 +467,31 @@ const measure = async (bin: string, m: Model, context: number, tasks: Task[], ch
   }
 
   // every task on one llama-server, after it started
-  const s = await start(bin, file, context);
+  const s = await start(bin, file, context, serverExtra(fs));
   const sample = sampler(s.proc.pid ?? 0);
   const results: TaskResult[] = [];
-  const budget: { fixed: number; limit: number; materialTokens: number; sections: number }[] = [];
+  const budget: Budget[] = [];
   try {
     for (const t of tasks) {
-      const p = await prompt(s, context, chapters, t);
-      budget.push({ fixed: p.fixed, limit: p.limit, materialTokens: p.materialTokens, sections: p.sections });
-      const a = await ask(s, p.messages);
+      const a = await respond(s, context, chapters, t, fs);
+      budget.push(a.budget);
       const j = await judge(g, t, a.content, a.finish);
-      results.push({ id: t.id, kind: t.kind, essential: t.essential, pass: j.verdict.pass, reason: j.verdict.reason, ms: Math.round(a.ms), finish: a.finish, answer: a.content, timings: a.timings, ...(j.golem ? { golem: j.golem } : {}) });
-      log(`  ${j.verdict.pass ? "pass" : "FAIL"} ${t.id} ${Math.round(a.ms)} ms (prompt ${a.timings.promptTokens} tokens ${a.timings.promptMs} ms, answer ${a.timings.predictedTokens} tokens ${a.timings.predictedMs} ms) ${j.verdict.reason}`);
+      results.push({
+        id: t.id,
+        kind: t.kind,
+        essential: t.essential,
+        pass: j.verdict.pass,
+        reason: j.verdict.reason,
+        ms: Math.round(a.ms),
+        finish: a.finish,
+        answer: a.content,
+        timings: a.timings,
+        ...(j.golem ? { golem: j.golem } : {}),
+        sections: a.budget.titles,
+        ...(a.step ? { step: a.step } : {}),
+        ...(a.reasoning !== "" ? { reasoning: a.reasoning } : {}),
+      });
+      log(`  ${j.verdict.pass ? "pass" : "FAIL"} ${t.id}${a.step ? ` [${a.step.kind}]` : ""} ${Math.round(a.ms)} ms (prompt ${a.timings.promptTokens} tokens ${a.timings.promptMs} ms, answer ${a.timings.predictedTokens} tokens ${a.timings.predictedMs} ms) ${j.verdict.reason}`);
     }
   } catch (e) {
     await sample.stop();
@@ -420,7 +507,7 @@ const measure = async (bin: string, m: Model, context: number, tasks: Task[], ch
 
   // where the layers went: llama-server logs it at -lv 4, which slows the
   // answers, so a start of its own that is not timed
-  const probe = await start(bin, file, context, ["-lv", "4"]);
+  const probe = await start(bin, file, context, [...serverExtra(fs), "-lv", "4"]);
   await stop(probe);
   const serverLog = existsSync(probe.log) ? readFileSync(probe.log, "utf8") : "";
   rmSync(probe.dir, { recursive: true, force: true });
@@ -453,7 +540,12 @@ const measure = async (bin: string, m: Model, context: number, tasks: Task[], ch
     peakRssMb: summary.peakRssMb,
     idleRssMb: Math.round(idle),
     gpu: { offloaded: offloaded(serverLog), lines: gpuLines(serverLog) },
-    material: { fixedTokensMax: Math.max(...budget.map((b) => b.fixed)), limitMin: Math.min(...budget.map((b) => b.limit)), sectionsMedian: median(budget.map((b) => b.sections)) },
+    material: {
+      fixedTokensMax: Math.max(...budget.map((b) => b.fixed)),
+      limitMin: Math.min(...budget.map((b) => b.limit)),
+      sectionsMedian: median(budget.map((b) => b.sections)),
+      materialTokensMedian: median(budget.map((b) => b.materialTokens)),
+    },
     essential: { passed: results.filter((r) => r.essential && r.pass).map((r) => r.id), failed: summary.essentialFailed },
     // other work on the machine slows the answers; kept with the numbers
     loadAverage: { before: loadBefore, after: loadavg() },
@@ -513,6 +605,7 @@ const table = (runs: Awaited<ReturnType<typeof measure>>[]) =>
 
 const main = async () => {
   const o = parseArgs(process.argv.slice(2));
+  const features = parseVariant(o.variant);
   const all = loadTasks(join(here, "tasks"));
   const tasks = o.only.length > 0 ? all.filter((t) => o.only.includes(t.id)) : all;
   if (tasks.length === 0) throw new Error("no tasks");
@@ -537,10 +630,11 @@ const main = async () => {
   if ("skipped" in g) log(g.skipped);
   const runs: Awaited<ReturnType<typeof measure>>[] = [];
   for (const id of chosen)
-    for (const c of contexts) runs.push(await measure(bin, models.find((m) => m.id === id)!, c, tasks, chapters, g, o.coldStarts));
+    for (const c of contexts) runs.push(await measure(bin, models.find((m) => m.id === id)!, c, tasks, chapters, g, o.coldStarts, features));
 
   const report = {
     schema: 1,
+    variant: { name: o.variant, features },
     date: new Date().toISOString(),
     commit: (await run("git", ["-C", root, "rev-parse", "HEAD"])).stdout.trim(),
     machine: await machine(),
