@@ -1,6 +1,6 @@
 # ADR 0078: Finder やほかのアプリケーションからサイドバーへのドロップを受けいれる
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

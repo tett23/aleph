@@ -1,6 +1,6 @@
 # ADR 0077: サイドバーのファイルをアプリケーションの外に渡す
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
