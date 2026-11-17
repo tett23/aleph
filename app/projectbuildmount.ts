@@ -26,6 +26,7 @@ import { focused } from "./store.ts";
 import { golem } from "./tools.ts";
 import { uiState } from "./uistate.ts";
 import { notifications } from "./ui/notices.ts";
+import { reloadTree } from "./ui/tree.ts";
 
 const KEY = "buildOptions";
 const results = new Map<string, BuildResult>();
@@ -50,7 +51,9 @@ export const mountProjectBuild = (ctx: Ctx) => {
     const o = await pending;
     const r: BuildResult = { ...readBuildResult(o.code, o.stderr, o.stdout), seconds: (performance.now() - started) / 1000 };
     results.set(project, r);
-    ctx.refresh(["status", "problems"]);
+    // the outputs show in the tree's build/ (docs/adr/0077)
+    await reloadTree(ctx);
+    ctx.refresh(["status", "problems", "left"]);
     const errors = r.items.filter((d) => d.severity === "error").length;
     const open = [{ label: "問題のパネルを開く", run: () => ctx.statusActions.problems?.(ctx) }];
     if (r.failed) ctx.notify({ message: "ビルドできませんでした", level: "error", sticky: true, actions: open, key: `build:${project}` });

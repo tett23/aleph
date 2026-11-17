@@ -6,6 +6,7 @@ mod dropcopy;
 mod fsevents;
 mod fsops;
 mod guard;
+mod handout;
 mod lsp;
 mod nav;
 mod process;
@@ -14,6 +15,7 @@ mod search;
 mod spell;
 mod watchfs;
 mod window;
+mod zipout;
 
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
@@ -429,6 +431,100 @@ async fn export_chapters(app: AppHandle, parts: Vec<ExportPart>) -> R<bool> {
         .collect::<Vec<_>>();
     chapter_export::write_selection(Some(&destination), &inputs).map_err(err)?;
     Ok(true)
+}
+
+// ---- handing the tree's files to other applications (docs/adr/0077) ----
+
+/// The names on disk of a folder's zip entries, for the screen to normalize to NFC.
+#[tauri::command]
+async fn zip_entries(app: AppHandle, dir: String) -> R<Vec<String>> {
+    may(&app, &dir, RD)?;
+    blocking(move || {
+        zipout::items(Path::new(&dir)).map(|items| items.into_iter().map(|i| i.name).collect())
+    })
+    .await
+}
+
+/// Writes a folder as a zip where the writer picks in the save panel, with
+/// the names given for the names on disk; the path written, or none when the writer stopped.
+#[tauri::command]
+async fn zip_folder(
+    app: AppHandle,
+    dir: String,
+    names: Vec<(String, String)>,
+) -> R<Option<String>> {
+    may(&app, &dir, RD)?;
+    let root = PathBuf::from(&dir);
+    let name = root
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "folder".into());
+    let dialog = app
+        .dialog()
+        .file()
+        .set_title("zip で書き出す")
+        .set_file_name(format!("{name}.zip"))
+        .add_filter("zip", &["zip"]);
+    let dialog = match root.parent() {
+        Some(parent) => dialog.set_directory(parent),
+        None => dialog,
+    };
+    let Some(dest) = picked(dialog.blocking_save_file()) else {
+        return Ok(None);
+    };
+    let names = names.into_iter().collect();
+    blocking(move || {
+        zipout::write(&root, &names, &dest).map(|()| Some(dest.to_string_lossy().into_owned()))
+    })
+    .await
+}
+
+/// Runs `f` on the main thread, which AppKit needs, and waits for it off the async runtime.
+async fn on_main<T: Send + 'static>(
+    app: &AppHandle,
+    f: impl FnOnce() -> R<T> + Send + 'static,
+) -> R<T> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(f());
+    })
+    .map_err(err)?;
+    blocking(move || rx.recv().map_err(err)?).await
+}
+
+fn readable(app: &AppHandle, paths: Vec<String>) -> R<Vec<PathBuf>> {
+    paths
+        .into_iter()
+        .map(|p| may(app, &p, RD).map(|()| PathBuf::from(p)))
+        .collect()
+}
+
+/// Puts the files' URLs on the general pasteboard: Finder pastes copies of them.
+#[tauri::command]
+async fn copy_files(app: AppHandle, paths: Vec<String>) -> R<()> {
+    let paths = readable(&app, paths)?;
+    on_main(&app, move || handout::copy(&paths)).await
+}
+
+/// Starts dragging the files out of the window, at the pointer.
+#[tauri::command]
+async fn drag_out(app: AppHandle, window: tauri::WebviewWindow, paths: Vec<String>) -> R<()> {
+    let paths = readable(&app, paths)?;
+    on_main(&app, move || {
+        let ns_window = native_window(&window)?;
+        handout::drag(ns_window, &paths)
+    })
+    .await
+}
+
+#[cfg(target_os = "macos")]
+fn native_window(window: &tauri::WebviewWindow) -> R<*mut std::ffi::c_void> {
+    window.ns_window().map_err(err)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn native_window(_window: &tauri::WebviewWindow) -> R<*mut std::ffi::c_void> {
+    Ok(std::ptr::null_mut())
 }
 
 // ---- choices the writer makes in native dialogs (docs/adr/0042, docs/adr/0050) ----
@@ -1176,6 +1272,10 @@ pub fn run_app() {
             watch_roots,
             reveal_path,
             export_chapters,
+            zip_entries,
+            zip_folder,
+            copy_files,
+            drag_out,
             debug_build,
             config_load,
             config_save,

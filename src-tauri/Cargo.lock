@@ -22,6 +22,7 @@ name = "aleph"
 version = "1.0.0-rc4"
 dependencies = [
  "ignore",
+ "objc2",
  "objc2-app-kit",
  "objc2-foundation",
  "regex",

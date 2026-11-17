@@ -19,7 +19,32 @@ serde_json = "1"
 ignore = "0.4.34"
 regex = "1.13.1"
 
-# NSSpellChecker for English spelling (docs/adr/0030); already in the tree through Tauri
+# NSSpellChecker for English spelling (docs/adr/0030), and the pasteboard and the
+# drag session that hand files to other applications (docs/adr/0077); already in
+# the tree through Tauri
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSSpellChecker"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSRange"] }
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSSpellChecker",
+  "NSApplication",
+  "NSDragging",
+  "NSDraggingItem",
+  "NSDraggingSession",
+  "NSEvent",
+  "NSGraphicsContext",
+  "NSImage",
+  "NSPasteboard",
+  "NSResponder",
+  "NSView",
+  "NSWindow",
+  "NSWorkspace",
+] }
+objc2-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSString",
+  "NSRange",
+  "NSArray",
+  "NSGeometry",
+  "NSURL",
+] }

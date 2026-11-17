@@ -38,6 +38,12 @@ export const flatten = (entries: Entry[]): Entry[] => entries.flatMap((e) => (e.
 /** Whether the tree shows a file: the kinds Aleph opens. */
 export const shownFile = (e: Entry) => !e.dir && OPEN_KINDS.includes(kindOf(e.path));
 
+/** Whether a click on a file's row opens it; the other rows are only selected (docs/adr/0077). */
+export const opensOnClick = (path: string) => OPEN_KINDS.includes(kindOf(path));
+
+/** Whether a file lies in its project's own build/, where every kind is shown (docs/adr/0077). */
+const inBuild = (path: string, project: string | null) => project !== null && path.startsWith(`${project}/build/`);
+
 export type Row =
   | { t: "dir"; entry: Entry; depth: number; project: boolean }
   | { t: "file"; entry: Entry; depth: number; project: string | null; plot: boolean };
@@ -45,7 +51,7 @@ export type Row =
 /** The manifest orders chapter siblings at their real parent, ahead of the plot at the project root. */
 export const treeRows = (entries: Entry[], expanded: Set<string>, chaptersOf: (project: string) => string[], depth = 0, project: string | null = null, knownProjects?: ReadonlySet<string>): Row[] =>
   entries.flatMap((e): Row[] => {
-    if (!e.dir) return shownFile(e) ? [{ t: "file", entry: e, depth, project, plot: project !== null && e.path === `${project}/plot.csv` }] : [];
+    if (!e.dir) return shownFile(e) || inBuild(e.path, project) ? [{ t: "file", entry: e, depth, project, plot: project !== null && e.path === `${project}/plot.csv` }] : [];
     const proj = project === null && (knownProjects ? knownProjects.has(e.path) : isProject(e));
     const root = proj ? e.path : project;
     const head: Row = { t: "dir", entry: e, depth, project: proj };

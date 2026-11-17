@@ -10,7 +10,8 @@ import { addChapter, manifestChapters, removeChapters } from "../manifest.ts";
 import { selectedGmInTreeOrder } from "../chapter-export.ts";
 import { basename, dirname, rel, stem } from "../path.ts";
 import { allDocs, focused } from "../store.ts";
-import { flatten, kindOf, projectOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
+import { flatten, IMAGE_KINDS, kindOf, opensOnClick, projectOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
+import { handedOver, zipNames } from "../handover.ts";
 import { golem } from "../tools.ts";
 import { ask, choiceDialog, menu, toast, type MenuItem } from "./dom.ts";
 import { item, toggle } from "./settings.ts";
@@ -91,7 +92,7 @@ const row = (r: Row, ctx: Ctx) => {
   const fn = r.plot ? "" : ctx.titles.has(p) ? r.entry.name.replace(/\.gm$/, "") : k;
   const on = s.open.some((d) => d.path === p) || s.selected.includes(p) || (r.plot && s.plot === r.project);
   return `<div class="r ${on ? "on" : ""}" style="${pad}" data-file="${esc(p)}" ${r.plot ? `data-plot="${esc(r.project!)}"` : ""}>${icon(
-    r.plot ? "table-2" : (ICONS[k] ?? "image"),
+    r.plot ? "table-2" : (ICONS[k] ?? (IMAGE_KINDS.includes(k) ? "image" : "file")),
     14,
   )}<span class="ttl">${esc(title)}</span><span class="fn">${esc(fn)}</span><span class="c">${ctx.decor.map((f) => f(p, ctx)).join("")}</span></div>`;
 };
@@ -102,6 +103,32 @@ const rowsNow = (ctx: Ctx) => {
   const of = (p: string) => chapters.get(p) ?? [];
   const known = new Set(ctx.projects);
   return ws ? workspaceRows(ws, orderProjectEntries(ws, entries, known, ctx.config.projectOrder), expanded, of, known) : treeRows(entries, expanded, of);
+};
+
+/** The paths a drag or a copy from the pressed row hands outside (docs/adr/0077). */
+export const handedOverFrom = (ctx: Ctx, pressed: string) => handedOver(pressed, ctx.store.get().selected, rowsNow(ctx).map((r) => r.entry.path));
+
+/** Writes a folder as a zip whose names are NFC (docs/adr/0077); Rust asks where. */
+const zipFolder = async (ctx: Ctx, dir: string) => {
+  try {
+    const written = await api.zipFolder(dir, zipNames(await api.zipEntries(dir)));
+    if (!written) return;
+    ctx.notify({ message: `${basename(written)} に書き出しました` });
+    await reloadTree(ctx);
+    ctx.refresh(["left"]);
+  } catch (error) {
+    notifyError(`zip に書き出せませんでした: ${String(error)}`);
+  }
+};
+
+const copyFiles = async (ctx: Ctx, pressed: string) => {
+  const paths = handedOverFrom(ctx, pressed);
+  try {
+    await api.copyFiles(paths);
+    ctx.toast(paths.length === 1 ? `${basename(paths[0])} をコピーしました` : `${paths.length} 件をコピーしました`);
+  } catch (error) {
+    notifyError(`コピーできませんでした: ${String(error)}`);
+  }
 };
 
 const draw = (el: HTMLElement, ctx: Ctx) => {
@@ -325,6 +352,8 @@ export const mountTree = (ctx: Ctx) => {
         // ⌥ opens in a new tab (docs/adr/0024)
         const newTab = (e as MouseEvent).altKey;
         if (d.plot) return void ctx.open([`${d.plot}/plot.csv`], undefined, { newTab });
+        // a kind Aleph cannot open (in a project's build/) is only selected (docs/adr/0077)
+        if (d.file && !opensOnClick(d.file)) return ctx.store.dispatch({ type: "select", paths: [d.file], anchor: d.file });
         if (d.file) {
           const me = e as MouseEvent;
           if (kindOf(d.file) === "gm" && (me.shiftKey || me.metaKey)) {
@@ -346,6 +375,11 @@ export const mountTree = (ctx: Ctx) => {
 
   // "Finder で表示" for files, folders and projects (docs/adr/0053)
   treeMenus.push((p) => revealItems(p, (x) => void api.revealPath(x).catch((e) => notifyError(String(e))), icon("folder", 14)));
+  // the files' URLs on the pasteboard, and a folder's zip (docs/adr/0077)
+  treeMenus.push((p, dir) => [
+    { label: "コピー", icon: icon("files", 14), run: () => void copyFiles(ctx, p) },
+    ...(dir ? [{ label: "zip で書き出す…", icon: icon("folder", 14), run: () => void zipFolder(ctx, p) }] : []),
+  ]);
   treeMenus.push((p) =>
     canRenameTreeItem(p, ctx.store.get().workspaces, ctx.projects)
       ? [{ label: "名前を変える", icon: icon("pencil", 14), run: () => void renameTreeItem(ctx, p) }]

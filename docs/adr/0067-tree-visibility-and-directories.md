@@ -1,6 +1,6 @@
 # ADR 0067: ファイルツリーに実際の階層を表示し、表示対象を設定で選ぶ
 
-Status: accepted
+Status: superseded [{"by":["docs/adr/0077-hand-sidebar-files-outside.md"],"part":"非対応形式と build/ の既存の除外を、プロジェクトの直下の build/ とその中にも適用する部分"}]
 
 ## 文脈
 

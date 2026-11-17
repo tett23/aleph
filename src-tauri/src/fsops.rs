@@ -14,10 +14,20 @@ pub struct Entry {
 }
 
 /// Directories the tree does not show (docs/adr/0004), besides names starting with '.'.
+/// A project's own `build/` is shown all the same (docs/adr/0077).
 const HIDDEN_DIRS: [&str; 4] = ["build", "node_modules", "target", "dist"];
 
-fn shown(name: &str, dir: bool, show_hidden: bool) -> bool {
-    (show_hidden || !name.starts_with('.')) && !(dir && HIDDEN_DIRS.contains(&name))
+fn shown(name: &str, dir: bool, show_hidden: bool, project: bool) -> bool {
+    (show_hidden || !name.starts_with('.'))
+        && !(dir && HIDDEN_DIRS.contains(&name) && !(project && name == "build"))
+}
+
+/// Where a walk stands: whether a folder above is a project, and whether it is
+/// inside a project's `build/`, which the .gitignore setting leaves shown (docs/adr/0077).
+#[derive(Clone, Copy)]
+struct Within {
+    project: bool,
+    build: bool,
 }
 
 #[cfg(unix)]
@@ -44,7 +54,11 @@ pub fn tree(p: &Path) -> Vec<Entry> {
 }
 
 pub fn tree_with_visibility(p: &Path, show_hidden: bool, show_ignored: bool) -> Vec<Entry> {
-    tree_at(p, 0, show_hidden, show_ignored, &[])
+    let within = Within {
+        project: false,
+        build: false,
+    };
+    tree_at(p, 0, show_hidden, show_ignored, &[], within)
 }
 
 fn tree_at(
@@ -53,10 +67,15 @@ fn tree_at(
     show_hidden: bool,
     show_ignored: bool,
     parents: &[Gitignore],
+    within: Within,
 ) -> Vec<Entry> {
     if level >= MAX_DEPTH {
         return vec![];
     }
+    // a project inside a project is not one (docs/adr/0004)
+    let project = !within.project
+        && std::fs::symlink_metadata(p.join("manifest.toml"))
+            .is_ok_and(|m| m.is_file() && !m.file_type().is_symlink());
     let ignore_file = p.join(".gitignore");
     let matcher = (!show_ignored
         && std::fs::symlink_metadata(&ignore_file)
@@ -76,10 +95,12 @@ fn tree_at(
                     let path = e.path();
                     let dir = e.file_type().is_ok_and(|t| t.is_dir());
                     let name = e.file_name().to_string_lossy().to_string();
-                    if !shown(&name, dir, show_hidden) {
+                    if !shown(&name, dir, show_hidden, project) {
                         return None;
                     }
+                    let build = within.build || (project && dir && name == "build");
                     if !show_ignored
+                        && !build
                         && matchers
                             .iter()
                             .map(|m| m.matched(&path, dir))
@@ -94,7 +115,18 @@ fn tree_at(
                             if let Some(ref m) = matcher {
                                 ancestors.push(m.clone());
                             }
-                            tree_at(&path, level + 1, show_hidden, show_ignored, &ancestors)
+                            let inner = Within {
+                                project: within.project || project,
+                                build,
+                            };
+                            tree_at(
+                                &path,
+                                level + 1,
+                                show_hidden,
+                                show_ignored,
+                                &ancestors,
+                                inner,
+                            )
                         } else {
                             vec![]
                         },
@@ -559,6 +591,101 @@ mod tests {
         assert_eq!(names, vec!["b", "c", "a.gm"]);
         assert_eq!(t[0].children.len(), 1);
         assert!(t[1].children.is_empty(), ".hidden is not shown");
+    }
+
+    fn all_paths(entries: &[Entry], root: &Path) -> Vec<String> {
+        entries
+            .iter()
+            .flat_map(|e| {
+                std::iter::once(
+                    Path::new(&e.path)
+                        .strip_prefix(root)
+                        .unwrap()
+                        .to_string_lossy()
+                        .to_string(),
+                )
+                .chain(all_paths(&e.children, root))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn adr0077_i1_a_projects_build_is_listed_with_every_kind_and_others_are_not() {
+        let d = testdir::fresh("build-shown");
+        for p in [
+            "novel/manifest.toml",
+            "novel/build/pdf/x.pdf",
+            "novel/build/html/index.html",
+            "novel/build/.cache",
+            "novel/chapters/build/inner.gm",
+            "notes/build/out.pdf",
+            "novel/node_modules/m.js",
+            "novel/target/t",
+            "novel/dist/d",
+        ] {
+            write_text(&d.join(p), "x").unwrap();
+        }
+        let paths = all_paths(&tree(&d), &d);
+        for p in [
+            "novel/build",
+            "novel/build/pdf/x.pdf",
+            "novel/build/html/index.html",
+        ] {
+            assert!(paths.contains(&p.to_string()), "{p} in {paths:?}");
+        }
+        for p in [
+            "novel/build/.cache",
+            "novel/chapters/build",
+            "notes/build",
+            "novel/node_modules",
+            "novel/target",
+            "novel/dist",
+        ] {
+            assert!(!paths.contains(&p.to_string()), "{p} not in {paths:?}");
+        }
+        let hidden = all_paths(&tree_with_visibility(&d, true, true), &d);
+        assert!(hidden.contains(&"novel/build/.cache".to_string()));
+    }
+
+    #[test]
+    fn adr0077_i1_a_root_project_shows_its_build_but_not_a_nested_projects() {
+        let d = testdir::fresh("build-root");
+        for p in [
+            "manifest.toml",
+            "build/text/a.txt",
+            "inner/manifest.toml",
+            "inner/build/b.pdf",
+        ] {
+            write_text(&d.join(p), "x").unwrap();
+        }
+        let paths = all_paths(&tree(&d), &d);
+        assert!(paths.contains(&"build/text/a.txt".to_string()));
+        assert!(!paths.contains(&"inner/build".to_string()));
+    }
+
+    #[test]
+    fn adr0077_i1_the_gitignore_setting_does_not_hide_a_projects_build() {
+        let d = testdir::fresh("build-ignored");
+        write_text(&d.join("novel/manifest.toml"), "x").unwrap();
+        write_text(&d.join("novel/.gitignore"), "build/\n*.pdf\n").unwrap();
+        write_text(&d.join("novel/build/pdf/x.pdf"), "x").unwrap();
+        write_text(&d.join("novel/a.pdf"), "x").unwrap();
+        let paths = all_paths(&tree_with_visibility(&d, false, false), &d);
+        assert!(paths.contains(&"novel/build/pdf/x.pdf".to_string()));
+        assert!(!paths.contains(&"novel/a.pdf".to_string()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn adr0077_i1_symlinks_in_a_projects_build_are_not_listed() {
+        use std::os::unix::fs::symlink;
+        let d = testdir::fresh("build-symlink");
+        write_text(&d.join("novel/manifest.toml"), "x").unwrap();
+        write_text(&d.join("novel/build/a.pdf"), "x").unwrap();
+        symlink(d.join("novel/build/a.pdf"), d.join("novel/build/link.pdf")).unwrap();
+        let paths = all_paths(&tree(&d), &d);
+        assert!(paths.contains(&"novel/build/a.pdf".to_string()));
+        assert!(!paths.contains(&"novel/build/link.pdf".to_string()));
     }
 
     #[test]
