@@ -6,6 +6,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { applyEdits } from "../../../app/assistant/edits.ts";
 import { chapterFor } from "../../../app/assistant/material.ts";
+import { EXAMPLES } from "../../../app/assistant/prompt.ts";
 import { KINDS, loadTasks } from "./tasks.ts";
 import { gpuLines, offloaded, serverArgs } from "./server.ts";
 
@@ -127,8 +128,7 @@ test("the log tells how many layers went to the GPU", () => {
   assert.equal(gpuLines(log).length, 2);
 });
 
-test("the worked examples of the prompt are not tasks of the benchmark, and their edits apply", async () => {
-  const { EXAMPLES } = await import("./prompt.ts");
+test("ADR 0086 I2: no worked example of the app's prompt shares a request, or a target text and file, with a task; their edits apply", () => {
   const ids = new Map(commands.map((c) => [c.id, c.label]));
   for (const e of EXAMPLES) {
     assert.ok(!tasks.some((t) => t.request === e.request || (t.target === e.target && t.file === e.file)), e.request);
@@ -137,4 +137,23 @@ test("the worked examples of the prompt are not tasks of the benchmark, and thei
       assert.equal(named.length, 1, e.request);
     } else assert.ok(applyEdits(e.target, e.answer.edits).ok, e.request);
   }
+});
+
+// the values of the budgets in docs/budgets.md, by the name of the row
+const budgetValues = (doc: string) =>
+  Object.fromEntries(
+    doc
+      .split("\n")
+      .filter((l) => l.startsWith("| アシスタントの"))
+      .map((l) => l.split("|").map((c) => c.trim()))
+      .map((c) => [c[1], Number(c[4])]),
+  );
+
+test("ADR 0086 I5: the budgets are measured with qwen3.5-4b at 4,096, and docs/budgets.md has the values of ADR 0086", () => {
+  assert.deepEqual(sources.budget, { model: "qwen3.5-4b", context: 4096 });
+  assert.deepEqual(budgetValues(readFileSync(join(root, "docs/budgets.md"), "utf8")), {
+    アシスタントの起動からの答え: 320000,
+    アシスタントの答え: 200000,
+    アシスタントのメモリ: 5300,
+  });
 });
