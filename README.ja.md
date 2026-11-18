@@ -55,7 +55,7 @@ npm ci
 npx tauri dev
 ```
 
-golem と shem を中に入れてアプリを作るには、次のようにします。
+golem、shem、（アシスタントの）llama-server、Golem のマニュアルの章を中に入れてアプリを作るには、次のようにします。
 
 ```sh
 sh scripts/bundle-tools.sh

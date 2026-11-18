@@ -200,7 +200,9 @@ golem と shem に渡す相対のパスには `./` を付け、オプション�
 
 同梱する版は、リポジトリの根の `tools.versions` に書く。
 `scripts/bundle-tools.sh` が、GitHub Releases から配布物と `SHA256SUMS` を取り、照合してから、バイナリとライセンスを `src-tauri/resources/` に入れる。
-すべてのアーカイブを取ってきて照合してから、まとめて入れる。どれかの照合に失敗すれば止まり、何も入れない。
+アシスタントの `llama-server` も同梱する（[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md)）。`tools.versions` の llama.cpp の行は、配布元のリポジトリ（`ggml-org/llama.cpp`）、ビルド番号のタグ、アーカイブの名前、アーカイブの SHA-256、写すファイルを持ち、`bundle-tools.sh` はアーカイブをその SHA-256 で照らす。`llama-server` と、それが読む動的ライブラリは `src-tauri/resources/llama.cpp/` に、`LICENSE` は `src-tauri/resources/licenses/llama.cpp/` に入れる。
+アシスタントに渡す Golem のマニュアルの章（`03-markup.gm`、`04-manifest.gm`、`05-style.gm`）も同梱する。`tools.versions` の `manual` の行は、章のファイル、リポジトリ、SHA-256 を持つ。章は、同梱の golem の行と同じタグのソースから取り、その SHA-256 で照らして `src-tauri/resources/manual/` に入れる。golem の行が無ければ止まる。
+すべてのアーカイブと章を取ってきて照合してから、まとめて入れる。どれかの照合に失敗すれば止まり、何も入れない。入れるときは、前に入れた llama.cpp とマニュアルを消してから写す。
 
 ## ブックマーク
 
