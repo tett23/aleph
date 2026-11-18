@@ -39,6 +39,7 @@
 | タブ | Tab | ペインの中の、開いたもの (シート、まとめて開いた章、プロット、プレビュー) の一つ | (無し) | `.tab` | (無し) | (無し) |
 | プレビューのタブ | Preview tab | ペインのタブの一つ。映すタブのシートの、本文、ページ、図を出す | 「プレビュー」 | `Tab.preview`、`ctx.view.previewTab`、型 `PreviewMode` | `.preview-area`、`ctx.view.previewArea` | 「プレビューの領域」 |
 | 映すタブ | Followed tab | プレビューのタブが映す、シートを持つタブ | (無し) | `followed`、`shown` | (無し) | (無し) |
+| 差分のタブ | Diff tab | ペインのタブの一つ。ワークスペースの、最後のコミットとの差分を出す | 「差分」 | `Tab.diff`、`view.diff` | (無し) | (無し) |
 | 下部パネル | Bottom panel | エディタの領域の下、ステータスバーの上の区画。下部パネルのタブで中身を切り替える | 「下部パネル」 | `.bottom-panel`、`ctx.view.bottomPanel` | `.problems-panel`、`ctx.view.problems` | 「問題のパネル」、「問題パネル」 |
 | 下部パネルのタブ | Bottom panel tab | 下部パネルの中身を切り替える見出しの一つと、その中身 | (無し) | `.bottom-panel-tab` | `.ptab` | (無し) |
 | 問題のタブ | Problems tab | 下部パネルのタブの一つ。診断の一覧 | 「問題」 | `data-tab="problems"` | (無し) | 「問題の一覧」 |
