@@ -1,17 +1,18 @@
-// "gm に変換" for a Markdown sheet (docs/adr/0016).
+// "gm に変換" for a Markdown sheet (docs/adr/0016, docs/adr/0061).
 import { addCommands } from "./commands.ts";
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
 import { runDiag, showDiag } from "./diag/mount.ts";
-import { addChapter, manifestChapters, paragraphSeparator } from "./manifest.ts";
-import { mdToGm } from "./mdgm.ts";
-import { basename, dirname, rel, stem } from "./path.ts";
+import { convertFile, type ConvertIo } from "./mdconvertfile.ts";
+import { basename, rel } from "./path.ts";
 import { allDocs, focused } from "./store.ts";
 import { projectOf } from "./workspace.ts";
 import { reloadTree, treeMenus } from "./ui/tree.ts";
 import { icon } from "./icons.ts";
 import { confirmDialog } from "./ui/dom.ts";
+import { resolveTarget } from "./wikilinkmount.ts";
 
+/** The open sheet, or the .md chosen in the tree (open or not). */
 export const convertToGm = async (ctx: Ctx, sourcePath?: string) => {
   try {
     const path = sourcePath ?? focused(ctx.store.get())?.path;
@@ -19,13 +20,15 @@ export const convertToGm = async (ctx: Ctx, sourcePath?: string) => {
     const d = allDocs(ctx.store.get()).find((doc) => doc.path === path);
     const project = d?.project ?? projectOf(path, ctx.projects);
     const text = d ? (ctx.editors.get(path)?.text() ?? d.text) : await api.readText(path);
-    const to = `${dirname(path)}/${stem(path)}.gm`;
-    if ((await api.exists(to)) && !(await confirmDialog(`${basename(to)} はもうあります。上書きします`, "上書きする"))) return;
-    const manifestPath = project ? `${project}/manifest.toml` : null;
-    const manifest = manifestPath ? await api.readText(manifestPath) : "";
-    const sep = project ? paragraphSeparator(manifest, rel(project, to), "") : "blank-line";
-    await api.writeText(to, mdToGm(text, sep));
-    if (project && manifestPath && !manifestChapters(manifest).includes(rel(project, to))) await api.writeText(manifestPath, addChapter(manifest, rel(project, to)));
+    const io: ConvertIo = {
+      exists: (p) => api.exists(p),
+      readText: (p) => api.readText(p),
+      writeText: (p, t) => api.writeText(p, t),
+      confirm: (m) => confirmDialog(m, "上書きする"),
+      resolve: (t) => resolveTarget(ctx, t, path),
+    };
+    const to = await convertFile(io, { path, text, project });
+    if (!to) return;
     await reloadTree(ctx);
     await ctx.open([to]);
     ctx.toast(`${basename(to)} を作りました${project ? "（manifest.toml の chapters に足しました）" : ""}`);
@@ -36,9 +39,10 @@ export const convertToGm = async (ctx: Ctx, sourcePath?: string) => {
     ctx.notify({ message: String(error), level: "error", sticky: true });
   }
 };
+
 export const mountMdConvert = (ctx: Ctx) => {
   addCommands(ctx.commands, { id: "md.convertToGm", menu: true, label: "gm に変換", icon: "arrow-right-left", when: (s) => focused(s)?.kind === "md", run: (c) => convertToGm(c) });
-  treeMenus.push((path, dir) => !dir && path.toLowerCase().endsWith(".md")
-    ? [{ label: "gm に変換", icon: icon("arrow-right-left", 14), run: () => void convertToGm(ctx, path) }]
-    : []);
+  treeMenus.push((path, dir) =>
+    !dir && path.toLowerCase().endsWith(".md") ? [{ label: "gm に変換", icon: icon("arrow-right-left", 14), run: () => void convertToGm(ctx, path) }] : [],
+  );
 };
