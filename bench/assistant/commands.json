@@ -38,7 +38,6 @@
   { "id": "view.split", "label": "右に分ける" },
   { "id": "view.bottomPanel", "label": "下部パネル" },
   { "id": "view.notifications", "label": "通知の履歴を表示" },
-  { "id": "preview.none", "label": "プレビュー：原稿のみ" },
   { "id": "preview.plain", "label": "プレビュー：本文" },
   { "id": "preview.pages", "label": "プレビュー：ページ" },
   { "id": "preview.window", "label": "プレビューを別のウィンドウに出す" },

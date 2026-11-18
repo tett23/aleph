@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canVertical, effectivePreviewMode, previewLabel, previewsFor, verticalOn } from "./toolbar.ts";
+import { canVertical, previewLabel, previewsFor, verticalOn } from "./toolbar.ts";
 
-test("previews by kind", () => {
-  assert.deepEqual(previewsFor("gm"), ["none", "plain", "pages"]);
-  assert.deepEqual(previewsFor("md"), ["none", "plain"]);
-  assert.deepEqual(previewsFor("mmd"), ["none", "plain"]);
+test("previews by kind, without \"none\" (docs/adr/0087)", () => {
+  assert.deepEqual(previewsFor("gm"), ["plain", "pages"]);
+  assert.deepEqual(previewsFor("md"), ["plain"]);
+  assert.deepEqual(previewsFor("svg"), ["plain"]);
+  assert.deepEqual(previewsFor("mmd"), ["plain"]);
   assert.deepEqual(previewsFor("toml"), []);
   assert.deepEqual(previewsFor("pdf"), []);
 });
@@ -20,13 +21,6 @@ test("labels", () => {
   assert.equal(previewLabel("gm", "plain"), "本文");
   assert.equal(previewLabel("md", "plain"), "プレビュー");
   assert.equal(previewLabel("gm", "pages"), "ページ");
-  assert.equal(previewLabel("gm", "none"), "原稿のみ");
-});
-
-test("a preview the kind lacks is not shown", () => {
-  assert.equal(effectivePreviewMode("md", "pages"), "none");
-  assert.equal(effectivePreviewMode("gm", "pages"), "pages");
-  assert.equal(effectivePreviewMode("toml", "plain"), "none");
 });
 
 test("vertical holds for several sheets when all of them are prose (docs/adr/0019)", () => {

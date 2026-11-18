@@ -8,6 +8,7 @@ import { codeNames, cssSelectors, parseTable, quoted, stripComments, uiStrings, 
 const root = new URL("../", import.meta.url).pathname;
 const read = (p: string) => readFileSync(root + p, "utf8");
 const ADR = "docs/adr/0082-ui-names-and-glossary.md";
+const ADR_0087 = "docs/adr/0087-preview-in-a-tab.md";
 /** The one module that may hold the old names: the table that reads them as the new ones. */
 const LEGACY = "app/legacy-names.ts";
 
@@ -53,11 +54,17 @@ test("ADR 0082 I2: a URL in a string is not taken for a comment", () => {
 
 // ---- the tables
 
-test("ADR 0082 A1: the glossary has every name of the ADR's table, and no other", () => {
+test("ADR 0087 I7: the glossary's names are ADR 0082's table without the preview area, with the preview tab and the followed tab", () => {
   const adr = parseTable(read(ADR), "決める名前").map((r) => r["正式な名前"]);
-  const ours = glossary().map((r) => r["正式な名前"]);
-  assert.equal(ours.length, adr.length);
-  assert.deepEqual(ours, adr);
+  const added = parseTable(read(ADR_0087), "テストと文書");
+  assert.deepEqual(added.map((r) => r["正式な名前"]), ["プレビューのタブ", "映すタブ"]);
+  const at = adr.indexOf("プレビューの領域");
+  assert.ok(at >= 0);
+  const want = [...adr.slice(0, at), ...added.map((r) => r["正式な名前"]), ...adr.slice(at + 1)];
+  assert.deepEqual(glossary().map((r) => r["正式な名前"]), want);
+  // the two rows are the ADR's, cell by cell (the glossary's columns in the same order)
+  const rows = glossary().filter((r) => added.some((x) => x["正式な名前"] === r["正式な名前"]));
+  assert.deepEqual(rows.map((r) => Object.values(r)), added.map((r) => Object.values(r)));
 });
 
 test("ADR 0082 I1: every UI wording of the glossary appears among the UI strings of app/", () => {
