@@ -55,7 +55,7 @@ test("ADR 0082 I2: a URL in a string is not taken for a comment", () => {
 
 // ---- the tables
 
-test("ADR 0088 I9: the glossary's names are ADR 0087 I7's (ADR 0082's table without the preview area, with the preview tab and the followed tab), with the diff tab after the followed tab", () => {
+test("ADR 0088 I9: the glossary's names are ADR 0087 I7's (ADR 0082's table without the preview area, with the preview tab and the followed tab), with the diff tab after the followed tab, and ADR 0081's assistant tab after the build log tab", () => {
   const adr = parseTable(read(ADR), "決める名前").map((r) => r["正式な名前"]);
   const added = parseTable(read(ADR_0087), "テストと文書");
   assert.deepEqual(added.map((r) => r["正式な名前"]), ["プレビューのタブ", "映すタブ"]);
@@ -63,11 +63,25 @@ test("ADR 0088 I9: the glossary's names are ADR 0087 I7's (ADR 0082's table with
   assert.deepEqual(diff.map((r) => r["正式な名前"]), ["差分のタブ"]);
   const at = adr.indexOf("プレビューの領域");
   assert.ok(at >= 0);
-  const want = [...adr.slice(0, at), ...added.map((r) => r["正式な名前"]), ...diff.map((r) => r["正式な名前"]), ...adr.slice(at + 1)];
+  const pinned = [...adr.slice(0, at), ...added.map((r) => r["正式な名前"]), ...diff.map((r) => r["正式な名前"]), ...adr.slice(at + 1)];
+  // ADR 0081 (下部パネルのタブ): its implementation adds the assistant tab to the glossary, after the bottom panel's last tab
+  const log = pinned.indexOf("ビルドログのタブ");
+  assert.ok(log >= 0);
+  const want = [...pinned.slice(0, log + 1), "アシスタントのタブ", ...pinned.slice(log + 1)];
   assert.deepEqual(glossary().map((r) => r["正式な名前"]), want);
   // the three rows are the ADRs', cell by cell (the glossary's columns in the same order, by position)
   const rows = glossary().filter((r) => [...added, ...diff].some((x) => x["正式な名前"] === r["正式な名前"]));
   assert.deepEqual(rows.map((r) => Object.values(r)), [...added, ...diff].map((r) => Object.values(r)));
+});
+
+test("ADR 0081: the assistant tab's row names the bottom panel tab of app/assistant/mount.ts and its command", () => {
+  const row = glossary().find((r) => r["正式な名前"] === "アシスタントのタブ");
+  assert.ok(row);
+  assert.deepEqual(quoted(row["画面の文言"]), ["アシスタント"]);
+  assert.match(row["コードの名前"], /data-tab="assistant"/);
+  assert.match(row["コードの名前"], /assistant\.open/);
+  assert.ok(read("app/problemsmount.ts").includes('data-tab="assistant"'));
+  assert.ok(read("app/assistant/mount.ts").includes('"assistant.open"'));
 });
 
 test("ADR 0082 I1: every UI wording of the glossary appears among the UI strings of app/", () => {

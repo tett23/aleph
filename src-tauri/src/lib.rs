@@ -1,6 +1,7 @@
 //! Aleph's Rust side: files, external processes and the bridges the frontend
 //! needs (docs/adr/0003). Each concern is a module with its own tests.
 
+mod assistant;
 mod chapter_export;
 mod connectors;
 mod dropcopy;
