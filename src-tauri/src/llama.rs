@@ -649,3 +649,40 @@ mod tests {
         assert!(s.as_os_str().len() < 104, "{}", s.display());
     }
 }
+
+/// A run against the real llama-server and model, by hand:
+/// ALEPH_SMOKE_RESOURCES=src-tauri/resources ALEPH_SMOKE_MESSAGES=<messages.json>
+/// cargo test --lib llama::smoke -- --ignored --nocapture
+#[cfg(test)]
+mod smoke {
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn a_real_answer_from_the_bundled_server_and_model() {
+        let res = PathBuf::from(std::env::var("ALEPH_SMOKE_RESOURCES").unwrap());
+        let messages: Vec<Message> = serde_json::from_str(
+            &std::fs::read_to_string(std::env::var("ALEPH_SMOKE_MESSAGES").unwrap()).unwrap(),
+        )
+        .unwrap();
+        let bin = res.join("llama.cpp/llama-server");
+        let model = res.join("models/Qwen3.5-4B-Q4_K_M.gguf");
+        let local = Local::default();
+        let t0 = Instant::now();
+        let (fixed, answer) = local
+            .with_server(&bin, &model, &std::env::temp_dir(), |s| {
+                let fixed = template_count(s, &messages)?;
+                eprintln!("started and counted in {} ms", t0.elapsed().as_millis());
+                let t1 = Instant::now();
+                let a = ask(s, &messages)?;
+                eprintln!("answered in {} ms", t1.elapsed().as_millis());
+                Ok((fixed, a))
+            })
+            .unwrap();
+        eprintln!("template tokens: {fixed}\nanswer: {answer}");
+        let dir = socket_dir(&std::env::temp_dir(), std::process::id());
+        assert!(dir.join("llama.sock").exists());
+        local.stop();
+        assert!(!dir.exists());
+    }
+}
