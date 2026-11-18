@@ -2,6 +2,7 @@
 //! needs (docs/adr/0003). Each concern is a module with its own tests.
 
 mod chapter_export;
+mod connectors;
 mod dropcopy;
 mod fsevents;
 mod fsops;

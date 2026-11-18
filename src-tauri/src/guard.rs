@@ -169,6 +169,20 @@ const PATHS: [&str; 4] = ["libraryDir", "gitPath", "golemPath", "shemPath"];
 /// which checks it against the list; the webview's saves keep it as it was.
 pub const ASSISTANT_MODEL: &str = "assistantModel";
 
+/// The connectors the writer approved in Rust's native dialog (docs/adr/0081,
+/// I6); the webview's saves keep it as it was.
+pub const ASSISTANT_APPROVED: &str = "assistantApproved";
+
+/// Whether the writer approved the connector `id`.
+pub fn approved(_current: &Value, _id: &str) -> bool {
+    todo!()
+}
+
+/// The settings with the connector `id` approved once.
+pub fn approve(_current: &Value, _id: &str) -> Value {
+    todo!()
+}
+
 fn strings(v: Option<&Value>) -> Vec<String> {
     v.and_then(Value::as_array)
         .into_iter()
@@ -486,6 +500,61 @@ mod tests {
         assert_eq!(kept["assistantModel"], json!("qwen3.5-2b"));
         let none = merge(&json!({}), json!({ "assistantModel": "qwen3.5-2b" }));
         assert_eq!(none.get("assistantModel"), None);
+    }
+
+    #[test]
+    fn adr0081_i6_saving_the_settings_cannot_approve_a_connector() {
+        let none = merge(
+            &json!({ "theme": "light" }),
+            json!({ "assistantApproved": ["claude", "codex"], "theme": "dark" }),
+        );
+        assert_eq!(none.get("assistantApproved"), None);
+        assert!(!approved(&none, "claude"));
+        let cur = json!({ "assistantApproved": ["claude"] });
+        let out = merge(&cur, json!({ "assistantApproved": ["claude", "codex"] }));
+        assert_eq!(out["assistantApproved"], json!(["claude"]));
+        assert!(!approved(&out, "codex"));
+        let kept = merge(&cur, json!({ "theme": "dark" }));
+        assert_eq!(kept["assistantApproved"], json!(["claude"]));
+    }
+
+    #[test]
+    fn adr0081_i6_rust_approves_a_connector_once() {
+        let cur = json!({ "theme": "dark" });
+        assert!(!approved(&cur, "claude"));
+        let once = approve(&approve(&cur, "claude"), "claude");
+        assert_eq!(once["assistantApproved"], json!(["claude"]));
+        assert_eq!(once["theme"], json!("dark"));
+        assert!(approved(&once, "claude"));
+        assert!(!approved(&once, "codex"));
+        let both = approve(&once, "codex");
+        assert!(approved(&both, "claude") && approved(&both, "codex"));
+        // anything but a list approves nothing
+        assert!(!approved(
+            &json!({ "assistantApproved": "claude" }),
+            "claude"
+        ));
+        assert!(!approved(
+            &json!({ "assistantApproved": { "claude": true } }),
+            "claude"
+        ));
+    }
+
+    #[test]
+    fn adr0081_saving_cannot_set_the_paths_of_claude_and_codex() {
+        let cur = json!({ "claudePath": "/usr/local/bin/claude" });
+        let out = merge(
+            &cur,
+            json!({ "claudePath": "/tmp/evil", "codexPath": "/tmp/evil" }),
+        );
+        assert_eq!(out["claudePath"], json!("/usr/local/bin/claude"));
+        assert_eq!(out.get("codexPath"), None);
+        assert_eq!(
+            merge(&cur, json!({ "claudePath": "" }))["claudePath"],
+            json!("")
+        );
+        assert_eq!(binary_key("claude"), Some("claudePath"));
+        assert_eq!(binary_key("codex"), Some("codexPath"));
     }
 
     #[test]
