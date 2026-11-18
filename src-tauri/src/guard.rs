@@ -198,6 +198,27 @@ pub fn approve(current: &Value, id: &str) -> Value {
     Value::Object(o)
 }
 
+/// The settings with the connector `id` no longer approved (docs/adr/0089, I1):
+/// the string elements of the approvals without `id`; anything else is dropped,
+/// as `approve` drops it.
+pub fn revoke(current: &Value, id: &str) -> Value {
+    let mut o = object(current);
+    let ids: Vec<String> = strings(current.get(ASSISTANT_APPROVED))
+        .into_iter()
+        .filter(|a| a != id)
+        .collect();
+    o.insert(ASSISTANT_APPROVED.into(), ids.into());
+    Value::Object(o)
+}
+
+/// `revoke` for Claude Code and Codex, the connectors that are approved (I3).
+pub fn revoked(current: &Value, id: &str) -> Result<Value, String> {
+    match id {
+        "claude" | "codex" => Ok(revoke(current, id)),
+        _ => Err(format!("承認を取り消せないコネクタです：{id}")),
+    }
+}
+
 fn strings(v: Option<&Value>) -> Vec<String> {
     v.and_then(Value::as_array)
         .into_iter()

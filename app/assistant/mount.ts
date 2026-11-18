@@ -15,6 +15,7 @@ import { git, gitNow } from "../tools.ts";
 import { applyAnswer, assistantChange } from "./applyflow.ts";
 import type { Scope } from "./edits.ts";
 import { chapterFor, splitSections, type Section } from "./material.ts";
+import { connectorsRevoked } from "./models.ts";
 import { messages } from "./prompt.ts";
 import { askChecked, buildPrompt, checkDiagnostics, checkedFile, LOCAL_CONTEXT, type Outcome } from "./request.ts";
 import { connectorChoices, isSendKey, lineDiff, promptFile, seconds, targetLabel, targetOf, targetText, type DiffLine } from "./tab.ts";
@@ -280,6 +281,10 @@ export const assistantTab = { open: (_ctx: Ctx) => {} };
 
 export const mountAssistant = (ctx: Ctx) => {
   currentCtx = ctx;
+  // a revoke in the settings changes the choices' wording (docs/adr/0089); read them again once the tab is made
+  connectorsRevoked.notify = () => {
+    if (root) void loadConnectors();
+  };
   // the target follows the caret and the selection: the status bar is drawn again after each move
   ctx.status.push(() => (drawTarget(), ""));
   const open = (c: Ctx) => {

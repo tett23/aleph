@@ -55,6 +55,8 @@
 | ダイアログ | Dialog | 画面を暗くして前に出す、画面の中の小さなウィンドウ (名前の入力、確認、選択、食い違いの解消) | (無し) | `.dialog` | `.modal` | (無し) |
 | ネイティブのダイアログ | Native dialog | Rust の側が出す macOS のダイアログ (保存、フォルダの選択、承認) | (無し) | (無し) | (無し) | (無し) |
 | 設定のダイアログ | Settings dialog | 設定を変えるダイアログ。その中の一つを「〜の節」と呼ぶ | 「設定」 | `openSettingsDialog` | `openSettings` | (無し) |
+| コネクタの行 | Connector row | 設定のダイアログの「アシスタント」の節の、Claude Code と Codex の一つずつの行。コネクタの名前と、見つかったかと承認したかの状態を出す ([ADR 0089](adr/0089-revoke-connector-approval.md)) | (無し) | `connectorRowHtml`、`connectorRow` | (無し) | (無し) |
+| 承認を取り消す | Revoke approval | コネクタの行の、Claude Code か Codex の承認を取り消すボタン ([ADR 0089](adr/0089-revoke-connector-approval.md)) | 「承認を取り消す」 | `data-revoke`、`assistant_revoke` | (無し) | (無し) |
 
 ## 名前を足すとき
 

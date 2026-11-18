@@ -1,8 +1,9 @@
 // The 「アシスタント」 section of the settings: the models of the list, downloaded
-// or deleted, and the one the local connector uses (docs/adr/0081, モデルの管理).
-// Rust keeps the list, the files and the choice (docs/adr/0042); this side only
-// shows them and asks.
-import { api } from "../api.ts";
+// or deleted, and the one the local connector uses (docs/adr/0081, モデルの管理),
+// then the rows of Claude Code and Codex, whose approvals can be revoked
+// (docs/adr/0089). Rust keeps the list, the files, the choice and the approvals
+// (docs/adr/0042); this side only shows them and asks.
+import { api, type ConnectorId, type ConnectorInfo } from "../api.ts";
 import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { item } from "../ui/item.ts";
@@ -38,8 +39,21 @@ const control = (m: ModelInfo, busy: boolean) =>
         ? ""
         : `<span class="btn" data-download="${esc(m.id)}">ダウンロード</span>`;
 
-/** The section's body: the model to use, chosen from the installed ones, then each model of the list. */
-export const modelsHtml = (models: readonly ModelInfo[], error = "") => {
+/** A connector row's state and whether it offers 「承認を取り消す」 (docs/adr/0089, I5). */
+export const connectorRow = (c: ConnectorInfo): { state: string; revocable: boolean } => ({
+  state: c.found ? (c.approved ? "承認しています" : "承認していません") : c.approved ? "見つかりません (承認しています)" : "見つかりません",
+  // also when not found, so that a CLI removed and installed again is not used without the dialog
+  revocable: c.approved,
+});
+
+/** The row of Claude Code or Codex: its name, its state and the button. */
+export const connectorRowHtml = (c: ConnectorInfo) => {
+  const r = connectorRow(c);
+  return item(c.name, esc(r.state), r.revocable ? `<span class="btn" data-revoke="${esc(c.id)}">承認を取り消す</span>` : "");
+};
+
+/** The section's body: the model to use, chosen from the installed ones, each model of the list, then the rows of Claude Code and Codex. */
+export const modelsHtml = (models: readonly ModelInfo[], error = "", connectors: readonly ConnectorInfo[] = []) => {
   const busy = models.some((m) => m.downloading);
   const options = models
     .filter((m) => m.installed)
@@ -48,12 +62,49 @@ export const modelsHtml = (models: readonly ModelInfo[], error = "") => {
   return (
     (error ? `<p class="ng">${esc(error)}</p>` : "") +
     item("使うモデル", "ローカルのコネクタが使うモデル。選んだモデルが無いときは、既定のモデルを使う", `<select class="field" data-model>${options}</select>`) +
-    models.map((m) => item(m.name, `${esc(sizeLabel(m.size))}・${esc(m.license)}・${esc(state(m))}`, control(m, busy))).join("")
+    models.map((m) => item(m.name, `${esc(sizeLabel(m.size))}・${esc(m.license)}・${esc(state(m))}`, control(m, busy))).join("") +
+    connectors
+      .filter((c) => c.id !== "local")
+      .map(connectorRowHtml)
+      .join("")
   );
 };
 
+/** What to do after a revoke: set by the assistant's tab, which reads its connectors again. */
+export const connectorsRevoked = { notify: () => {} };
+
 // the last failure, shown at the top of the section until the next action
 let lastError = "";
+// the connectors as last read; reading them may run a login shell per connector,
+// so they are read when the section is opened, not after its own actions
+let shown: ConnectorInfo[] = [];
+let reuse = false;
+
+const readConnectors = async () => {
+  if (!reuse) shown = await api.assistantConnectors().catch(() => []);
+  reuse = false;
+  return shown;
+};
+
+/** Revokes the approval; on success only the row is drawn again, with `approved` false (docs/adr/0089). */
+const revoke = async (button: HTMLElement, id: ConnectorId) => {
+  lastError = "";
+  try {
+    await api.assistantRevoke(id);
+  } catch (e) {
+    lastError = String(e);
+    reuse = true;
+    return true;
+  }
+  shown = shown.map((c) => (c.id === id ? { ...c, approved: false } : c));
+  const c = shown.find((x) => x.id === id);
+  const row = button.closest<HTMLElement>(".item");
+  // the previous failure at the top of the section goes, as after the other actions
+  row?.parentElement?.querySelector(":scope > p.ng")?.remove();
+  if (c && row) row.outerHTML = connectorRowHtml(c);
+  connectorsRevoked.notify();
+  return false;
+};
 
 export const mountAssistantSettings = (ctx: Ctx) => {
   ctx.settings.push({
@@ -62,7 +113,8 @@ export const mountAssistantSettings = (ctx: Ctx) => {
     group: "オプション",
     render: async () => {
       try {
-        return modelsHtml(await api.assistantModels(), lastError);
+        const [models, connectorList] = await Promise.all([api.assistantModels(), readConnectors()]);
+        return modelsHtml(models, lastError, connectorList);
       } catch (e) {
         return `<p class="ng">${esc(String(e))}</p>`;
       }
@@ -70,8 +122,11 @@ export const mountAssistantSettings = (ctx: Ctx) => {
     onClick: async (el) => {
       const download = el.closest<HTMLElement>("[data-download]")?.dataset.download;
       const del = el.closest<HTMLElement>("[data-delete]")?.dataset.delete;
+      const revoking = el.closest<HTMLElement>("[data-revoke]");
+      if (revoking) return revoke(revoking, revoking.dataset.revoke as ConnectorId);
       if (!download && !del) return false;
       lastError = "";
+      reuse = true;
       try {
         if (download) {
           el.textContent = "ダウンロード中";
@@ -85,6 +140,7 @@ export const mountAssistantSettings = (ctx: Ctx) => {
     onChange: async (el) => {
       if (!el.matches("[data-model]")) return false;
       lastError = "";
+      reuse = true;
       try {
         await api.assistantChooseModel(el.value);
       } catch (e) {
