@@ -55,7 +55,7 @@ npm ci
 npx tauri dev
 ```
 
-To build the app with golem and shem inside it:
+To build the app with golem, shem, llama-server (for the assistant) and the chapters of the Golem manual inside it:
 
 ```sh
 sh scripts/bundle-tools.sh
