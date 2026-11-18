@@ -165,6 +165,10 @@ pub fn allowed(program: &str, args: &[String]) -> Result<(), String> {
 
 const PATHS: [&str; 4] = ["libraryDir", "gitPath", "golemPath", "shemPath"];
 
+/// The model of the local connector (docs/adr/0081), chosen through Rust,
+/// which checks it against the list; the webview's saves keep it as it was.
+pub const ASSISTANT_MODEL: &str = "assistantModel";
+
 fn strings(v: Option<&Value>) -> Vec<String> {
     v.and_then(Value::as_array)
         .into_iter()
@@ -175,10 +179,15 @@ fn strings(v: Option<&Value>) -> Vec<String> {
 }
 
 /// The settings to write when the webview saves `incoming`: its values, except
-/// that it may only remove workspaces and empty the paths, never add or change them.
+/// that it may only remove workspaces and empty the paths, never add or change them,
+/// and the chosen model stays as Rust wrote it.
 pub fn merge(current: &Value, incoming: Value) -> Value {
     let Value::Object(mut out) = incoming else {
         return current.clone();
+    };
+    match current.get(ASSISTANT_MODEL) {
+        Some(v) => out.insert(ASSISTANT_MODEL.into(), v.clone()),
+        None => out.remove(ASSISTANT_MODEL),
     };
     let had = strings(current.get("workspaces"));
     let mut kept: Vec<String> = Vec::new();
@@ -461,6 +470,22 @@ mod tests {
         assert_eq!(emptied["gitPath"], json!(""));
         assert_eq!(emptied["libraryDir"], json!(""));
         assert_eq!(merge(&cur, json!("x")), cur);
+    }
+
+    #[test]
+    fn adr0081_saving_keeps_the_chosen_model_rust_wrote() {
+        // the model is chosen through Rust, which checks it against the list
+        let cur = json!({ "assistantModel": "qwen3.5-2b", "theme": "light" });
+        let out = merge(
+            &cur,
+            json!({ "assistantModel": "/tmp/evil.gguf", "theme": "dark" }),
+        );
+        assert_eq!(out["assistantModel"], json!("qwen3.5-2b"));
+        assert_eq!(out["theme"], json!("dark"));
+        let kept = merge(&cur, json!({ "theme": "dark" }));
+        assert_eq!(kept["assistantModel"], json!("qwen3.5-2b"));
+        let none = merge(&json!({}), json!({ "assistantModel": "qwen3.5-2b" }));
+        assert_eq!(none.get("assistantModel"), None);
     }
 
     #[test]

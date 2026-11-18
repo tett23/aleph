@@ -55,7 +55,7 @@ npm ci
 npx tauri dev
 ```
 
-To build the app with golem, shem, llama-server (for the assistant) and the chapters of the Golem manual inside it:
+To build the app with golem, shem, llama-server and the default model of the assistant (Qwen3.5-4B, about 2.7 GB to download), and the chapters of the Golem manual inside it:
 
 ```sh
 sh scripts/bundle-tools.sh

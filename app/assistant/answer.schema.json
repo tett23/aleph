@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "explanation": { "type": "string" },
+    "edits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "find": { "type": "string" }, "replace": { "type": "string" } },
+        "required": ["find", "replace"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["explanation", "edits"],
+  "additionalProperties": false
+}

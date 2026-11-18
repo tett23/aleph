@@ -42,7 +42,7 @@
       "size": 2740937888,
       "sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
       "license": "Apache-2.0",
-      "default": false
+      "default": true
     }
   ]
 }

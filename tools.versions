@@ -10,6 +10,11 @@ shem v0.1.0-rc9 shem-{tag}-aarch64-apple-darwin.tar.gz
 # name  tag  archive  repository  sha256  files to copy
 llama.cpp b12466 llama-{tag}-bin-macos-arm64.tar.gz ggml-org/llama.cpp 1940fb9b81d85c3a0edba8ebca6b723c9ab85cf98ca7a2ee70077cc26df63441 llama-server libllama-server-impl.dylib libllama-common.1.dylib libmtmd.1.dylib libllama.1.dylib libggml.1.dylib libggml-base.1.dylib libggml-cpu.1.dylib libggml-blas.1.dylib libggml-metal.1.dylib libggml-rpc.1.dylib LICENSE
 #
+# the default model of the assistant (docs/adr/0081, docs/adr/0086), from its
+# pinned revision on Hugging Face, checked against the SHA-256 here
+# model  file  repository  revision  sha256
+model Qwen3.5-4B-Q4_K_M.gguf unsloth/Qwen3.5-4B-GGUF e87f176479d0855a907a41277aca2f8ee7a09523 00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4
+#
 # the chapters of the Golem manual, from the source at the golem tag above
 # manual  file  repository  sha256
 manual 03-markup.gm tett23/golem 5eb0a267200bd7eb85013d91ce56aec874ea7c5de045a934b7cefd54cfd17d66

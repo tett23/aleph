@@ -195,3 +195,115 @@ test("bundling again replaces the llama.cpp and manual directories, not leaving 
   assert.ok(!existsSync(join(res, "llama.cpp", "libold.dylib")));
   assert.ok(!existsSync(join(res, "manual", "99-old.gm")));
 });
+
+/** A fake model file under `hf` (as huggingface.co) at `<repo>/resolve/<revision>/<file>`. */
+const model = (hf: string, file: string, body: string, tamper = false) => {
+  const repo = "test/model-GGUF";
+  const revision = "0123456789abcdef0123456789abcdef01234567";
+  const dir = join(hf, repo, "resolve", revision);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, file), body);
+  return `model ${file} ${repo} ${revision} ${tamper ? "0".repeat(64) : sha256(join(dir, file))}\n`;
+};
+
+const runModel = (versions: string, hf: string, more: { res?: string; env?: Record<string, string> } = {}) => {
+  const dir = mkdtempSync(join(tmpdir(), "aleph-bundle-"));
+  writeFileSync(join(dir, "tools.versions"), versions);
+  const res = more.res ?? join(dir, "resources");
+  const env = { ...process.env, ALEPH_HF_URL: `file://${hf}`, ...more.env };
+  const r = spawnSync("sh", [script, join(dir, "tools.versions"), res], { env, encoding: "utf8" });
+  return { ...r, res };
+};
+
+test("ADR 0081: the default model is taken from its pinned revision and installed into models/", () => {
+  const hf = mkdtempSync(join(tmpdir(), "aleph-hf-"));
+  const r = runModel(model(hf, "Fake-Q4_K_M.gguf", "weights\n"), hf);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(join(r.res, "models", "Fake-Q4_K_M.gguf"), "utf8"), "weights\n");
+  assert.match(r.stdout, /checked model Fake-Q4_K_M\.gguf/);
+});
+
+test("ADR 0081: a model that does not match its SHA-256 in tools.versions leaves the resources untouched", () => {
+  const s = fullSet();
+  const hf = mkdtempSync(join(tmpdir(), "aleph-hf-"));
+  const v = s.head + model(hf, "Fake-Q4_K_M.gguf", "tampered\n", true);
+  const dir = mkdtempSync(join(tmpdir(), "aleph-bundle-"));
+  writeFileSync(join(dir, "tools.versions"), v);
+  const res = join(dir, "resources");
+  const env = {
+    ...process.env,
+    ALEPH_RELEASES_URL: `file://${s.base}`,
+    ALEPH_GITHUB_URL: `file://${s.github}`,
+    ALEPH_RAW_URL: `file://${s.raw}`,
+    ALEPH_HF_URL: `file://${hf}`,
+  };
+  const r = spawnSync("sh", [script, join(dir, "tools.versions"), res], { env, encoding: "utf8" });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /Fake-Q4_K_M\.gguf does not match its SHA-256/);
+  assert.ok(!existsSync(join(res, "golem")));
+  assert.ok(!existsSync(join(res, "models")));
+});
+
+test("ADR 0081: a model already installed that matches is kept without fetching it again", () => {
+  const hf = mkdtempSync(join(tmpdir(), "aleph-hf-"));
+  const row = model(hf, "Fake-Q4_K_M.gguf", "weights\n");
+  const res = join(mkdtempSync(join(tmpdir(), "aleph-res-")), "resources");
+  mkdirSync(join(res, "models"), { recursive: true });
+  writeFileSync(join(res, "models", "Fake-Q4_K_M.gguf"), "weights\n");
+  writeFileSync(join(res, "models", "Old-Q4_K_M.gguf"), "old\n");
+  // the served copy is gone: a fetch would fail
+  const empty = mkdtempSync(join(tmpdir(), "aleph-hf-"));
+  const r = runModel(row, empty, { res });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(join(res, "models", "Fake-Q4_K_M.gguf"), "utf8"), "weights\n");
+  // a model no longer in tools.versions goes
+  assert.ok(!existsSync(join(res, "models", "Old-Q4_K_M.gguf")));
+});
+
+test("ADR 0081: a model installed that does not match is fetched again", () => {
+  const hf = mkdtempSync(join(tmpdir(), "aleph-hf-"));
+  const row = model(hf, "Fake-Q4_K_M.gguf", "weights\n");
+  const res = join(mkdtempSync(join(tmpdir(), "aleph-res-")), "resources");
+  mkdirSync(join(res, "models"), { recursive: true });
+  writeFileSync(join(res, "models", "Fake-Q4_K_M.gguf"), "half");
+  const r = runModel(row, hf, { res });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(join(res, "models", "Fake-Q4_K_M.gguf"), "utf8"), "weights\n");
+});
+
+test("ADR 0081: ALEPH_SKIP_MODELS leaves the model rows out and the installed models as they were", () => {
+  const s = fullSet();
+  const hf = mkdtempSync(join(tmpdir(), "aleph-hf-"));
+  const res = join(mkdtempSync(join(tmpdir(), "aleph-res-")), "resources");
+  mkdirSync(join(res, "models"), { recursive: true });
+  writeFileSync(join(res, "models", "Kept.gguf"), "kept\n");
+  const v = s.head + model(hf, "Fake-Q4_K_M.gguf", "weights\n");
+  const dir = mkdtempSync(join(tmpdir(), "aleph-bundle-"));
+  writeFileSync(join(dir, "tools.versions"), v);
+  const env = {
+    ...process.env,
+    ALEPH_RELEASES_URL: `file://${s.base}`,
+    ALEPH_GITHUB_URL: `file://${s.github}`,
+    ALEPH_RAW_URL: `file://${s.raw}`,
+    // a fetch from here would fail
+    ALEPH_HF_URL: "file:///nonexistent",
+    ALEPH_SKIP_MODELS: "1",
+  };
+  const r = spawnSync("sh", [script, join(dir, "tools.versions"), res], { env, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(res, "golem")));
+  assert.ok(!existsSync(join(res, "models", "Fake-Q4_K_M.gguf")));
+  assert.equal(readFileSync(join(res, "models", "Kept.gguf"), "utf8"), "kept\n");
+});
+
+test("ADR 0081: the model row of tools.versions is the default model of the list", () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const row = readFileSync(join(root, "tools.versions"), "utf8").split("\n").find((l) => l.startsWith("model "));
+  const list = JSON.parse(readFileSync(join(root, "bench", "assistant", "models.json"), "utf8")) as {
+    models: { id: string; repo: string; revision: string; file: string; sha256: string; default: boolean }[];
+  };
+  const d = list.models.filter((m) => m.default);
+  assert.equal(d.length, 1);
+  assert.equal(d[0].id, "qwen3.5-4b");
+  assert.deepEqual(row?.split(/\s+/), ["model", d[0].file, d[0].repo, d[0].revision, d[0].sha256]);
+});

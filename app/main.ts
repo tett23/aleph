@@ -21,6 +21,7 @@ import { openPaths, saveSheets } from "./docs.ts";
 import { mountTree, reloadTree, treeReloaded } from "./ui/tree.ts";
 import { readTitleOnSave } from "./savedtitles.ts";
 import { git, gitOk, mountTools } from "./tools.ts";
+import { mountAssistantSettings } from "./assistant/models.ts";
 import { startRecorder } from "./ed/recorder.ts";
 import { mountEditors } from "./editor/host.ts";
 import { mountJson } from "./jsonfeature.ts";
@@ -185,6 +186,7 @@ const start = async () => {
 
   mountTree(ctx);
   mountTools(ctx);
+  mountAssistantSettings(ctx);
   mountEditors(ctx);
   mountBottomPanel(ctx); // before the LSP: the counts sit left of its state in the status bar
   mountLsp(ctx);

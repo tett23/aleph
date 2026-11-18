@@ -7,11 +7,14 @@ mod fsevents;
 mod fsops;
 mod guard;
 mod handout;
+mod llama;
 mod lsp;
+mod models;
 mod nav;
 mod process;
 mod replace;
 mod search;
+mod sha256;
 mod spell;
 mod watchfs;
 mod window;
@@ -795,6 +798,210 @@ fn git_info_now(app: AppHandle) -> R<GitInfo> {
     })
 }
 
+// ---- the assistant's local inference and models (docs/adr/0081, docs/adr/0086) ----
+
+/// The folder of the downloaded models, which only Rust reads and writes.
+fn models_dir(app: &AppHandle) -> R<PathBuf> {
+    Ok(app.path().app_data_dir().map_err(err)?.join("models"))
+}
+
+/// The bundled default model's folder.
+fn bundled_models(app: &AppHandle) -> Option<PathBuf> {
+    roots(app).resources.map(|r| r.join("models"))
+}
+
+/// Where a model of the list lives: the bundled default in the resources, the
+/// others in the models folder.
+fn model_path(app: &AppHandle, m: &models::Model) -> R<PathBuf> {
+    if m.default {
+        bundled_models(app)
+            .map(|d| d.join(&m.file))
+            .ok_or_else(|| "アプリのリソースのフォルダがありません".into())
+    } else {
+        Ok(models_dir(app)?.join(&m.file))
+    }
+}
+
+/// The model the local connector uses now (I10).
+fn model_in_use(app: &AppHandle) -> R<models::Model> {
+    let list = models::list();
+    let config = kept_config(app);
+    let chosen = config.get(guard::ASSISTANT_MODEL).and_then(|v| v.as_str());
+    let downloaded = models::downloaded(&models_dir(app)?, &list);
+    models::choose(&list, chosen, &downloaded)
+        .cloned()
+        .ok_or_else(|| "モデルの一覧に既定のモデルがありません".into())
+}
+
+/// The model being downloaded, one at a time.
+#[derive(Default)]
+struct Downloading(std::sync::Mutex<Option<String>>);
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ModelInfo {
+    id: String,
+    name: String,
+    size: u64,
+    license: String,
+    default: bool,
+    installed: bool,
+    in_use: bool,
+    downloading: bool,
+}
+
+/// The models of the list, which are installed, and which one is in use.
+#[tauri::command]
+fn assistant_models(app: AppHandle) -> R<Vec<ModelInfo>> {
+    let list = models::list();
+    let downloaded = models::downloaded(&models_dir(&app)?, &list);
+    let in_use = model_in_use(&app)?.id;
+    let loading = app
+        .state::<Downloading>()
+        .0
+        .lock()
+        .map(|d| d.clone())
+        .unwrap_or_default();
+    Ok(list
+        .iter()
+        .map(|m| ModelInfo {
+            id: m.id.clone(),
+            name: m.name.clone(),
+            size: m.size,
+            license: m.license.clone(),
+            default: m.default,
+            installed: if m.default {
+                model_path(&app, m).is_ok_and(|p| p.is_file())
+            } else {
+                downloaded.contains(&m.id)
+            },
+            in_use: m.id == in_use,
+            downloading: loading.as_deref() == Some(m.id.as_str()),
+        })
+        .collect())
+}
+
+/// Downloads a model of the list (not the bundled default) with /usr/bin/curl
+/// from its pinned revision, checked against its SHA-256 (I7); off the main thread.
+#[tauri::command]
+async fn assistant_download_model(app: AppHandle, id: String) -> R<()> {
+    blocking(move || {
+        let list = models::list();
+        let m = models::deletable(&list, &id)
+            .map_err(|_| format!("ダウンロードできるモデルではありません：{id}"))?
+            .clone();
+        {
+            let state = app.state::<Downloading>();
+            let mut d = state.0.lock().map_err(err)?;
+            if let Some(other) = d.as_ref() {
+                return Err(format!("{other} をダウンロードしている途中です"));
+            }
+            *d = Some(m.id.clone());
+        }
+        let out = models_dir(&app).and_then(|dir| {
+            models::download(
+                Path::new("/usr/bin/curl"),
+                &models::url("https://huggingface.co", &m),
+                &dir,
+                &m,
+            )
+        });
+        if let Ok(mut d) = app.state::<Downloading>().0.lock() {
+            *d = None;
+        }
+        out.map(|_| ())
+    })
+    .await
+}
+
+/// Deletes a downloaded model after the writer agrees; the default cannot be
+/// deleted (I10). False when the writer stopped.
+#[tauri::command]
+async fn assistant_delete_model(app: AppHandle, id: String) -> R<bool> {
+    blocking(move || {
+        let list = models::list();
+        let m = models::deletable(&list, &id)?.clone();
+        if !confirm(
+            &app,
+            "モデルを消す",
+            &format!("ダウンロードした {} を消しますか。", m.name),
+            "消す",
+        ) {
+            return Ok(false);
+        }
+        let dir = models_dir(&app)?;
+        app.state::<llama::Local>().stop_model(&dir.join(&m.file));
+        models::delete(&dir, &list, &id)?;
+        Ok(true)
+    })
+    .await
+}
+
+/// Chooses the model of the local connector, one of the list; returns the settings written.
+#[tauri::command]
+fn assistant_choose_model(app: AppHandle, id: String) -> R<String> {
+    if !models::list().iter().any(|m| m.id == id) {
+        return Err(format!("一覧に無いモデルです：{id}"));
+    }
+    write_config(
+        &app,
+        guard::set_path(&kept_config(&app), guard::ASSISTANT_MODEL, &id),
+    )
+}
+
+/// Runs `f` against the llama-server of the model in use, started when needed.
+fn with_local<T>(app: &AppHandle, f: impl FnOnce(&Path) -> R<T>) -> R<(T, models::Model)> {
+    let m = model_in_use(app)?;
+    let model = model_path(app, &m)?;
+    let bin = roots(app)
+        .resources
+        .map(|r| r.join("llama.cpp").join("llama-server"))
+        .ok_or("アプリのリソースのフォルダがありません")?;
+    let out = app
+        .state::<llama::Local>()
+        .with_server(&bin, &model, &std::env::temp_dir(), f)?;
+    Ok((out, m))
+}
+
+#[derive(serde::Serialize)]
+struct LocalAnswer {
+    /// The answer's JSON as the model wrote it.
+    content: String,
+    model: String,
+    ms: u64,
+}
+
+/// Asks the local model: the messages of app/assistant/prompt.ts, bound to the
+/// answer's schema at temperature 0 without the thinking; off the main thread.
+#[tauri::command]
+async fn assistant_local_ask(app: AppHandle, messages: Vec<llama::Message>) -> R<LocalAnswer> {
+    blocking(move || {
+        let t0 = std::time::Instant::now();
+        let (content, m) = with_local(&app, |sock| llama::ask(sock, &messages))?;
+        Ok(LocalAnswer {
+            content,
+            model: m.name,
+            ms: t0.elapsed().as_millis() as u64,
+        })
+    })
+    .await
+}
+
+/// The tokens of each text, for the material's limit.
+#[tauri::command]
+async fn assistant_local_count(app: AppHandle, texts: Vec<String>) -> R<Vec<usize>> {
+    blocking(move || with_local(&app, |sock| llama::count(sock, &texts)).map(|(n, _)| n)).await
+}
+
+/// The tokens of the messages with the chat template: the fixed part (docs/adr/0086).
+#[tauri::command]
+async fn assistant_local_template_count(app: AppHandle, messages: Vec<llama::Message>) -> R<usize> {
+    blocking(move || {
+        with_local(&app, |sock| llama::template_count(sock, &messages)).map(|(n, _)| n)
+    })
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -1230,6 +1437,8 @@ pub fn run_app() {
         .manage(lsp::Servers::default())
         .manage(Kept::default())
         .manage(Watching::default())
+        .manage(llama::Local::default())
+        .manage(Downloading::default())
         .menu(menu)
         .on_menu_event(|app, e| {
             if e.id() == "quit" {
@@ -1250,6 +1459,12 @@ pub fn run_app() {
                 *c = config;
             }
             restore_window(app.handle());
+            // llama-server stops five minutes after the last request (docs/adr/0081)
+            let h = app.handle().clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(10));
+                h.state::<llama::Local>().reap(std::time::Instant::now());
+            });
             Ok(())
         })
         .on_window_event(|win, ev| {
@@ -1316,7 +1531,14 @@ pub fn run_app() {
             choose_library,
             choose_binary,
             set_binary,
-            open_url
+            open_url,
+            assistant_models,
+            assistant_download_model,
+            assistant_delete_model,
+            assistant_choose_model,
+            assistant_local_ask,
+            assistant_local_count,
+            assistant_local_template_count
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")
@@ -1329,6 +1551,7 @@ pub fn run_app() {
             }
             if let tauri::RunEvent::Exit = ev {
                 app.state::<lsp::Servers>().stop_all();
+                app.state::<llama::Local>().stop();
             }
         });
 }
