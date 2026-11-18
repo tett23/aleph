@@ -276,7 +276,7 @@ test("ADR 0087 I2: one pane [chapter 1, preview (selected)] written and restored
   const s0 = check([restore([{ tabs: [sheet(ch1), previewTab], active: 1 }], 0)]);
   const w = readTabs(JSON.parse(JSON.stringify(writeTabs(s0))))!;
   assert.deepEqual(w, { pane: 0, panes: [{ active: 1, tabs: [{ paths: [ch1], focus: 0 }, { preview: true }] }] });
-  const panes = w.panes.map((p) => ({ active: p.active, tabs: p.tabs.map((t) => ("preview" in t ? previewTab : "plot" in t ? plotTab(t.plot) : { open: t.paths.map(doc), focus: t.focus, plot: null })) }));
+  const panes = w.panes.map((p) => ({ active: p.active, tabs: p.tabs.map((t) => ("preview" in t ? previewTab : "diff" in t ? { open: [], focus: 0, plot: null, diff: true } : "plot" in t ? plotTab(t.plot) : { open: t.paths.map(doc), focus: t.focus, plot: null })) }));
   const s = check([restore(panes, w.pane)]);
   assert.equal(activeTab(s).preview, true);
   assert.equal(name(s, s.followed), ch1);

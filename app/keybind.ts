@@ -67,6 +67,8 @@ export const keyContextChanged = (ctx: Ctx, editorFocused = editorHasFocus(ctx))
 };
 
 const runIds = (ctx: Ctx, ids: string[]) => {
+  // a sequence that expires under a modal dialog runs nothing either (docs/adr/0088)
+  if (ctx.store.get().modal) return;
   for (const id of ids) {
     const c = ctx.commands.find((x) => x.id === id);
     if (c) void runCommand(ctx, c);
@@ -91,11 +93,16 @@ const setPending = (ctx: Ctx, p: Pending, table: Bound[] = [], context: KeyConte
 /**
  * A key press, from an editor (which asks before its own keys) or from the
  * window. Returns true when the key was taken: it ran a command, or it is part
- * of a sequence still waiting.
+ * of a sequence still waiting. While a modal dialog is shown, no key is taken.
  */
 export const dispatchKey = (ctx: Ctx, e: KeyboardEvent, editorFocused: boolean): boolean => {
   if (seen.has(e)) return false;
   seen.add(e);
+  // a modal dialog is answered first: no key runs a command (docs/adr/0088)
+  if (ctx.store.get().modal) {
+    setPending(ctx, null);
+    return false;
+  }
   const composing = e.isComposing || e.keyCode === 229;
   if (composing) {
     setPending(ctx, null);

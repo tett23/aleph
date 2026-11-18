@@ -6,20 +6,24 @@ import type { Doc, Tab } from "./store.ts";
 const doc = (path: string) => ({ path }) as Doc;
 
 test("a sheet tab shows its focused sheet", () => {
-  const t: Tab = { id: 1, open: [doc("/w/p/a.gm"), doc("/w/p/b.gm")], focus: 1, plot: null, preview: false };
+  const t: Tab = { id: 1, open: [doc("/w/p/a.gm"), doc("/w/p/b.gm")], focus: 1, plot: null, preview: false, diff: false };
   assert.equal(tabTarget(t), "/w/p/b.gm");
 });
 
 test("a plot tab shows the project's plot.csv", () => {
-  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: "/w/p", preview: false }), "/w/p/plot.csv");
+  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: "/w/p", preview: false, diff: false }), "/w/p/plot.csv");
 });
 
 test("an empty tab shows nothing", () => {
-  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: null, preview: false }), null);
+  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: null, preview: false, diff: false }), null);
 });
 
 test("the preview tab shows nothing (docs/adr/0087)", () => {
-  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: null, preview: true }), null);
+  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: null, preview: true, diff: false }), null);
+});
+
+test("the diff tab shows nothing (docs/adr/0088)", () => {
+  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: null, preview: false, diff: true }), null);
 });
 
 test("the menu offers Finder for files and folders alike", () => {

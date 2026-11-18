@@ -3,6 +3,7 @@
 // another tab is shown, so the caret, the scroll and the undo history stay.
 // The state's panes and tabs are in store.ts; this keeps the DOM in step.
 // The preview tab holds no editor: the preview draws its head and body (docs/adr/0087).
+// Nor does the diff tab: the diff tab's module reads and draws them (docs/adr/0088).
 import { addCommands } from "../commands.ts";
 import { notifyError } from "../ui/notices.ts";
 import type { Ctx } from "../ctx.ts";
@@ -28,6 +29,7 @@ const tabVertical = (s: State, t: Tab) => s.vertical && t.open.length > 0 && t.o
 
 export const tabTitle = (ctx: Ctx, t: Tab) => {
   if (t.preview) return "プレビュー";
+  if (t.diff) return "差分";
   if (t.plot) return "プロット";
   const d = t.open[0];
   const name = d ? (ctx.titles.get(d.path) ?? stem(d.path)) : "";
@@ -58,6 +60,11 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       if (t.preview) {
         view.el.classList.add("preview-tab");
         view.el.append(h(`<div class="phead"></div>`), h(`<div class="pbody"></div>`));
+        return view;
+      }
+      if (t.diff) {
+        view.el.classList.add("diff-tab");
+        view.el.append(h(`<div class="dhead"></div>`), h(`<div class="dbody"></div>`));
         return view;
       }
       if (t.plot) {
@@ -125,6 +132,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
     };
 
     const shownPreviews: HTMLElement[] = [];
+    const shownDiffs: HTMLElement[] = [];
     const draw = (s: State, prev: State | null) => {
       layout(s);
       const live = new Set<string>();
@@ -157,6 +165,8 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
           v.el.hidden = k !== p.active;
           // the preview tab is drawn while shown only: when it is made or selected, with the sheet followed now (docs/adr/0087)
           if (t.preview && !v.el.hidden && (fresh || was)) shownPreviews.push(v.el);
+          // the diff tab is read when it is made or selected in its pane, and not while it is not (docs/adr/0088)
+          if (t.diff && !v.el.hidden && (fresh || was)) shownDiffs.push(v.el);
           // the vertical switch changes the writing mode of the editors in place
           const vert = tabVertical(s, t);
           if (vert !== v.vertical) {
@@ -169,6 +179,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       });
       for (const key of [...views.keys()]) if (!live.has(key)) destroy(key);
       for (const el of shownPreviews.splice(0)) ctx.view.previewTab?.(el.querySelector<HTMLElement>(".phead")!, el.querySelector<HTMLElement>(".pbody")!, ctx);
+      for (const el of shownDiffs.splice(0)) ctx.view.diffTab?.(el.querySelector<HTMLElement>(".dhead")!, el.querySelector<HTMLElement>(".dbody")!, ctx);
 
       // the caret: where an opener asked, or in the sheet of a newly selected tab
       const at = ctx.pendingAt;

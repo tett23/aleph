@@ -47,6 +47,7 @@ import { mountProjectBuild } from "./projectbuildmount.ts";
 import { mountMdConvert } from "./mdconvert.ts";
 import { mountPlugins } from "./plugins/mount.ts";
 import { currentBranch, mountGit } from "./gitpanel.ts";
+import { mountDiffTab } from "./difftab/mount.ts";
 import { rel } from "./path.ts";
 
 /** The parts of the state kept between launches, in config.json's `ui` (docs/adr/0004). */
@@ -192,6 +193,7 @@ const start = async () => {
   mountProjectBuild(ctx); // after lint and preflight: its status item sits right of them (docs/adr/0058)
   mountPreview(ctx);
   mountGit(ctx);
+  mountDiffTab(ctx);
   mountWatch(ctx);
   mountPlotFeature(ctx);
   mountAttach(ctx);
