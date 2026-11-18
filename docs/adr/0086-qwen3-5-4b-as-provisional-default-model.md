@@ -1,6 +1,6 @@
 # ADR 0086: Qwen3.5-4B を、アシスタントの仮の既定のモデルにする
 
-Status: proposed
+Status: accepted
 
 ## 文脈
 
