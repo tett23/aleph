@@ -1,4 +1,17 @@
-# The golem and shem bundled with Aleph (docs/adr/0008).
-# name  tag  archive (the tag is substituted for {tag})
+# The tools and files bundled with Aleph (docs/adr/0008, docs/adr/0081).
+# scripts/bundle-tools.sh describes the rows; {tag} in an archive is the tag.
+#
+# golem and shem, checked against their releases' SHA256SUMS
+# name  tag  archive
 golem v0.1.0-rc4 golem-{tag}-aarch64-macos.tar.gz
 shem v0.1.0-rc9 shem-{tag}-aarch64-apple-darwin.tar.gz
+#
+# llama.cpp, checked against the SHA-256 here (it has no SHA256SUMS)
+# name  tag  archive  repository  sha256  files to copy
+llama.cpp b12466 llama-{tag}-bin-macos-arm64.tar.gz ggml-org/llama.cpp 1940fb9b81d85c3a0edba8ebca6b723c9ab85cf98ca7a2ee70077cc26df63441 llama-server libllama-server-impl.dylib libllama-common.1.dylib libmtmd.1.dylib libllama.1.dylib libggml.1.dylib libggml-base.1.dylib libggml-cpu.1.dylib libggml-blas.1.dylib libggml-metal.1.dylib libggml-rpc.1.dylib LICENSE
+#
+# the chapters of the Golem manual, from the source at the golem tag above
+# manual  file  repository  sha256
+manual 03-markup.gm tett23/golem 5eb0a267200bd7eb85013d91ce56aec874ea7c5de045a934b7cefd54cfd17d66
+manual 04-manifest.gm tett23/golem 59fa4264769a0bf568ef894eed1dd9827f551d7be6afe7500b7e9c563ca6214e
+manual 05-style.gm tett23/golem 3545c2108a97406ce97360f17165322d202146ab5e723954281ce836d6786b0f

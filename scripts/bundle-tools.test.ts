@@ -158,9 +158,10 @@ test("a manual chapter that does not match its SHA-256 leaves the resources unto
 });
 
 test("the manual is taken from the source at the tag of the golem row", () => {
-  const s = fullSet();
+  const base = mkdtempSync(join(tmpdir(), "aleph-base-"));
+  const raw = mkdtempSync(join(tmpdir(), "aleph-raw-"));
   // the chapter exists only at another tag
-  const r = run(release(s.base, "golem", "v1", "golem-1") + chapter(s.raw, "v0", "03-markup.gm", "# old\n"), s.base, s);
+  const r = run(release(base, "golem", "v1", "golem-1") + chapter(raw, "v0", "03-markup.gm", "# old\n"), base, { raw });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /cannot fetch .*\/v1\/manual\/chapters\/03-markup\.gm/);
 });
