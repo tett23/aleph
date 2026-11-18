@@ -1,4 +1,4 @@
-// The bottom panel under the editor area and the preview area (docs/adr/0055, names:
+// The bottom panel under the editor area (docs/adr/0055, names:
 // docs/adr/0082): the problems tab with the open sheets' diagnostics and the project's
 // check, lint and preflight, grouped by file; the notifications tab with their history
 // (docs/adr/0064); and the build log tab after a build (docs/adr/0069).
@@ -10,7 +10,7 @@ import { buildLogs, buildProblems } from "./projectbuildmount.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
 import { countProblems, DEFAULT_HEIGHT, fromGolem, groupProblems, panelHeight, type Problem } from "./problems.ts";
-import { allDocs, focused } from "./store.ts";
+import { allDocs, focused, shownDoc } from "./store.ts";
 import { uiState } from "./uistate.ts";
 import { LEVEL_ICON, notifications } from "./ui/notices.ts";
 import type { Note } from "./notify.ts";
@@ -165,7 +165,7 @@ export const mountBottomPanel = (ctx: Ctx) => {
 
   // the focused sheet's counts, every source's, also for kinds without a server
   ctx.status.push((s) => {
-    const d = focused(s);
+    const d = shownDoc(s);
     const t = d && ctx.editors.get(d.path)?.edit;
     if (!t) return "";
     const c = countProblems(editorProblems(ctx).filter((x) => x.file === d.path));

@@ -12,7 +12,7 @@ import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
 import { FIGURE_KINDS, copyFonts, figureInsert, freeName, installItem, libSubdir, libraryFiles, stateOf, targetIn, type Fs, type LibFile, type LibState } from "./library.ts";
 import { basename, rel } from "./path.ts";
-import { allDocs, focused } from "./store.ts";
+import { allDocs, focused, shownDoc } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { item } from "./ui/settings.ts";
 import { reloadTree } from "./ui/tree.ts";
@@ -95,7 +95,7 @@ const drawAll = async (el: HTMLElement, ctx: Ctx) => {
 
 const drawProject = async (el: HTMLElement, ctx: Ctx) => {
   if (!ctx.config.libraryDir) return void (el.innerHTML = noLibrary);
-  const project = focused(ctx.store.get())?.project;
+  const project = shownDoc(ctx.store.get())?.project;
   if (!project) return void (el.innerHTML = `<div class="sec"><div class="muted">Golem のプロジェクトのシートを開くと、そのプロジェクトでの状態が出ます。</div>${dropzone}</div>`);
   const rows = await states(ctx, [project]);
   const sec = (k: "font" | "plugin" | "function") =>

@@ -26,13 +26,13 @@ export type { Command } from "./commands.ts";
 import type { Command } from "./commands.ts";
 import type { PaletteItem } from "./palette.ts";
 
-/** The views of the editor area, of the preview area beside it and of the bottom panel under them. */
+/** The views of the editor area, of the preview tab in it and of the bottom panel under it. */
 export type View = {
   /** Draws the open sheets into the editor area; returns a cleanup. */
   editorArea?: (el: HTMLElement, ctx: Ctx) => (() => void) | void;
-  /** Draws the preview area. */
-  previewArea?: (head: HTMLElement, body: HTMLElement, ctx: Ctx) => void;
-  /** Draws the bottom panel under the editor area and the preview area (docs/adr/0055, docs/adr/0082). */
+  /** Draws the preview tab's head and body; called only while the preview tab is shown in its pane (docs/adr/0087). */
+  previewTab?: (head: HTMLElement, body: HTMLElement, ctx: Ctx) => void;
+  /** Draws the bottom panel under the editor area (docs/adr/0055, docs/adr/0082). */
   bottomPanel?: (el: HTMLElement, ctx: Ctx) => void;
 };
 
@@ -96,5 +96,5 @@ export type Ctx = {
   /** HEAD's text of a file, for the change marks; null when not in HEAD. */
   baseText: (doc: Doc) => Promise<string | null | false>;
   /** Draws the panels and the status bar again (after a change outside the store). */
-  refresh: (what?: ("sidebar" | "rightSidebar" | "status" | "previewArea" | "editorArea" | "bottomPanel")[]) => void;
+  refresh: (what?: ("sidebar" | "rightSidebar" | "status" | "previewTab" | "editorArea" | "bottomPanel")[]) => void;
 };

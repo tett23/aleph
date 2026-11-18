@@ -41,7 +41,8 @@ test("ADR 0073 invariants 1, 3 and 5: editor key path dismisses once and then mo
     const ctx = {
       commands: [], settings: [],
       config: { keyBindings: {} as Record<string, string[]>, leaderKey: "Mod-k", keySequenceTimeout: 1000 },
-      store: { get: () => ({ open: [{ path: "/w/a.gm" }], focus: 0 }) },
+      // the panes and the followed tab are read by the commands of the preview tab (docs/adr/0087)
+      store: { get: () => ({ open: [{ path: "/w/a.gm" }], focus: 0, panes: [{ tabs: [], active: 0 }], pane: 0, followed: null }) },
       editors: new Map<string, unknown>(), refresh: () => {},
     };
     mountCommands(ctx);

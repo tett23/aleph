@@ -2,6 +2,7 @@
 // side, each with a row of tabs. A tab's editors are kept, hidden, while
 // another tab is shown, so the caret, the scroll and the undo history stay.
 // The state's panes and tabs are in store.ts; this keeps the DOM in step.
+// The preview tab holds no editor: the preview draws its head and body (docs/adr/0087).
 import { addCommands } from "../commands.ts";
 import { notifyError } from "../ui/notices.ts";
 import type { Ctx } from "../ctx.ts";
@@ -26,6 +27,7 @@ const tabKey = (t: Tab) => String(t.id);
 const tabVertical = (s: State, t: Tab) => s.vertical && t.open.length > 0 && t.open.every((d) => canVertical(d.kind));
 
 export const tabTitle = (ctx: Ctx, t: Tab) => {
+  if (t.preview) return "プレビュー";
   if (t.plot) return "プロット";
   const d = t.open[0];
   const name = d ? (ctx.titles.get(d.path) ?? stem(d.path)) : "";
@@ -53,6 +55,11 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
 
     const build = (s: State, t: Tab): View => {
       const view: View = { el: h(`<div class="tabview"></div>`), host: null, editors: new Map(), docs: t.open.map(bindEditorDoc), vertical: tabVertical(s, t) };
+      if (t.preview) {
+        view.el.classList.add("preview-tab");
+        view.el.append(h(`<div class="phead"></div>`), h(`<div class="pbody"></div>`));
+        return view;
+      }
       if (t.plot) {
         const ed = ctx.kindViews.plot?.(view.el, { path: `${t.plot}/plot.csv`, project: t.plot } as Doc, ctx);
         if (ed) view.editors.set(`plot:${t.plot}`, ed);
@@ -117,6 +124,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       if (paneEls.length === 2) paneEls[0].style.flex = `0 0 ${uiState().get(SPLIT_KEY, 0.5) * 100}%`;
     };
 
+    const shownPreviews: HTMLElement[] = [];
     const draw = (s: State, prev: State | null) => {
       layout(s);
       const live = new Set<string>();
@@ -131,6 +139,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
           const key = tabKey(t);
           live.add(key);
           let v = views.get(key);
+          const fresh = !v;
           if (!v) {
             v = build(s, t);
             views.set(key, v);
@@ -144,7 +153,10 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
             eds.forEach(([old, ed]) => ctx.editors.get(old) === ed && ctx.editors.delete(old));
             v.editors.forEach((ed, path) => ctx.editors.set(path, ed));
           }
+          const was = v.el.hidden;
           v.el.hidden = k !== p.active;
+          // the preview tab is drawn while shown only: when it is made or selected, with the sheet followed now (docs/adr/0087)
+          if (t.preview && !v.el.hidden && (fresh || was)) shownPreviews.push(v.el);
           // the vertical switch changes the writing mode of the editors in place
           const vert = tabVertical(s, t);
           if (vert !== v.vertical) {
@@ -156,6 +168,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
         });
       });
       for (const key of [...views.keys()]) if (!live.has(key)) destroy(key);
+      for (const el of shownPreviews.splice(0)) ctx.view.previewTab?.(el.querySelector<HTMLElement>(".phead")!, el.querySelector<HTMLElement>(".pbody")!, ctx);
 
       // the caret: where an opener asked, or in the sheet of a newly selected tab
       const at = ctx.pendingAt;

@@ -1,5 +1,5 @@
-// The preview beside the editor (docs/adr/0010): Golem's HTML for the text,
-// golem build and shem for the pages, and the other kinds; PDF and images
+// The preview (docs/adr/0010), shown in the preview tab (docs/adr/0087): Golem's HTML
+// for the text, golem build and shem for the pages, and the other kinds; PDF and images
 // replace the editor; the text and the pages can go to their own windows.
 import { emit, listen } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -10,8 +10,9 @@ import { stubEditor } from "../editor/stub.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { argPath, basename, dirname, stem } from "../path.ts";
-import { allDocs, focused, type Doc, type State } from "../store.ts";
-import { effectivePreviewMode, verticalOn } from "../toolbar.ts";
+import { allDocs, shown, shownDoc, type Doc, type PreviewMode, type State } from "../store.ts";
+import { previewLabel, previewsFor, verticalOn } from "../toolbar.ts";
+import { previewMessage, previewShows, rebuildPagesOnSave } from "./tab.ts";
 import { golem, shem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { IMAGE_KINDS } from "../workspace.ts";
@@ -61,7 +62,7 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
   htmlBuilds.set(project, b);
   if (b.busy) return void (b.again = true);
   b.busy = true;
-  ctx.refresh(["previewArea"]);
+  ctx.refresh(["previewTab"]);
   try {
     const o = await withBuildDir(project, () => golem(ctx, project, ["build", "--target", "html"]));
     b.error = o.code === 0 ? "" : out(o) || "golem build に失敗しました";
@@ -75,7 +76,7 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
     b.error = String(e);
   }
   b.busy = false;
-  ctx.refresh(["previewArea"]);
+  ctx.refresh(["previewTab"]);
   void sendPlain(ctx);
   if (b.again) {
     b.again = false;
@@ -83,9 +84,9 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
   }
 };
 
-/** The dpi the main window's pane wants now. */
+/** The dpi the preview tab wants now: by its body's width, or 500 px when it has none (absent or hidden). */
 const wantedDpi = (ctx: Ctx, project: string) => {
-  const body = document.querySelector<HTMLElement>(".preview-area .pbody");
+  const body = document.querySelector<HTMLElement>(".preview-tab .pbody");
   return autoDpi({ width: body?.clientWidth || 500, ratio: devicePixelRatio, zoom, inches: styles.get(project) ?? 148 / 25.4, fixed: ctx.config.dpi });
 };
 
@@ -100,7 +101,7 @@ const publishPages = async (ctx: Ctx, project: string, p: Pages) => {
   pages.set(project, p);
   pageUrls.get(project)?.forEach((u) => URL.revokeObjectURL(u));
   pageUrls.set(project, await Promise.all(p.pngs.map(fileUrl)));
-  ctx.refresh(["previewArea"]);
+  ctx.refresh(["previewTab"]);
   await emit("aleph:pages", { project, ...p }).catch(() => {});
 };
 
@@ -123,11 +124,11 @@ const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wante
   }
   const inputs = pageSaves.inputsFor(project);
   if (onlyChanged && !inputs.changed()) {
-    ctx.refresh(["previewArea"]);
+    ctx.refresh(["previewTab"]);
     return;
   }
   b.busy = true;
-  ctx.refresh(["previewArea"]);
+  ctx.refresh(["previewTab"]);
   try {
     let snapshot: Map<string, string> | undefined;
     const prev = pages.get(project);
@@ -154,7 +155,7 @@ const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wante
     pages.set(project, { ...(pages.get(project) ?? { pdf: "", pngs: [], dpi }), ok: false, log: String(e) });
   } finally {
     b.busy = false;
-    ctx.refresh(["previewArea"]);
+    ctx.refresh(["previewTab"]);
     if (b.again) {
       const next = b.again;
       b.again = null;
@@ -163,7 +164,7 @@ const buildPages = async (ctx: Ctx, project: string, redraw = false, dpi = wante
   }
 };
 
-// ---- the pane beside the editor ----
+// ---- the preview tab ----
 
 let zoom = loadZoom();
 let lastKey = "";
@@ -175,62 +176,88 @@ const inchesOf = async (project: string) => {
   return styles.get(project)!;
 };
 
-const chaptersShown = (s: State) => s.open.filter((d) => d.kind === "gm");
+/** The chapters of the shown tab: the text of all of them is shown together. */
+const chaptersShown = (s: State) => shown(s).open.filter((d) => d.kind === "gm");
 
-const drawSide = (head: HTMLElement, body: HTMLElement, ctx: Ctx) => {
+/** Whether the shown sheets are written vertically (docs/adr/0019), by the shown tab (docs/adr/0087). */
+const verticalShown = (s: State) => verticalOn({ vertical: s.vertical, open: shown(s).open });
+
+/** The head's left part: the shown sheet's name ("ほか N 章" for chapters together) and, for a .gm, the switch of the text and the pages. */
+const headLeft = (s: State, ctx: Ctx, doc: Doc | null) => {
+  if (!doc) return "";
+  const { open } = shown(s);
+  const others = open.length > 1 ? ` <small>ほか ${open.length - 1} 章</small>` : "";
+  const name = `<span class="pname">${esc(ctx.titles.get(doc.path) ?? stem(doc.path))}</span>${others}`;
+  const modes = previewsFor(doc.kind);
+  const seg = modes.length > 1 ? `<span class="seg">${modes.map((m) => `<span data-preview-mode="${m}" class="${s.previewMode === m ? "on" : ""}">${previewLabel(doc.kind, m)}</span>`).join("")}</span>` : "";
+  return name + seg;
+};
+
+/** The head's clicks shared by every content: the switch of the text and the pages. */
+const modeClick = (ctx: Ctx, e: MouseEvent) => {
+  const m = (e.target as HTMLElement).closest<HTMLElement>("[data-preview-mode]")?.dataset.previewMode;
+  if (m) ctx.store.dispatch({ type: "previewMode", mode: m as PreviewMode });
+  return !!m;
+};
+
+const drawTab = (head: HTMLElement, body: HTMLElement, ctx: Ctx) => {
   const s = ctx.store.get();
-  const d = focused(s);
-  const pane = body.closest<HTMLElement>(".preview-area")!;
-  const side = d && !s.plot ? effectivePreviewMode(d.kind, s.previewMode) : "none";
-  pane.hidden = side === "none";
-  if (side === "none") {
+  const doc = shownDoc(s);
+  const what = previewShows(doc, s.previewMode);
+  if (what === "none" || what === "empty") {
+    head.innerHTML = headLeft(s, ctx, doc);
+    head.onclick = (e) => void modeClick(ctx, e);
     lastKey = "";
-    return;
+    return renderHint(body, previewMessage(what));
   }
-  const doc = d!;
-  if (side === "pages") return drawPages(head, body, ctx, doc);
-  const project = doc.project ?? "";
+  const d = doc!;
+  if (what === "pages") return drawPages(head, body, ctx, d, s);
+  const project = d.project ?? "";
   const hb = htmlBuilds.get(project);
   const note = hb?.busy ? "組んでいます…" : hb?.error ? "組めませんでした（前の結果を出しています）" : "";
-  head.innerHTML = `<span>${doc.kind === "gm" ? "本文" : "プレビュー"}</span>${note ? `<small class="${hb?.error ? "ng" : ""}" title="${esc(hb?.error ?? "")}">${esc(note)}</small>` : ""}<span class="sp"></span>${
-    doc.kind === "gm" ? `<span class="iconbtn" data-win="plain" title="別のウィンドウに出す">${icon("external-link", 14)}</span>` : ""
+  head.innerHTML = `${headLeft(s, ctx, d)}${note ? `<small class="${hb?.error ? "ng" : ""}" title="${esc(hb?.error ?? "")}">${esc(note)}</small>` : ""}<span class="sp"></span>${
+    d.kind === "gm" ? `<span class="iconbtn" data-win="plain" title="別のウィンドウに出す">${icon("external-link", 14)}</span>` : ""
   }`;
   head.onclick = (e) => {
+    if (modeClick(ctx, e)) return;
     if ((e.target as HTMLElement).closest("[data-win]")) void openWindow(ctx, "plain", project);
   };
-  if (doc.kind === "gm") {
+  if (d.kind === "gm") {
     const docs = chaptersShown(s);
-    const key = `plain|${s.vertical}|${docs.map((x) => `${x.path}:${html.has(x.path) ? html.get(x.path)!.length : x.saved.length}`).join()}|${note}`;
+    const key = `plain|${verticalShown(s)}|${docs.map((x) => `${x.path}:${html.has(x.path) ? html.get(x.path)!.length : x.saved.length}`).join()}|${note}`;
     if (key === lastKey && body.querySelector(".pview")) return;
     lastKey = key;
     if (project && docs.some((x) => !html.has(x.path)) && !hb?.busy && !hb?.error) void buildHtml(ctx, project, docs.map((x) => x.path));
     // several chapters open: written horizontally (docs/adr/0006), and so is their text
-    return renderPlain(body, sectionsOf(docs), verticalOn(s));
+    return renderPlain(body, sectionsOf(docs), verticalShown(s));
   }
-  const key = `${doc.kind}|${s.vertical}|${doc.path}|${doc.text}|${markdownHook.version}`;
+  const key = `${d.kind}|${s.vertical}|${d.path}|${d.text}|${markdownHook.version}`;
   if (key === lastKey && body.querySelector(".pview")) return;
   lastKey = key;
-  if (doc.kind === "md") return void renderMarkdown(body, doc.text, s.vertical, doc.path);
-  if (doc.kind === "svg") return renderSvg(body, doc.text);
-  if (doc.kind === "mmd") return void renderMermaid(body, doc.text);
+  if (d.kind === "md") return void renderMarkdown(body, d.text, s.vertical, d.path);
+  if (d.kind === "svg") return renderSvg(body, d.text);
+  if (d.kind === "mmd") return void renderMermaid(body, d.text);
 };
 
 const sectionsOf = (docs: Doc[]) => docs.map((x) => ({ title: stem(x.path), html: html.get(x.path) ?? plainHtml(x.saved) }));
 
-const drawPages = (head: HTMLElement, body: HTMLElement, ctx: Ctx, doc: Doc) => {
+const drawPages = (head: HTMLElement, body: HTMLElement, ctx: Ctx, doc: Doc, s: State) => {
   const project = doc.project;
   if (!project) {
-    head.innerHTML = "<span>ページ</span>";
+    head.innerHTML = headLeft(s, ctx, doc);
+    head.onclick = (e) => void modeClick(ctx, e);
+    lastKey = "";
     return renderHint(body, "Golem のプロジェクトの章で使えます");
   }
   const p = pages.get(project);
   const busy = pageBuilds.get(project)?.busy ?? false;
   const note = busy ? (p ? "組みなおしています…" : "組んでいます…") : waiter.waiting(project) ? "入力が止まったら組みなおします" : p && !p.ok ? "組めませんでした" : "";
-  head.innerHTML = `<span>ページ</span>${note ? `<small class="${p && !p.ok && !busy ? "ng" : ""}">${esc(note)}</small>` : ""}<span class="sp"></span>${zoomControls(zoom)}<span class="iconbtn" data-act="build" title="組みなおす">${icon(
+  head.innerHTML = `${headLeft(s, ctx, doc)}${note ? `<small class="${p && !p.ok && !busy ? "ng" : ""}">${esc(note)}</small>` : ""}<span class="sp"></span>${zoomControls(zoom)}<span class="iconbtn" data-act="build" title="組みなおす">${icon(
     "refresh-cw",
     14,
   )}</span><span class="iconbtn" data-win="pages" title="別のウィンドウに出す">${icon("external-link", 14)}</span>`;
   head.onclick = (e) => {
+    if (modeClick(ctx, e)) return;
     const t = e.target as HTMLElement;
     const z = zoomByClick(t, zoom);
     if (z !== null) return setZoom(ctx, project, z);
@@ -253,7 +280,7 @@ const drawPages = (head: HTMLElement, body: HTMLElement, ctx: Ctx, doc: Doc) => 
 const setZoom = (ctx: Ctx, project: string, z: number) => {
   zoom = z;
   saveZoom(z);
-  ctx.refresh(["previewArea"]);
+  ctx.refresh(["previewTab"]);
   sharpen(ctx, project);
 };
 
@@ -271,7 +298,8 @@ const watchWidth = (ctx: Ctx, body: HTMLElement, project: string) => {
   resize?.disconnect();
   resize = new ResizeObserver(() => {
     clearTimeout(resizeTimer);
-    resizeTimer = window.setTimeout(() => sharpen(ctx, project), 300);
+    // a hidden preview tab has no width: nothing is drawn again until it is shown (docs/adr/0087)
+    resizeTimer = window.setTimeout(() => body.clientWidth > 0 && body.isConnected && sharpen(ctx, project), 300);
   });
   resize.observe(body);
 };
@@ -280,7 +308,7 @@ const watchWidth = (ctx: Ctx, body: HTMLElement, project: string) => {
 
 const sendPlain = async (ctx: Ctx) => {
   const s = ctx.store.get();
-  await emit("aleph:plain", { sections: sectionsOf(chaptersShown(s)), vertical: verticalOn(s) }).catch(() => {});
+  await emit("aleph:plain", { sections: sectionsOf(chaptersShown(s)), vertical: verticalShown(s) }).catch(() => {});
 };
 
 export const openWindow = async (ctx: Ctx, view: "plain" | "pages", project: string) => {
@@ -329,10 +357,10 @@ const imageView = (el: HTMLElement, doc: Doc): Editor => {
 };
 
 export const mountPreview = (ctx: Ctx) => {
-  ctx.view.previewArea = (head, body) => {
-    const d = focused(ctx.store.get());
-    if (d?.project && !styles.has(d.project)) void inchesOf(d.project).then(() => ctx.refresh(["previewArea"]));
-    drawSide(head, body, ctx);
+  ctx.view.previewTab = (head, body) => {
+    const d = shownDoc(ctx.store.get());
+    if (d?.project && !styles.has(d.project)) void inchesOf(d.project).then(() => ctx.refresh(["previewTab"]));
+    drawTab(head, body, ctx);
   };
   ctx.kindViews.pdf = pdfView;
   for (const k of IMAGE_KINDS) ctx.kindViews[k] = (el, doc) => imageView(el, doc);
@@ -343,9 +371,10 @@ export const mountPreview = (ctx: Ctx) => {
       const before = allDocs(prev).find((d) => d.path === action.path);
       if (before?.project) {
         const project = before.project;
-        const eligible = ctx.config.rebuildOnSave && (pages.has(project) || effectivePreviewMode(before.kind, s.previewMode) === "pages");
+        const previewTab = s.panes.some((p) => p.tabs.some((t) => t.preview));
+        const eligible = rebuildPagesOnSave({ setting: ctx.config.rebuildOnSave, kind: before.kind, hasPages: pages.has(project), previewTab, mode: s.previewMode });
         pageSaves.saved(project, action, before.saved, eligible, () => void buildPages(ctx, project, false, undefined, true));
-        if (waiter.waiting(project)) ctx.refresh(["previewArea"]);
+        if (waiter.waiting(project)) ctx.refresh(["previewTab"]);
       }
     }
     for (const d of allDocs(s)) {
@@ -356,7 +385,7 @@ export const mountPreview = (ctx: Ctx) => {
       if (!d.project) continue;
       if (d.kind === "gm") void buildHtml(ctx, d.project, chaptersShown(s).map((x) => x.path));
     }
-    if (s.vertical !== prev.vertical || s.open !== prev.open) void sendPlain(ctx);
+    if (s.vertical !== prev.vertical || s.open !== prev.open || s.followed !== prev.followed) void sendPlain(ctx);
   });
 
   // the preview windows ask for what they show, and for a sharper drawing

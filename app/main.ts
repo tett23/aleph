@@ -9,7 +9,7 @@ import { startPreviewWindow } from "./preview/window.ts";
 import { mountPlotFeature, startPlotWindow } from "./plot/mount.ts";
 import { listen } from "@tauri-apps/api/event";
 import type { Ctx } from "./ctx.ts";
-import { createStore, initialState, type State } from "./store.ts";
+import { createStore, initialState, readPreviewMode, shownDoc, type State } from "./store.ts";
 import { confirmDialog, toast } from "./ui/dom.ts";
 import { notify } from "./ui/notices.ts";
 import { finishWrite, mayWrite, mountWatch } from "./watchmount.ts";
@@ -52,7 +52,8 @@ import { rel } from "./path.ts";
 /** The parts of the state kept between launches, in config.json's `ui` (docs/adr/0004). */
 const KEPT = ["sidebarPanel", "showSidebar", "rightSidebarPanel", "showRightSidebar", "previewMode", "vertical", "expanded", "workspace"] as const;
 const keep = (s: State) => uiState().merge(Object.fromEntries(KEPT.map((k) => [k, s[k]])));
-const kept = (ui: Record<string, unknown>): Partial<State> => Object.fromEntries(KEPT.filter((k) => k in ui).map((k) => [k, ui[k]]));
+// previewMode other than "plain" and "pages" ("none" included) is read as "plain" (docs/adr/0087)
+const kept = (ui: Record<string, unknown>): Partial<State> => ({ ...Object.fromEntries(KEPT.filter((k) => k in ui).map((k) => [k, ui[k]])), previewMode: readPreviewMode(ui.previewMode) });
 
 const start = async () => {
   const config = normalize(JSON.parse(await api.configLoad().catch(() => "{}")));
@@ -127,7 +128,7 @@ const start = async () => {
       return out && out.code === 0 ? out.stdout : null;
     },
     // before the frame is drawn there is nothing to redraw (the daily commit may finish first)
-    refresh: (what = ["sidebar", "rightSidebar", "status", "previewArea"]) => void (shell && draw(store.get(), store.get(), what)),
+    refresh: (what = ["sidebar", "rightSidebar", "status", "previewTab"]) => void (shell && draw(store.get(), store.get(), what)),
   };
 
   ctx.settings.push({
@@ -163,7 +164,7 @@ const start = async () => {
     renderRightSidebarHead(shell, s);
     if (what.includes("sidebar") || changed("sidebarPanel") || changed("workspace") || changed("showSidebar") || changed("expanded") || changed("selected") || changed("open") && !prev)
       void ctx.sidebar[s.sidebarPanel]?.render(shell.sidebarBody, ctx);
-    if (what.includes("rightSidebar") || changed("rightSidebarPanel") || changed("focus") || changed("open") || changed("showRightSidebar"))
+    if (what.includes("rightSidebar") || changed("rightSidebarPanel") || changed("focus") || changed("open") || changed("followed") || changed("showRightSidebar"))
       if (s.showRightSidebar) void ctx.rightSidebar[s.rightSidebarPanel]?.render(shell.rightSidebarBody, ctx);
     // the panes and tabs follow the store themselves (docs/adr/0024); made again only when asked
     if (what.includes("editorArea") || !prev) {
@@ -171,8 +172,11 @@ const start = async () => {
       shell.editorAreaBody.innerHTML = "";
       cleanupEditorArea = ctx.view.editorArea?.(shell.editorAreaBody, ctx);
     }
-    if (what.includes("previewArea") || changed("previewMode") || changed("open") || changed("focus") || changed("vertical")) ctx.view.previewArea?.(shell.previewHead, shell.previewBody, ctx);
-    if (!ctx.view.previewArea) shell.previewAreaEl.hidden = true;
+    // the preview tab, drawn only while it is shown in its pane (docs/adr/0087); the panes draw it when it is selected
+    if (what.includes("previewTab") || changed("previewMode") || changed("panes") || changed("pane") || changed("followed") || changed("vertical")) {
+      const tab = document.querySelector<HTMLElement>(".tabview.preview-tab:not([hidden])");
+      if (tab) ctx.view.previewTab?.(tab.querySelector<HTMLElement>(".phead")!, tab.querySelector<HTMLElement>(".pbody")!, ctx);
+    }
     if (what.includes("bottomPanel") || changed("focus") || changed("open") || !prev) ctx.view.bottomPanel?.(shell.bottomPanelEl, ctx);
     renderStatus(shell, s, ctx);
     keep(s);
@@ -226,7 +230,7 @@ const start = async () => {
 
   shell = mountShell(document.getElementById("app")!, ctx, () => {
     const s = store.get();
-    const p = s.open[0]?.project ?? s.plot;
+    const p = s.open[0]?.project ?? s.plot ?? shownDoc(s)?.project;
     if (p) store.dispatch({ type: "plot", project: p });
     else toast("Golem のプロジェクトのシートを開いてから押してください");
   });

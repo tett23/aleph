@@ -1,12 +1,13 @@
 // The screen's frame, drawn from the state (docs/adr/0005): ribbon, sidebar, toolbar,
-// editor area, preview area, bottom panel, status bar and right sidebar (names: docs/glossary.md).
+// editor area, bottom panel, status bar and right sidebar (names: docs/glossary.md).
+// The preview is a tab of the editor area's panes (docs/adr/0087).
 import { devBadge } from "../build.ts";
 import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { basename, rel, stem } from "../path.ts";
-import { dirty, focused, type SidebarPanelId, type PreviewMode, type RightSidebarPanelId, type State } from "../store.ts";
-import { canVertical, effectivePreviewMode, previewLabel, previewsFor } from "../toolbar.ts";
+import { dirty, previewAvailable, shown, type SidebarPanelId, type RightSidebarPanelId, type State } from "../store.ts";
+import { canVertical } from "../toolbar.ts";
 import { menuCommands } from "../commands.ts";
 import { hintOf } from "../keybind.ts";
 import { runCommand } from "../palette.ts";
@@ -36,13 +37,10 @@ export type Shell = {
   sidebarEl: HTMLElement;
   sidebarBody: HTMLElement;
   editorAreaBody: HTMLElement;
-  previewAreaEl: HTMLElement;
-  previewHead: HTMLElement;
-  previewBody: HTMLElement;
   rightSidebarEl: HTMLElement;
   rightSidebarBody: HTMLElement;
   statusBarEl: HTMLElement;
-  /** The bottom panel under the editor area and the preview area (docs/adr/0055). */
+  /** The bottom panel under the editor area (docs/adr/0055). */
   bottomPanelEl: HTMLElement;
 };
 
@@ -61,7 +59,6 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
       <div class="toolbar" data-tauri-drag-region></div>
       <div class="split">
         <div class="editor-area"><div class="pbody"></div></div>
-        <div class="preview-area" hidden><div class="phead"></div><div class="pbody"></div></div>
       </div>
       <div class="bottom-panel" hidden></div>
       <div class="status-bar"></div>
@@ -72,9 +69,6 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
     sidebarEl: $(".sidebar"),
     sidebarBody: $(".leftbody"),
     editorAreaBody: $(".editor-area .pbody"),
-    previewAreaEl: $(".preview-area"),
-    previewHead: $(".preview-area .phead"),
-    previewBody: $(".preview-area .pbody"),
     rightSidebarEl: $(".right-sidebar"),
     rightSidebarBody: $(".right-sidebar .rbody"),
     statusBarEl: $(".status-bar"),
@@ -102,10 +96,11 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
   });
 
   onPress(toolbar, (e) => {
-    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-toolbar],[data-preview-mode],[data-vert]");
+    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-toolbar],[data-vert]");
     if (!t) return;
     const s = ctx.store.get();
-    if (t.dataset.previewMode) ctx.store.dispatch({ type: "previewMode", mode: t.dataset.previewMode as PreviewMode });
+    // the preview tab, shown without changing previewMode (docs/adr/0087)
+    if (t.dataset.toolbar === "preview") ctx.store.dispatch({ type: "showPreview" });
     if (t.dataset.vert) ctx.store.dispatch({ type: "vertical", on: t.dataset.vert === "1" });
     if (t.dataset.toolbar === "sidebar") ctx.store.dispatch({ type: "sidebarPanel", panel: s.sidebarPanel });
     if (t.dataset.toolbar === "right-sidebar") ctx.store.dispatch({ type: "toggleRightSidebar" });
@@ -135,27 +130,27 @@ export const renderWorkspaceBar = (root: HTMLElement, s: State, branch: string) 
   root.querySelector<HTMLElement>(".workspace-bar .br")!.innerHTML = branch ? `${icon("git-branch", 12)}<span>${esc(branch)}</span>` : "";
 };
 
-/** The title of the focused sheet, the plot, or nothing. */
+/** The title of the shown sheet (docs/adr/0087), the plot, or nothing. */
 export const titleHtml = (s: State, titles: Map<string, string>) => {
-  const d = focused(s);
+  const { open, focus } = shown(s);
+  const d = open[focus];
   if (d) {
-    const others = s.open.length > 1 ? ` <small>ほか ${s.open.length - 1} 章</small>` : "";
-    return `${esc(titles.get(d.path) ?? stem(d.path))}<small>${esc(d.workspace ? rel(d.workspace, d.path) : d.path)}</small>${others}${s.open.some(dirty) ? `<span class="dirty"> ●</span>` : ""}`;
+    const others = open.length > 1 ? ` <small>ほか ${open.length - 1} 章</small>` : "";
+    return `${esc(titles.get(d.path) ?? stem(d.path))}<small>${esc(d.workspace ? rel(d.workspace, d.path) : d.path)}</small>${others}${open.some(dirty) ? `<span class="dirty"> ●</span>` : ""}`;
   }
   return s.plot ? `プロット<small>${esc(basename(s.plot))}</small>` : "";
 };
 
 export const renderToolbar = (root: HTMLElement, s: State, ctx: Ctx, titles: Map<string, string>) => {
   const toolbar = root.querySelector<HTMLElement>(".toolbar")!;
-  const d = focused(s);
-  const modes = d ? previewsFor(d.kind) : [];
-  const mode = d ? effectivePreviewMode(d.kind, s.previewMode) : "none";
-  // the editor's switch on the left, the preview's on the right (docs/adr/0005)
+  const { open, focus } = shown(s);
+  const d = open[focus];
+  // the editor's switch on the left, the preview's button on the right (docs/adr/0005, docs/adr/0087)
   toolbar.innerHTML = `
     <span class="iconbtn" data-toolbar="sidebar" title="サイドバー">${icon("panel-left")}</span>
-    ${s.open.length && s.open.every((x) => canVertical(x.kind)) ? `<span class="seg"><span data-vert="1" class="${s.vertical ? "on" : ""}">縦</span><span data-vert="0" class="${s.vertical ? "" : "on"}">横</span></span>` : ""}
+    ${open.length && open.every((x) => canVertical(x.kind)) ? `<span class="seg"><span data-vert="1" class="${s.vertical ? "on" : ""}">縦</span><span data-vert="0" class="${s.vertical ? "" : "on"}">横</span></span>` : ""}
     <span class="title" data-tauri-drag-region>${devBadge(ctx.debug)}${titleHtml(s, titles)}</span>
-    ${modes.length ? `<span class="seg">${modes.map((k) => `<span data-preview-mode="${k}" class="${mode === k ? "on" : ""}">${previewLabel(d!.kind, k)}</span>`).join("")}</span>` : ""}
+    ${previewAvailable(s) ? `<span class="seg"><span data-toolbar="preview" title="プレビューのタブを出す">プレビュー</span></span>` : ""}
     ${d?.project ? `<span class="iconbtn" data-toolbar="build" title="ビルド">${icon("hammer")}</span>` : ""}
     ${menuCommands(ctx.commands, s).length ? `<span class="iconbtn" data-toolbar="more-actions" title="ほかの操作">${icon("more-horizontal")}</span>` : ""}
     <span class="iconbtn ${s.showRightSidebar ? "on" : ""}" data-toolbar="right-sidebar" title="右サイドバー">${icon("panel-right")}</span>`;

@@ -6,7 +6,7 @@ import { withBuildDir } from "../buildlock.ts";
 import type { Ctx } from "../ctx.ts";
 import type { Diag, EditorPlugin, TextEditor } from "../ed/editor.ts";
 import { argPath, rel } from "../path.ts";
-import { allDocs, focused, type Doc, type State } from "../store.ts";
+import { allDocs, type Doc, type State, shownDoc } from "../store.ts";
 import { golem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { treeEntries, treeReloaded } from "../ui/tree.ts";
@@ -396,7 +396,7 @@ export const mountLsp = (ctx: Ctx) => {
   sync(ctx, ctx.store.get(), null);
 
   ctx.status.push((s) => {
-    const d = focused(s);
+    const d = shownDoc(s);
     if (!d || !lspDoc(d)) return "";
     const c = clients.get(d.project!);
     const st = c?.state() ?? "failed";

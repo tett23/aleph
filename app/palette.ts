@@ -8,8 +8,8 @@ import { fuzzy } from "./fuzzy.ts";
 import { icon } from "./icons.ts";
 import { hintOf } from "./keybind.ts";
 import { openWindow } from "./preview/mount.ts";
-import { focused, type SidebarPanelId, type RightSidebarPanelId, type PreviewMode } from "./store.ts";
-import { previewsFor, verticalOn, canVertical } from "./toolbar.ts";
+import { focused, pagesAvailable, previewAvailable, shownDoc, type SidebarPanelId, type RightSidebarPanelId, type PreviewMode, type State } from "./store.ts";
+import { verticalOn, canVertical } from "./toolbar.ts";
 import { openSettingsDialog } from "./ui/settings.ts";
 import { runTreeAct } from "./ui/tree.ts";
 import { uiState } from "./uistate.ts";
@@ -159,10 +159,10 @@ const RIGHT_SIDEBAR: [RightSidebarPanelId, string, string][] = [
   ["links", "リンク", "link"],
   ["library", "このプロジェクトの共有ライブラリ", "library-big"],
 ];
-const PREVIEW: [PreviewMode, string][] = [
-  ["none", "原稿のみ"],
-  ["plain", "本文"],
-  ["pages", "ページ"],
+/** preview.plain and preview.pages: set previewMode and show the preview tab (docs/adr/0087). */
+const PREVIEW: [PreviewMode, string, (s: State) => boolean][] = [
+  ["plain", "本文", previewAvailable],
+  ["pages", "ページ", pagesAvailable],
 ];
 
 export const mountCommands = (ctx: Ctx) => {
@@ -210,10 +210,11 @@ export const mountCommands = (ctx: Ctx) => {
     id: "view.plot",
     label: "プロット",
     icon: "table-2",
-    when: (s) => !!(focused(s)?.project ?? s.plot),
+    // while the preview tab is selected, the followed sheet's project: its plot takes the followed tab's place (docs/adr/0087)
+    when: (s) => !!(focused(s)?.project ?? s.plot ?? shownDoc(s)?.project),
     run: (c) => {
       const s = c.store.get();
-      const p = focused(s)?.project ?? s.plot;
+      const p = focused(s)?.project ?? s.plot ?? shownDoc(s)?.project;
       if (p) c.store.dispatch({ type: "plot", project: p });
     },
   });
@@ -221,28 +222,26 @@ export const mountCommands = (ctx: Ctx) => {
   add({ id: "view.vertical", label: "縦書き", icon: "arrow-up-down", when: (s) => prose(s) && !verticalOn(s), run: (c) => c.store.dispatch({ type: "vertical", on: true }) });
   add({ id: "view.horizontal", label: "横書き", icon: "arrow-right-left", when: (s) => prose(s) && verticalOn(s), run: (c) => c.store.dispatch({ type: "vertical", on: false }) });
 
-  for (const [side, label] of PREVIEW)
+  for (const [mode, label, available] of PREVIEW)
     add({
-      id: `preview.${side}`,
+      id: `preview.${mode}`,
       label: `プレビュー：${label}`,
       icon: "eye",
-      when: (s) => {
-        const d = focused(s);
-        return !!d && previewsFor(d.kind).includes(side);
-      },
-      run: (c) => c.store.dispatch({ type: "previewMode", mode: side }),
+      when: available,
+      run: (c) => c.store.dispatch({ type: "showPreview", mode }),
     });
   add({
     id: "preview.window",
     label: "プレビューを別のウィンドウに出す",
     icon: "external-link",
+    // the shown sheet: the followed one while the preview tab is selected (docs/adr/0087)
     when: (s) => {
-      const d = focused(s);
+      const d = shownDoc(s);
       return !!d?.project && d.kind === "gm";
     },
     run: (c) => {
       const s = c.store.get();
-      const d = focused(s)!;
+      const d = shownDoc(s)!;
       void openWindow(c, s.previewMode === "pages" ? "pages" : "plain", d.project!);
     },
   });

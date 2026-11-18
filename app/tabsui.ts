@@ -1,5 +1,6 @@
 // The tabs kept between launches (docs/adr/0024): each workspace's panes and
 // tabs in config.json's ui, written as they change and opened again at launch.
+// The preview tab is kept as { "preview": true } (docs/adr/0087).
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
 import { loadDoc } from "./docs.ts";
@@ -34,11 +35,13 @@ export const restoreTabs = async (ctx: Ctx): Promise<boolean> => {
       tabs: (
         await Promise.all(
           p.tabs.map(async (x) =>
-            "plot" in x
-              ? ctx.projects.includes(x.plot)
-                ? [{ open: [], focus: 0, plot: x.plot }]
-                : []
-              : [{ open: await Promise.all(x.paths.map((path) => loadDoc(path, ctx))), focus: x.focus, plot: null }],
+            "preview" in x
+              ? [{ open: [], focus: 0, plot: null, preview: true }]
+              : "plot" in x
+                ? ctx.projects.includes(x.plot)
+                  ? [{ open: [], focus: 0, plot: x.plot }]
+                  : []
+                : [{ open: await Promise.all(x.paths.map((path) => loadDoc(path, ctx))), focus: x.focus, plot: null }],
           ),
         )
       ).flat(),

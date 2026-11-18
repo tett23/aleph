@@ -4,7 +4,7 @@ import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { basename } from "../path.ts";
-import { allDocs, focused } from "../store.ts";
+import { allDocs, focused, shownDoc } from "../store.ts";
 import { golem } from "../tools.ts";
 import { parseDiagnostics, sortDiagnostics, statusOf, type Diagnostic, type Result } from "./parse.ts";
 
@@ -109,7 +109,7 @@ export const mountDiagnostics = (ctx: Ctx) => {
 
   // lint and preflight beside the LSP in the status bar
   ctx.status.push((s) => {
-    const project = focused(s)?.project;
+    const project = shownDoc(s)?.project;
     if (!project) return "";
     return (["lint", "preflight"] as const)
       .map((kind) => {

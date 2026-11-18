@@ -6,7 +6,7 @@ import { api } from "../api.ts";
 import type { Command, Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { basename } from "../path.ts";
-import { allDocs, focused, type State } from "../store.ts";
+import { allDocs, focused, type State, shownDoc } from "../store.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { API_VERSION, createHost, type Current, type LoadResult } from "./host.ts";
 
@@ -19,10 +19,7 @@ const importer = async (source: string) => {
   }
 };
 
-const current = (s: State): Current => {
-  const d = focused(s);
-  return d ? { path: d.path, kind: d.kind, text: d.text, project: d.project } : null;
-};
+const current = (s: State, d = focused(s)): Current => (d ? { path: d.path, kind: d.kind, text: d.text, project: d.project } : null);
 
 export const mountPlugins = async (ctx: Ctx) => {
   const host = createHost(ctx.toast, (m) => void ctx.notify({ message: m, level: "error", sticky: true }));
@@ -49,7 +46,7 @@ export const mountPlugins = async (ctx: Ctx) => {
     ctx.refresh(["status"]);
   };
 
-  ctx.status.push((s) => host.status(current(s)).map((t) => `<span class="plg">${esc(t)}</span>`).join(""));
+  ctx.status.push((s) => host.status(current(s, shownDoc(s))).map((t) => `<span class="plg">${esc(t)}</span>`).join(""));
   ctx.store.subscribe((s, prev) => {
     for (const d of allDocs(s)) {
       const before = allDocs(prev).find((x) => x.path === d.path);

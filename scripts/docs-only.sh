@@ -12,7 +12,7 @@ while IFS= read -r f || [ -n "$f" ]; do
   case "$f" in
     # docs that tests read are inputs of the tests (docs/adr/0084);
     # scripts/docs-only.test.ts fails when a test reads a doc missing here
-    docs/glossary.md | docs/specifications.md | docs/adr/0082-ui-names-and-glossary.md)
+    docs/glossary.md | docs/specifications.md | docs/adr/0082-ui-names-and-glossary.md | docs/adr/0087-preview-in-a-tab.md)
       echo false
       exit 0
       ;;
