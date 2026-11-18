@@ -204,6 +204,15 @@ golem と shem に渡す相対のパスには `./` を付け、オプション�
 `scripts/bundle-tools.sh` が、GitHub Releases から配布物と `SHA256SUMS` を取り、照合してから、バイナリとライセンスを `src-tauri/resources/` に入れる。
 アシスタントの `llama-server` も同梱する（[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md)）。`tools.versions` の llama.cpp の行は、配布元のリポジトリ（`ggml-org/llama.cpp`）、ビルド番号のタグ、アーカイブの名前、アーカイブの SHA-256、写すファイルを持ち、`bundle-tools.sh` はアーカイブをその SHA-256 で照らす。`llama-server` と、それが読む動的ライブラリは `src-tauri/resources/llama.cpp/` に、`LICENSE` は `src-tauri/resources/licenses/llama.cpp/` に入れる。
 アシスタントに渡す Golem のマニュアルの章（`03-markup.gm`、`04-manifest.gm`、`05-style.gm`）も同梱する。`tools.versions` の `manual` の行は、章のファイル、リポジトリ、SHA-256 を持つ。章は、同梱の golem の行と同じタグのソースから取り、その SHA-256 で照らして `src-tauri/resources/manual/` に入れる。golem の行が無ければ止まる。
+アシスタントの既定のモデル（Qwen3.5-4B の Q4_K_M、[ADR 0086](adr/0086-qwen3-5-4b-as-provisional-default-model.md)）も同梱する。`tools.versions` の `model` の行は、ファイル、Hugging Face のリポジトリ、リビジョン、SHA-256 を持つ。`bundle-tools.sh` は、リビジョンを固定した URL から取り、その SHA-256 で照らして `src-tauri/resources/models/` に入れる。入っているファイルの SHA-256 が合えば、取りなおさない。環境変数 `ALEPH_SKIP_MODELS` があればモデルを飛ばす（アシスタントの計測の CI は、モデルをキャッシュから使うので飛ばす）。
+
+## アシスタントのローカルの推論とモデル
+
+アシスタントのローカルのコネクタの土台を置く（[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md)）。頼む画面（アシスタントのタブ）と、Claude Code と Codex のコネクタは、まだ無い。
+
+- **入れられるモデル**：Qwen3-0.6B、Qwen3.5-0.8B、Qwen3.5-2B、Qwen3.5-4B の Q4_K_M の四つで、名前、配布元のリポジトリ、リビジョン、ファイル名、大きさ、SHA-256、ライセンスは `bench/assistant/models.json` に置く。既定のモデルは Qwen3.5-4B で、同梱し、消せない。ほかのモデルは、設定の「オプション」の「アシスタント」の節からダウンロードし、消せる。ダウンロードは Rust の側で `/usr/bin/curl` を使い、リビジョンを固定した URL から、アプリのデータのディレクトリの `models/` に取る。SHA-256 が合わなければ消して理由を示す。ダウンロードは一つずつ行う。
+- **使うモデル**：設定の「使うモデル」で、入っているモデルから選ぶ。選んだモデルは `config.json` の `assistantModel` に置き、Rust の側だけが変える。選んでいないときと、選んだモデルが無いときは、既定のモデルを使う。
+- **`llama-server`**：同梱のものだけを使う。最初の頼みのときに、一時のフォルダのアクセス権 0700 のフォルダの UNIX ソケット（`--host <path>.sock`）で待ち受けさせ、TCP のポートは開かない。コンテキストは 4,096、考える過程は出さない。最後の頼みが終わってから 5 分たつと止め（頼んでいるあいだは止めない）、Aleph を閉じるときも止める。頼みは、Rust の側の自前の HTTP/1.1 の口で送り、答えの形の JSON Schema、温度 0、シード値 0、答えの上限 1,024 トークンで頼む。上限で切れた答えは失敗とする。画面の側から渡せるのはメッセージ（system、user、assistant）とモデルの ID だけで、プログラム、パス、引数は Rust の側が決める。
 すべてのアーカイブと章を取ってきて照合してから、まとめて入れる。どれかの照合に失敗すれば止まり、何も入れない。入れるときは、前に入れた llama.cpp とマニュアルを消してから写す。
 
 ## ブックマーク

@@ -55,7 +55,7 @@ npm ci
 npx tauri dev
 ```
 
-golem、shem、（アシスタントの）llama-server、Golem のマニュアルの章を中に入れてアプリを作るには、次のようにします。
+golem、shem、アシスタントの llama-server と既定のモデル（Qwen3.5-4B、ダウンロードは約 2.7 GB）、Golem のマニュアルの章を中に入れてアプリを作るには、次のようにします。
 
 ```sh
 sh scripts/bundle-tools.sh
