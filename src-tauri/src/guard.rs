@@ -560,6 +560,76 @@ mod tests {
     }
 
     #[test]
+    fn adr0089_i1_i2_revoke_drops_every_id_from_the_string_elements() {
+        // ADR 0089's boundary table: (assistantApproved, id) -> assistantApproved
+        let rows = [
+            (json!(["claude", "codex"]), "claude", json!(["codex"])),
+            (json!(["claude"]), "claude", json!([])),
+            (json!(["codex"]), "claude", json!(["codex"])),
+            (
+                json!(["claude", "claude", "codex"]),
+                "claude",
+                json!(["codex"]),
+            ),
+            (json!(["claude", 1, null]), "claude", json!([])),
+            (json!("claude"), "claude", json!([])),
+        ];
+        for (before, id, after) in rows {
+            let cur = json!({ "assistantApproved": before, "theme": "dark" });
+            let out = revoke(&cur, id);
+            assert_eq!(out["assistantApproved"], after, "{before} - {id}");
+            assert_eq!(out["theme"], json!("dark"));
+            assert!(!approved(&out, id), "{before} - {id}");
+        }
+    }
+
+    #[test]
+    fn adr0089_i1_i2_revoke_adds_an_empty_list_when_there_is_none() {
+        let cur = json!({ "theme": "dark", "workspaces": ["/w"] });
+        let out = revoke(&cur, "claude");
+        assert_eq!(
+            out,
+            json!({ "theme": "dark", "workspaces": ["/w"], "assistantApproved": [] })
+        );
+        assert!(!approved(&out, "claude"));
+    }
+
+    #[test]
+    fn adr0089_i3_only_claude_and_codex_can_be_revoked() {
+        let cur = json!({ "assistantApproved": ["claude", "codex", "local", "other"] });
+        assert!(revoked(&cur, "local").is_err());
+        assert!(revoked(&cur, "other").is_err());
+        assert!(revoked(&cur, "").is_err());
+        assert_eq!(
+            revoked(&cur, "claude").unwrap()["assistantApproved"],
+            json!(["codex", "local", "other"])
+        );
+        assert_eq!(
+            revoked(&cur, "codex").unwrap()["assistantApproved"],
+            json!(["claude", "local", "other"])
+        );
+    }
+
+    #[test]
+    fn adr0089_i4_saving_keeps_the_revoked_approvals() {
+        let cur = revoked(
+            &json!({ "assistantApproved": ["claude", "codex"] }),
+            "claude",
+        )
+        .unwrap();
+        let out = merge(
+            &cur,
+            json!({ "assistantApproved": ["claude"], "theme": "light" }),
+        );
+        assert_eq!(out["assistantApproved"], json!(["codex"]));
+        assert_eq!(out["theme"], json!("light"));
+        assert!(!approved(&out, "claude"));
+        let emptied = revoked(&json!({ "assistantApproved": ["claude"] }), "claude").unwrap();
+        let out = merge(&emptied, json!({ "assistantApproved": ["claude"] }));
+        assert_eq!(out["assistantApproved"], json!([]));
+    }
+
+    #[test]
     fn adr0081_saving_cannot_set_the_paths_of_claude_and_codex() {
         let cur = json!({ "claudePath": "/usr/local/bin/claude" });
         let out = merge(
