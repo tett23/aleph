@@ -2,16 +2,18 @@
 // overlay title bar and on dialogs). A press taken at mouseup that removes what was
 // pressed (a dialog's button, a notification's) leaves that late mousedown to fall on
 // whatever is under it now, the editor moving its caret there. This drops it.
+// It removes its listener from the document it was added to.
 export const swallowLatePress = (ms = 400) => {
+  const doc = document;
   const stop = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     done();
   };
   const done = () => {
-    document.removeEventListener("mousedown", stop, true);
+    doc.removeEventListener("mousedown", stop, true);
     clearTimeout(timer);
   };
-  document.addEventListener("mousedown", stop, true);
+  doc.addEventListener("mousedown", stop, true);
   const timer = window.setTimeout(done, ms);
 };
