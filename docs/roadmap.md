@@ -46,5 +46,4 @@
 
 ## 手で確かめる項目
 
-- **アシスタントの手の確かめ（[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md) A2〜A6）**：[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md) の、ネットワークを切った Mac でダウンロードなしに答えが返ること（A2、A4）、`style.toml` の「行送りを少し広げて」の案が当たり ⌘Z で戻ること（A3）、ログアウトした Claude Code でローカルに頼み直すこと（A5）、5 分頼まないと `llama-server` が無くなること（A6）を、`scripts/bundle-tools.sh` で同梱したデバッグ版で確かめる。
-- **差分のタブと適用の前のコミット（[ADR 0088](adr/0088-diff-tab-and-commit-before-applying.md) A1〜A4）**：[ADR 0088](adr/0088-diff-tab-and-commit-before-applying.md) の、リボンの「差分」で差分のタブが開きファイルを開けること（A1）、保存とコミットで読み直されること（A2）、リポジトリでないワークスペースで一行が出ること（A3）、コミットしていない変更があるときに「適用」でモーダルのダイアログが出て、答えるまでキーが届かず、「コミットして適用」の後に書き換えの分だけが差分に出ること（A4）を、デバッグ版で確かめる。
+- **アシスタントの手の確かめ（[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md) A2、A4、A5）**：[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md) の、ネットワークを切った Mac でダウンロードなしに答えが返ること（A2、A4）と、ログアウトした Claude Code でローカルに頼み直すこと（A5）を、`scripts/bundle-tools.sh` で同梱したデバッグ版で確かめる。同じ ADR の A3 と A6、[ADR 0088](adr/0088-diff-tab-and-commit-before-applying.md) の A1〜A4 は、2026-11-18 にデバッグ版で確かめ、結果をこの項目を短くしたプルリクエストに書いた。
