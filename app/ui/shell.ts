@@ -6,7 +6,7 @@ import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { basename, rel, stem } from "../path.ts";
-import { dirty, previewAvailable, shown, type SidebarPanelId, type RightSidebarPanelId, type State } from "../store.ts";
+import { diffSelected, dirty, previewAvailable, shown, type SidebarPanelId, type RightSidebarPanelId, type State } from "../store.ts";
 import { canVertical } from "../toolbar.ts";
 import { menuCommands } from "../commands.ts";
 import { hintOf } from "../keybind.ts";
@@ -14,12 +14,13 @@ import { runCommand } from "../palette.ts";
 import { menu, onPress } from "./dom.ts";
 import { openSettingsDialog } from "./settings.ts";
 
-const RIBBON: [SidebarPanelId | "plot", string, string][] = [
+const RIBBON: [SidebarPanelId | "plot" | "diff", string, string][] = [
   ["files", "files", "ファイル"],
   ["bookmarks", "map-pin", "ブックマークと最近開いたシート"],
   ["keywords", "tag", "キーワード"],
   ["search", "search", "検索"],
   ["git", "git-branch", "Git"],
+  ["diff", "git-compare", "差分"],
   ["plot", "table-2", "プロット"],
   ["diagnostics", "list-checks", "診断（check、lint、preflight）"],
   ["library", "library-big", "共有ライブラリ（すべてのプロジェクト）"],
@@ -81,6 +82,12 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
     if (!t) return;
     if (t.dataset.settings !== undefined) return void openSettingsDialog(ctx);
     if (t.dataset.rib === "plot") return onPlot();
+    // the diff tab, through its command (docs/adr/0088)
+    if (t.dataset.rib === "diff") {
+      const c = ctx.commands.find((x) => x.id === "view.diff");
+      if (c && c.when(ctx.store.get())) void runCommand(ctx, c);
+      return;
+    }
     ctx.store.dispatch({ type: "sidebarPanel", panel: t.dataset.rib as SidebarPanelId });
   });
 
@@ -122,7 +129,9 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
 };
 
 export const renderRibbon = (root: HTMLElement, s: State) =>
-  root.querySelectorAll<HTMLElement>("[data-rib]").forEach((b) => b.classList.toggle("on", s.showSidebar && b.dataset.rib === s.sidebarPanel || b.dataset.rib === "plot" && s.plot !== null));
+  root.querySelectorAll<HTMLElement>("[data-rib]").forEach((b) =>
+    b.classList.toggle("on", (s.showSidebar && b.dataset.rib === s.sidebarPanel) || (b.dataset.rib === "plot" && s.plot !== null) || (b.dataset.rib === "diff" && diffSelected(s))),
+  );
 
 export const renderWorkspaceBar = (root: HTMLElement, s: State, branch: string) => {
   const name = root.querySelector<HTMLElement>(".workspace-bar .name")!;

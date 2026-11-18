@@ -20,9 +20,10 @@ export type PreviewMode = "plain" | "pages";
 
 /**
  * A tab: one sheet, chapters opened together (and the one the right sidebar follows), or a project's plot (docs/adr/0024),
- * or the preview tab, which holds no sheet and shows the followed tab's (docs/adr/0087).
+ * the preview tab, which holds no sheet and shows the followed tab's (docs/adr/0087), or the diff tab,
+ * which holds no sheet and shows the workspace's diff against HEAD (docs/adr/0088).
  */
-export type Tab = { id: number; open: Doc[]; focus: number; plot: string | null; preview: boolean };
+export type Tab = { id: number; open: Doc[]; focus: number; plot: string | null; preview: boolean; diff: boolean };
 /** A pane of the editor area: its tabs and the selected one. */
 export type Pane = { tabs: Tab[]; active: number };
 
@@ -52,6 +53,8 @@ export type State = {
   plot: string | null;
   /** The id of the followed tab: the sheet tab the preview tab shows (docs/adr/0087). Not kept. */
   followed: number | null;
+  /** Up while a modal dialog is shown: the keys run no command and the palette does not open (docs/adr/0088). Not kept. */
+  modal: boolean;
 };
 
 export type Action =
@@ -66,7 +69,7 @@ export type Action =
   | { type: "moveTab"; from: { pane: number; index: number }; to: { pane: number; index: number } }
   | { type: "split" }
   | { type: "focusDoc"; path: string }
-  | { type: "restoreTabs"; panes: { tabs: (Omit<Tab, "id" | "preview"> & { preview?: boolean })[]; active: number }[]; pane: number }
+  | { type: "restoreTabs"; panes: { tabs: (Omit<Tab, "id" | "preview" | "diff"> & { preview?: boolean; diff?: boolean })[]; active: number }[]; pane: number }
   | { type: "focus"; index: number }
   | { type: "edit"; path: string; text: string }
   | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "automatic" | "intermediate"; beforeFormat?: string }
@@ -81,7 +84,13 @@ export type Action =
   | { type: "collapseAll" }
   | { type: "plot"; project: string | null; newTab?: boolean }
   /** preview.plain and preview.pages (with their mode) and the toolbar's button (without): shows the preview tab (docs/adr/0087). */
-  | { type: "showPreview"; mode?: PreviewMode };
+  | { type: "showPreview"; mode?: PreviewMode }
+  /** view.diff and the ribbon's button: shows the diff tab (docs/adr/0088). */
+  | { type: "showDiff" }
+  /** After the assistant's edit is applied and saved: the diff tab where it does not hide the sheet (docs/adr/0088). */
+  | { type: "showDiffAfterApply" }
+  /** A modal dialog shown or closed (docs/adr/0088). */
+  | { type: "modal"; on: boolean };
 
 export const initialState = (): State => ({
   workspaces: [],
@@ -102,6 +111,7 @@ export const initialState = (): State => ({
   expanded: [],
   plot: null,
   followed: null,
+  modal: false,
 });
 
 const activeTab = (s: State): Tab | null => {
@@ -148,8 +158,11 @@ const findDoc = (s: State, path: string) => {
   return null;
 };
 
-/** Whether a tab holds sheets: neither the preview tab nor a plot, and not empty (docs/adr/0087). */
-const isSheetTab = (t: Tab | null | undefined): t is Tab => !!t && !t.preview && !t.plot && t.open.length > 0;
+/** Whether a tab holds sheets: neither the preview tab, the diff tab nor a plot, and not empty (docs/adr/0087, docs/adr/0088). */
+const isSheetTab = (t: Tab | null | undefined): t is Tab => !!t && !t.preview && !t.diff && !t.plot && t.open.length > 0;
+
+/** The tabs that stay when a sheet is opened while they are selected: the preview tab and the diff tab (docs/adr/0087, docs/adr/0088). */
+const stays = (t: Tab | null | undefined) => !!t && (t.preview || t.diff);
 
 /** Where a tab is, by its id. */
 const locate = (s: State, id: number): { pane: number; tab: number } | null => {
@@ -194,18 +207,18 @@ const follow = (prev: State, s: State, a: Action): number | null => {
 };
 
 /**
- * Opens a tab's content in place of the selected tab or in a new tab. While the preview tab is selected,
- * the content goes to the followed tab (or after it), and the preview tab stays (docs/adr/0087).
+ * Opens a tab's content in place of the selected tab or in a new tab. While the preview tab or the diff tab
+ * is selected, the content goes to the followed tab (or after it), and that tab stays (docs/adr/0087, docs/adr/0088).
  */
 const place = (s: State, c: Content, newTab: boolean | undefined): State => {
-  if (!activeTab(s)?.preview) return newTab ? addTab(s, c) : replaceActive(s, c);
+  if (!stays(activeTab(s))) return newTab ? addTab(s, c) : replaceActive(s, c);
   const at = s.followed === null ? null : locate(s, s.followed);
   if (at) {
     const there = select(s, at.pane, at.tab);
     return newTab ? addTab(there, c) : replaceActive(there, c);
   }
-  // nothing followed: a new tab, at the end of the pane without the preview tab, or after the preview tab
-  const pi = s.panes.length > 1 ? s.panes.findIndex((p) => !p.tabs.some((t) => t.preview)) : -1;
+  // nothing followed: a new tab, at the end of the other pane (the one without the selected preview or diff tab), or after that tab
+  const pi = s.panes.length > 1 ? 1 - s.pane : -1;
   if (pi < 0) return addTab(s, c);
   const p = s.panes[pi];
   const t: Tab = { ...c, id: s.seq };
@@ -291,7 +304,7 @@ const step = (s: State, a: Action): State => {
             ? withPanes(base, setPane(base.panes, at.pane, { ...base.panes[at.pane], tabs: base.panes[at.pane].tabs.map((x, k) => (k === at.tab ? { ...x, open: rest, focus: 0 } : x)) }))
             : removeTab(base, at.pane, at.tab);
         }
-      const tab: Content = { open: a.docs, focus: 0, plot: null, preview: false };
+      const tab: Content = { open: a.docs, focus: 0, plot: null, preview: false, diff: false };
       return { ...place(base, tab, a.newTab), ...tree };
     }
     case "close":
@@ -345,7 +358,7 @@ const step = (s: State, a: Action): State => {
     case "restoreTabs": {
       if (!a.panes.length) return s;
       let seq = s.seq;
-      const panes = a.panes.map((p) => ({ active: Math.max(0, Math.min(p.active, p.tabs.length - 1)), tabs: p.tabs.map((t) => ({ ...t, preview: !!t.preview, id: seq++ })) }));
+      const panes = a.panes.map((p) => ({ active: Math.max(0, Math.min(p.active, p.tabs.length - 1)), tabs: p.tabs.map((t) => ({ ...t, preview: !!t.preview, diff: !!t.diff, id: seq++ })) }));
       return withPanes({ ...s, seq }, panes, a.pane);
     }
     case "focus":
@@ -388,10 +401,10 @@ const step = (s: State, a: Action): State => {
     case "collapseAll":
       return { ...s, expanded: [] };
     case "plot": {
-      if (!a.project) return s.plot ? replaceActive(s, { open: [], focus: 0, plot: null, preview: false }) : s;
+      if (!a.project) return s.plot ? replaceActive(s, { open: [], focus: 0, plot: null, preview: false, diff: false }) : s;
       const at = s.panes.flatMap((p, pi) => p.tabs.flatMap((t, ti) => (t.plot === a.project ? [{ pi, ti }] : [])))[0];
       if (at) return { ...select(s, at.pi, at.ti), selected: [] };
-      const tab: Content = { open: [], focus: 0, plot: a.project, preview: false };
+      const tab: Content = { open: [], focus: 0, plot: a.project, preview: false, diff: false };
       return { ...place(s, tab, a.newTab), selected: [] };
     }
     case "showPreview": {
@@ -401,15 +414,49 @@ const step = (s: State, a: Action): State => {
       const at = m.panes.flatMap((p, pi) => p.tabs.flatMap((t, ti) => (t.preview ? [{ pi, ti }] : [])))[0];
       // the selected pane stays; the preview tab is selected in its own pane
       if (at) return withPanes(m, setPane(m.panes, at.pi, { ...m.panes[at.pi], active: at.ti }));
-      const t: Tab = { open: [], focus: 0, plot: null, preview: true, id: m.seq };
+      const t: Tab = { open: [], focus: 0, plot: null, preview: true, diff: false, id: m.seq };
       const n = { ...m, seq: m.seq + 1 };
       if (n.panes.length === 1) return withPanes(n, [...n.panes, { tabs: [t], active: 0 }]);
       const other = 1 - n.pane;
       const p = n.panes[other];
       return withPanes(n, setPane(n.panes, other, { tabs: [...p.tabs, t], active: p.tabs.length }));
     }
+    case "showDiff": {
+      // with no workspace there is nothing to compare (docs/adr/0088)
+      if (!diffAvailable(s)) return s;
+      const at = findDiff(s);
+      // the diff tab's pane is selected, and the diff tab in it
+      if (at) return select(s, at.pi, at.ti);
+      return addTab(s, DIFF);
+    }
+    case "showDiffAfterApply": {
+      if (!diffAvailable(s)) return s;
+      const at = findDiff(s);
+      const other = 1 - s.pane;
+      // in the pane not selected: selected there; the selected pane stays
+      if (at && at.pi !== s.pane) return withPanes(s, setPane(s.panes, at.pi, { ...s.panes[at.pi], active: at.ti }));
+      // the only tab of the selected pane: selected without moving
+      if (at && s.panes[at.pi].tabs.length === 1) return select(s, at.pi, at.ti);
+      // in the selected pane: moved to the end of the other pane (made on the right when there is one pane)
+      const src = s.panes[s.pane];
+      const keep = at ? (src.active > at.ti ? src.active - 1 : src.active === at.ti ? Math.min(at.ti, src.tabs.length - 2) : src.active) : src.active;
+      const left: Pane = at ? { tabs: src.tabs.filter((_, k) => k !== at.ti), active: Math.max(0, keep) } : src;
+      const t: Tab = at ? src.tabs[at.ti] : { ...DIFF, id: s.seq };
+      const n = at ? s : { ...s, seq: s.seq + 1 };
+      const panes = setPane(n.panes, n.pane, left);
+      if (panes.length === 1) return withPanes(n, [...panes, { tabs: [t], active: 0 }]);
+      const p = panes[other];
+      return withPanes(n, setPane(panes, other, { tabs: [...p.tabs, t], active: p.tabs.length }));
+    }
+    case "modal":
+      return s.modal === a.on ? s : { ...s, modal: a.on };
   }
 };
+
+const DIFF: Content = { open: [], focus: 0, plot: null, preview: false, diff: true };
+
+/** Where the diff tab is: at most one in the window (docs/adr/0088). */
+const findDiff = (s: State) => s.panes.flatMap((p, pi) => p.tabs.flatMap((t, ti) => (t.diff ? [{ pi, ti }] : [])))[0] ?? null;
 
 /** The sheets of every tab of every pane. */
 export const allDocs = (s: State): Doc[] => s.panes.flatMap((p) => p.tabs.flatMap((t) => t.open));
@@ -417,13 +464,13 @@ export const allDocs = (s: State): Doc[] => s.panes.flatMap((p) => p.tabs.flatMa
 /** The sheets with changes to save before a tab closes. */
 export const closeTarget = (s: State, pane: number, index: number): Doc[] => (s.panes[pane]?.tabs[index]?.open ?? []).filter((d) => d.text !== d.saved);
 
-/** The tabs as kept in config.json's ui: sheet paths, a plot's project (docs/adr/0024), or the preview tab (docs/adr/0087). */
-export type TabUi = { paths: string[]; focus: number } | { plot: string } | { preview: true };
+/** The tabs as kept in config.json's ui: sheet paths, a plot's project (docs/adr/0024), the preview tab (docs/adr/0087), or the diff tab (docs/adr/0088). */
+export type TabUi = { paths: string[]; focus: number } | { plot: string } | { preview: true } | { diff: true };
 export type TabsUi = { pane: number; panes: { active: number; tabs: TabUi[] }[] };
 
 export const writeTabs = (s: State): TabsUi => ({
   pane: s.pane,
-  panes: s.panes.map((p) => ({ active: p.active, tabs: p.tabs.map((t): TabUi => (t.preview ? { preview: true } : t.plot ? { plot: t.plot } : { paths: t.open.map((d) => d.path), focus: t.focus })) })),
+  panes: s.panes.map((p) => ({ active: p.active, tabs: p.tabs.map((t): TabUi => (t.preview ? { preview: true } : t.diff ? { diff: true } : t.plot ? { plot: t.plot } : { paths: t.open.map((d) => d.path), focus: t.focus })) })),
 });
 
 const isStrs = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
@@ -436,7 +483,9 @@ export const readTabs = (v: unknown): TabsUi | null => {
     const tabs = p.tabs.flatMap((t): TabUi[] =>
       t && typeof t === "object" && "preview" in t && t.preview === true
         ? [{ preview: true }]
-        : t && typeof t === "object" && "plot" in t && typeof t.plot === "string"
+        : t && typeof t === "object" && "diff" in t && t.diff === true
+          ? [{ diff: true }]
+          : t && typeof t === "object" && "plot" in t && typeof t.plot === "string"
           ? [{ plot: t.plot }]
           : t && typeof t === "object" && "paths" in t && isStrs(t.paths) && t.paths.length
             ? [{ paths: t.paths, focus: typeof t.focus === "number" ? t.focus : 0 }]
@@ -444,10 +493,12 @@ export const readTabs = (v: unknown): TabsUi | null => {
     );
     return [{ active: typeof p.active === "number" ? p.active : 0, tabs }];
   });
-  // one preview tab at most: the first one is kept (docs/adr/0087)
-  const first = read.flatMap((p, pi) => p.tabs.flatMap((t, ti) => ("preview" in t ? [{ pi, ti }] : [])))[0];
+  // one preview tab and one diff tab at most: the first of each is kept (docs/adr/0087, docs/adr/0088)
+  const firstOf = (key: "preview" | "diff") => read.flatMap((p, pi) => p.tabs.flatMap((t, ti) => (key in t ? [{ pi, ti }] : [])))[0];
+  const first = { preview: firstOf("preview"), diff: firstOf("diff") };
   const panes = read.map((p, pi) => {
-    const keep = (t: TabUi, ti: number) => !("preview" in t) || (first.pi === pi && first.ti === ti);
+    const keep = (t: TabUi, ti: number) =>
+      (["preview", "diff"] as const).every((key) => !(key in t) || (first[key].pi === pi && first[key].ti === ti));
     const before = p.tabs.filter((t, ti) => ti < p.active && !keep(t, ti)).length;
     return { active: p.active - before, tabs: p.tabs.filter(keep) };
   });
@@ -491,6 +542,12 @@ export const shownDoc = (s: State): Doc | null => {
   const x = shown(s);
   return x.open[x.focus] ?? null;
 };
+
+/** Whether view.diff and the ribbon's diff button can run: there is a workspace (docs/adr/0088). */
+export const diffAvailable = (s: State): boolean => s.workspace !== null;
+
+/** Whether the selected tab of the selected pane is the diff tab: the ribbon's button is on (docs/adr/0088). */
+export const diffSelected = (s: State): boolean => !!activeTab(s)?.diff;
 
 /** Whether preview.plain and the toolbar's preview button can run: some tab is open (docs/adr/0087). */
 export const previewAvailable = (s: State): boolean => s.panes.some((p) => p.tabs.length > 0);

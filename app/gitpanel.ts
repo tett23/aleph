@@ -41,16 +41,24 @@ const refreshBranch = async (ctx: Ctx, ws: string) => {
   if (document.querySelector(".workspace-bar")) renderWorkspaceBar(document.body, ctx.store.get(), branch);
 };
 
-/** Saves every open sheet, then `git add -A` and commits; the change marks then compare with the new HEAD. */
-export const commit = async (ctx: Ctx, ws: string, message: string): Promise<boolean> => {
-  await ctx.save();
-  const add = await git(ctx, ws, ["add", "-A"]);
+/** Run after a commit made by Aleph, with its workspace: the diff tab reads again (docs/adr/0088). */
+export const committed: ((ws: string) => void)[] = [];
+
+/**
+ * Saves every open sheet, then `git add -A` and commits; the change marks then compare with the new HEAD.
+ * With `here`, only the workspace's sheets are saved and only its changes are staged (`git add -A -- .`),
+ * so that changes outside it stay out of the commit (docs/adr/0088).
+ */
+export const commit = async (ctx: Ctx, ws: string, message: string, opts: { here?: boolean } = {}): Promise<boolean> => {
+  await ctx.save(opts.here ? allDocs(ctx.store.get()).filter((d) => d.workspace === ws).map((d) => d.path) : undefined);
+  const add = await git(ctx, ws, opts.here ? ["add", "-A", "--", "."] : ["add", "-A"]);
   if (add.code !== 0) return ctx.notify({ message: lines(add) || "git add に失敗しました", level: "error", sticky: true }), false;
   const c = await git(ctx, ws, ["commit", "-m", message]);
   if (c.code !== 0) return ctx.notify({ message: lines(c) || "コミットに失敗しました", level: "error", sticky: true }), false;
   for (const d of allDocs(ctx.store.get())) if (d.workspace === ws) ctx.editors.get(d.path)?.refreshMarks(true);
   await refreshStatus(ctx, ws);
   ctx.refresh(["sidebar"]);
+  committed.forEach((f) => f(ws));
   return true;
 };
 

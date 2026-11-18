@@ -614,6 +614,32 @@ body.dragging-image, body.dragging-image * { user-select: none; cursor: copy !im
 .tabview { height: 100%; }
 /* the preview tab (docs/adr/0087): the preview's head over its body */
 .tabview.preview-tab { display: flex; flex-direction: column; background: var(--bg-2); }
+/* the diff tab (docs/adr/0088): the head over the files and their diffs */
+.tabview.diff-tab { display: flex; flex-direction: column; background: var(--bg); }
+.diff-tab .dhead { height: 32px; display: flex; align-items: center; padding: 0 12px; gap: 8px; color: var(--text-2); font-size: 12px; border-bottom: 1px solid var(--border); flex: none; }
+.diff-tab .dhead .dws { color: var(--text); font-weight: 600; }
+.diff-tab .dhead small { color: var(--faint); }
+.diff-tab .dhead .sp { flex: 1; }
+.diff-tab .dhead .btn { display: inline-flex; align-items: center; gap: 4px; }
+.diff-tab .dbody { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px 24px; }
+.diff-tab .dline { padding: 12px 0; font-size: 12.5px; }
+.diff-tab .dfile { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 10px; overflow: hidden; }
+.diff-tab .dfhead { display: flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 12px; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+.diff-tab .dfhead .dname { font-family: var(--mono); color: var(--text); }
+.diff-tab .dfhead .dname.link { cursor: pointer; text-decoration: underline dotted var(--faint); text-underline-offset: 3px; }
+.diff-tab .dfhead .dname.link:hover { color: var(--accent); }
+.diff-tab .dfhead small { color: var(--faint); }
+.diff-tab .dfhead .dkind { margin-left: auto; color: var(--text-2); }
+.diff-tab .dfhead .dstat { font-family: var(--mono); font-size: 11.5px; }
+.diff-tab pre { font: 11.5px/1.6 var(--mono); white-space: pre-wrap; margin: 0; padding: 6px 10px; color: var(--text-2); }
+.diff-tab .d-add { color: var(--add); }
+.diff-tab .d-del { color: var(--del); }
+.diff-tab .d-hunk { color: var(--faint); }
+.diff-tab .dnote, .diff-tab .dmore { padding: 6px 10px; font-size: 12px; }
+/* the modal dialogs before applying (docs/adr/0088): the buttons take the focus */
+.dim.pre-apply button.btn { font: inherit; font-size: 12.5px; color: inherit; }
+.dim.pre-apply button.btn.pri { color: var(--bg); }
+.dim.pre-apply button.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tabview[hidden] { display: none; }
 .tabview > .single, .single > .mhost { height: 100%; }
 

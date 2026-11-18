@@ -48,6 +48,8 @@ const commandItems = (ctx: Ctx, q: string): PaletteItem[] =>
 
 /** Opens the box with some text in its input (">" for commands); with `alt`, a pick acts as with ⌘↩. */
 export const openCommandPalette = (ctx: Ctx, initial = "", opts: { alt?: boolean } = {}) => {
+  // not over a modal dialog (docs/adr/0088)
+  if (ctx.store.get().modal) return;
   document.querySelector(".command-palette")?.remove();
   const back = document.activeElement as HTMLElement | null;
   const box = document.createElement("div");
