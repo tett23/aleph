@@ -1,6 +1,6 @@
 # ADR 0037: 分割を始める条件とやめる条件
 
-Status: accepted
+Status: superseded [{"part":"分割を始める条件","by":["docs/adr/0087-preview-in-a-tab.md"],"kind":"supplement"}]
 
 ## 文脈
 

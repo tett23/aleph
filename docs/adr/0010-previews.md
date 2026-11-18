@@ -1,6 +1,6 @@
 # ADR 0010: プレビュー
 
-Status: accepted
+Status: superseded [{"part":"ツールバーの「原稿のみ」「本文」「ページ」とエディタの右に出すプレビュー","by":["docs/adr/0087-preview-in-a-tab.md"]}]
 
 ## 文脈
 

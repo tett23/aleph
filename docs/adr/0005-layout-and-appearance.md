@@ -1,6 +1,6 @@
 # ADR 0005: 画面の構成と見た目
 
-Status: superseded [{"part":"名前「右のパネル」","by":["docs/adr/0082-ui-names-and-glossary.md"]}]
+Status: superseded [{"part":"名前「右のパネル」","by":["docs/adr/0082-ui-names-and-glossary.md"]},{"part":"エディタとプレビューを左右に並べること、ツールバーの「原稿のみ」「本文」「ページ」","by":["docs/adr/0087-preview-in-a-tab.md"]}]
 
 ## 文脈
 

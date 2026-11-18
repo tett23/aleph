@@ -1,6 +1,6 @@
 # ADR 0082: 画面の要素の名前を決め、用語集にまとめる
 
-Status: accepted
+Status: superseded [{"part":"プレビューの領域の名前と、受けいれ条件 A1","by":["docs/adr/0087-preview-in-a-tab.md"]}]
 
 ## 文脈
 

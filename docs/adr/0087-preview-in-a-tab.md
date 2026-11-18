@@ -1,6 +1,6 @@
 # ADR 0087: プレビューを、エディタの右の領域からタブに移す
 
-Status: proposed
+Status: accepted
 
 ## 文脈
 

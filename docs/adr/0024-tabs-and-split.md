@@ -1,6 +1,6 @@
 # ADR 0024: タブと左右の分割
 
-Status: superseded [{"by":["docs/adr/0037-split-conditions.md"],"part":"分割を始める条件とやめる条件"}]
+Status: superseded [{"by":["docs/adr/0037-split-conditions.md"],"part":"分割を始める条件とやめる条件"},{"part":"プレビューをエディタの枠の右に一つ出すこと","by":["docs/adr/0087-preview-in-a-tab.md"]},{"part":"選んでいるタブの中身を入れ替えること","by":["docs/adr/0087-preview-in-a-tab.md"],"kind":"supplement"}]
 
 ## 文脈
 
