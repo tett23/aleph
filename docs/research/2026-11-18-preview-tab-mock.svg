@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" font-family="-apple-system, 'Hiragino Sans', sans-serif" font-size="13">
+  <rect width="1200" height="760" fill="#f4f4f2"/>
+  <text x="24" y="30" font-size="16" font-weight="700" fill="#222">今：エディタの右にプレビューの領域 (42% 固定)</text>
+  <g transform="translate(24,44)">
+    <rect width="1152" height="300" fill="#fff" stroke="#ccc"/>
+    <rect width="36" height="300" fill="#e8e8e4"/>
+    <rect x="36" width="170" height="300" fill="#f0f0ec" stroke="#ddd"/>
+    <text x="48" y="22" fill="#555">サイドバー</text>
+    <rect x="206" width="946" height="30" fill="#fafaf8" stroke="#ddd"/>
+    <text x="218" y="20" fill="#333">縦 横</text>
+    <text x="900" y="20" fill="#333">原稿のみ ｜ 本文 ｜ ページ</text>
+    <rect x="206" y="30" width="548" height="28" fill="#efefeb" stroke="#ddd"/>
+    <rect x="210" y="34" width="90" height="22" fill="#fff" stroke="#bbb"/><text x="220" y="50">第一章.gm</text>
+    <rect x="304" y="34" width="90" height="22" fill="#efefeb" stroke="#ccc"/><text x="314" y="50" fill="#777">第二章.gm</text>
+    <text x="226" y="90" fill="#333">第一章を書いている。</text>
+    <text x="226" y="112" fill="#333">［ruby: 東京｜とうきょう］の空は…</text>
+    <rect x="754" y="30" width="398" height="270" fill="#f6f6f3" stroke="#ccc"/>
+    <text x="770" y="54" fill="#888">プレビューの領域</text>
+    <text x="770" y="90" fill="#333">第一章を書いている。</text>
+    <text x="770" y="112" fill="#333">東京(とうきょう)の空は…</text>
+  </g>
+
+  <text x="24" y="384" font-size="16" font-weight="700" fill="#222">ADR 0087：プレビューはタブ。右のペインに開き、左で選んだシートを映す</text>
+  <g transform="translate(24,398)">
+    <rect width="1152" height="340" fill="#fff" stroke="#ccc"/>
+    <rect width="36" height="340" fill="#e8e8e4"/>
+    <rect x="36" width="170" height="340" fill="#f0f0ec" stroke="#ddd"/>
+    <text x="48" y="22" fill="#555">サイドバー</text>
+    <rect x="206" width="946" height="30" fill="#fafaf8" stroke="#ddd"/>
+    <text x="218" y="20" fill="#333">縦 横</text>
+    <rect x="1060" y="5" width="80" height="20" rx="4" fill="#fff" stroke="#999"/><text x="1074" y="20" fill="#333">プレビュー</text>
+    <!-- left pane -->
+    <rect x="206" y="30" width="470" height="28" fill="#efefeb" stroke="#ddd"/>
+    <rect x="210" y="34" width="90" height="22" fill="#efefeb" stroke="#ccc"/><text x="220" y="50" fill="#777">第一章.gm</text>
+    <rect x="304" y="34" width="90" height="22" fill="#fff" stroke="#bbb"/><text x="314" y="50">第二章.gm</text>
+    <text x="226" y="90" fill="#333">第二章を書いている。</text>
+    <text x="226" y="112" fill="#333">［strong: 大切］なことは…</text>
+    <!-- splitter -->
+    <rect x="676" y="30" width="4" height="310" fill="#ccc"/>
+    <text x="606" y="330" fill="#999" font-size="11">境目は動かせる</text>
+    <!-- right pane -->
+    <rect x="680" y="30" width="472" height="28" fill="#efefeb" stroke="#ddd"/>
+    <rect x="684" y="34" width="110" height="22" fill="#fff" stroke="#bbb"/><text x="694" y="50">◉ プレビュー ×</text>
+    <rect x="680" y="58" width="472" height="26" fill="#fafaf8" stroke="#e2e2de"/>
+    <rect x="692" y="62" width="44" height="18" rx="3" fill="#333"/><text x="702" y="76" fill="#fff">本文</text>
+    <rect x="740" y="62" width="50" height="18" rx="3" fill="#fff" stroke="#999"/><text x="750" y="76">ページ</text>
+    <text x="1000" y="76" fill="#888" font-size="11">映すシート：第二章.gm</text>
+    <text x="700" y="114" fill="#333">第二章を書いている。</text>
+    <text x="700" y="136" fill="#333"><tspan font-weight="700">大切</tspan>なことは…</text>
+    <text x="700" y="300" fill="#999" font-size="11">左で別のタブを選ぶと、ここはそのシートを映す。⌘W で閉じると一つのペインに戻る。</text>
+  </g>
+</svg>
