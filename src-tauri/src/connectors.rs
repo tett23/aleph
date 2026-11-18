@@ -4,10 +4,12 @@
 //! once when they fail (I8). A connector the writer has not approved is never
 //! started (I6).
 
-use crate::llama::Message;
+use crate::llama::{Message, Role, ANSWER_SCHEMA};
 use crate::process::{Place, Roots};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// How long Claude Code and Codex may take to answer (docs/adr/0081).
 pub const TIMEOUT: Duration = Duration::from_secs(120);
@@ -29,62 +31,174 @@ pub enum Connector {
 
 impl Connector {
     pub fn id(self) -> &'static str {
-        todo!()
+        match self {
+            Connector::Local => "local",
+            Connector::Claude => "claude",
+            Connector::Codex => "codex",
+        }
     }
 
     /// The program the connector runs; none for the local connector.
     pub fn program(self) -> Option<&'static str> {
-        todo!()
+        match self {
+            Connector::Local => None,
+            Connector::Claude => Some("claude"),
+            Connector::Codex => Some("codex"),
+        }
     }
 
     pub fn name(self) -> &'static str {
-        todo!()
+        match self {
+            Connector::Local => "ローカル",
+            Connector::Claude => "Claude Code",
+            Connector::Codex => "Codex",
+        }
     }
+}
+
+fn strings(a: &[&str]) -> Vec<String> {
+    a.iter().map(|s| s.to_string()).collect()
+}
+
+/// The answer's schema on one line, for `claude --json-schema`.
+pub fn schema_line() -> String {
+    serde_json::from_str::<serde_json::Value>(ANSWER_SCHEMA)
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| ANSWER_SCHEMA.replace('\n', " "))
 }
 
 /// The arguments of `claude` (docs/adr/0081): no tools, the answer bound to
 /// the schema, no session kept. The request comes on the standard input.
-pub fn claude_args(_schema: &str) -> Vec<String> {
-    todo!()
+pub fn claude_args(schema: &str) -> Vec<String> {
+    strings(&[
+        "-p",
+        "--output-format",
+        "json",
+        "--json-schema",
+        schema,
+        // no tools: it neither reads nor writes files, nor runs commands
+        "--tools",
+        "",
+        "--no-session-persistence",
+    ])
 }
 
 /// The arguments of `codex exec` (docs/adr/0081): the read-only sandbox, no
 /// session kept, the empty working folder `work`, the schema and the answer
 /// in files outside it. The request comes on the standard input.
-pub fn codex_args(_schema: &Path, _answer: &Path, _work: &Path) -> Vec<String> {
-    todo!()
+pub fn codex_args(schema: &Path, answer: &Path, work: &Path) -> Vec<String> {
+    strings(&[
+        "exec",
+        "--sandbox",
+        "read-only",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "--output-schema",
+        &schema.to_string_lossy(),
+        "-o",
+        &answer.to_string_lossy(),
+        "-C",
+        &work.to_string_lossy(),
+    ])
 }
 
-/// The messages of app/assistant/prompt.ts as one text for a CLI.
-pub fn prompt_text(_messages: &[Message]) -> String {
-    todo!()
+/// The messages of app/assistant/prompt.ts as one text for a CLI: each in a
+/// tag of its role, in order.
+pub fn prompt_text(messages: &[Message]) -> String {
+    messages
+        .iter()
+        .map(|m| {
+            let tag = match m.role {
+                Role::System => "system",
+                Role::User => "user",
+                Role::Assistant => "assistant",
+            };
+            format!("<{tag}>\n{}\n</{tag}>\n", m.content)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct Edit {
+    find: String,
+    replace: String,
+}
+
+/// The answer's shape (app/assistant/answer.schema.json).
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct Answer {
+    explanation: String,
+    edits: Vec<Edit>,
+}
+
+fn checked(v: serde_json::Value) -> Result<String, String> {
+    let a: Answer =
+        serde_json::from_value(v).map_err(|e| format!("答えが JSON の形に合いません：{e}"))?;
+    serde_json::to_string(&a).map_err(|e| e.to_string())
 }
 
 /// The answer checked against the answer's schema, as compact JSON.
-pub fn parse_answer(_text: &str) -> Result<String, String> {
-    todo!()
+pub fn parse_answer(text: &str) -> Result<String, String> {
+    let v: serde_json::Value = serde_json::from_str(text.trim())
+        .map_err(|e| format!("答えが JSON ではありません：{e}"))?;
+    checked(v)
 }
 
-/// The answer in the JSON `claude --output-format json` prints.
-pub fn claude_answer(_stdout: &str) -> Result<String, String> {
-    todo!()
+/// The answer in the JSON `claude --output-format json` prints: the
+/// structured output bound by `--json-schema`, or else the result's text.
+pub fn claude_answer(stdout: &str) -> Result<String, String> {
+    let v: serde_json::Value = serde_json::from_str(stdout.trim())
+        .map_err(|e| format!("claude の出力が JSON ではありません：{e}"))?;
+    let result = v.get("result").and_then(|r| r.as_str()).unwrap_or("");
+    if v.get("is_error").and_then(|e| e.as_bool()) == Some(true) {
+        return Err(format!("claude：{result}"));
+    }
+    match v.get("structured_output") {
+        Some(s) if !s.is_null() => checked(s.clone()),
+        _ => parse_answer(result),
+    }
+}
+
+fn is_executable(p: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(p)
+        .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
 }
 
 /// What `$SHELL -l -c 'command -v <name>'` found: the last line that is an
 /// absolute path to an executable.
-pub fn login_shell_find(_shell: &Path, _name: &str, _timeout: Duration) -> Option<PathBuf> {
-    todo!()
+pub fn login_shell_find(shell: &Path, name: &str, timeout: Duration) -> Option<PathBuf> {
+    let args = strings(&["-l", "-c", &format!("command -v {name}")]);
+    let out = run_timed(shell, &args, Path::new("/"), "", None, timeout).ok()?;
+    if out.code != 0 {
+        return None;
+    }
+    out.stdout
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with('/'))
+        .map(PathBuf::from)
+        .rfind(|p| is_executable(p))
 }
 
 /// The CLI to run: the configured path alone when set; else ~/.local/bin,
 /// Homebrew, then the login shell's PATH (docs/adr/0081).
 pub fn find(
-    _c: Connector,
-    _configured: Option<&str>,
-    _roots: &Roots,
-    _shell: Option<&Path>,
+    c: Connector,
+    configured: Option<&str>,
+    roots: &Roots,
+    shell: Option<&Path>,
 ) -> Option<PathBuf> {
-    todo!()
+    let name = c.program()?;
+    if configured.is_some_and(|p| !p.is_empty()) {
+        return crate::process::find(name, configured, &ORDER, roots);
+    }
+    crate::process::find(name, None, &ORDER, roots)
+        .or_else(|| shell.and_then(|sh| login_shell_find(sh, name, SHELL_TIMEOUT)))
 }
 
 /// Why a CLI failed (docs/adr/0081): it did not start, it ended with a
@@ -104,16 +218,209 @@ pub struct Failure {
     pub message: String,
 }
 
+fn fail(kind: FailKind, message: impl Into<String>) -> Failure {
+    Failure {
+        kind,
+        message: message.into(),
+    }
+}
+
+struct Ran {
+    code: i32,
+    stdout: String,
+    stderr: String,
+}
+
+extern "C" {
+    fn kill(pid: i32, sig: i32) -> i32;
+}
+
+const SIGKILL: i32 = 9;
+
+fn reader(mut r: impl Read + Send + 'static) -> std::thread::JoinHandle<String> {
+    std::thread::spawn(move || {
+        let mut b = Vec::new();
+        let _ = r.read_to_end(&mut b);
+        String::from_utf8_lossy(&b).into_owned()
+    })
+}
+
+/// Runs a program in a process group of its own, `input` on its standard
+/// input, killing the whole group when `timeout` passes.
+fn run_timed(
+    program: &Path,
+    args: &[String],
+    cwd: &Path,
+    input: &str,
+    path_env: Option<std::ffi::OsString>,
+    timeout: Duration,
+) -> Result<Ran, Failure> {
+    use std::os::unix::process::CommandExt;
+    let mut cmd = Command::new(program);
+    cmd.args(args)
+        .current_dir(cwd)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0);
+    if let Some(p) = path_env {
+        cmd.env("PATH", p);
+    }
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| fail(FailKind::Start, format!("{}: {e}", program.display())))?;
+    let stdin = child.stdin.take();
+    let input = input.to_string();
+    // a program that does not read its input does not block the wait
+    let writer = std::thread::spawn(move || {
+        if let Some(mut s) = stdin {
+            let _ = s.write_all(input.as_bytes());
+        }
+    });
+    let out = child.stdout.take().map(reader);
+    let err = child.stderr.take().map(reader);
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(s)) => break s,
+            Ok(None) if Instant::now() >= deadline => {
+                // SAFETY: kill(2) on the process group the child leads
+                unsafe {
+                    kill(-(child.id() as i32), SIGKILL);
+                }
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(fail(
+                    FailKind::Timeout,
+                    format!(
+                        "{} が {} 秒で答えませんでした",
+                        program.display(),
+                        timeout.as_secs_f32()
+                    ),
+                ));
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(20)),
+            Err(e) => return Err(fail(FailKind::Start, e.to_string())),
+        }
+    };
+    let _ = writer.join();
+    let text = |h: Option<std::thread::JoinHandle<String>>| {
+        h.and_then(|h| h.join().ok()).unwrap_or_default()
+    };
+    Ok(Ran {
+        code: status.code().unwrap_or(-1),
+        stdout: text(out),
+        stderr: text(err),
+    })
+}
+
+/// The last lines of a text, for the reason of a failure.
+fn tail(t: &str) -> String {
+    let lines: Vec<&str> = t.lines().filter(|l| !l.trim().is_empty()).collect();
+    lines[lines.len().saturating_sub(5)..].join("\n")
+}
+
+/// PATH with the CLI's own folder first, so that a script finds what it
+/// needs beside it (a GUI app on macOS gets no login PATH).
+fn path_with(bin: &Path) -> Option<std::ffi::OsString> {
+    let dir = bin.parent()?.to_path_buf();
+    let rest = std::env::var_os("PATH").unwrap_or_default();
+    std::env::join_paths(std::iter::once(dir).chain(std::env::split_paths(&rest))).ok()
+}
+
+/// A folder of its own under `tmp`, readable by the writer alone.
+fn scratch(tmp: &Path, c: Connector) -> Result<PathBuf, Failure> {
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static N: AtomicUsize = AtomicUsize::new(0);
+    let dir = tmp.join(format!(
+        "aleph-{}-{}-{}",
+        c.id(),
+        std::process::id(),
+        N.fetch_add(1, Ordering::SeqCst)
+    ));
+    let made = std::fs::create_dir_all(dir.join("work"))
+        .and_then(|_| std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)));
+    made.map(|_| dir)
+        .map_err(|e| fail(FailKind::Start, format!("一時のフォルダを作れません：{e}")))
+}
+
+fn exited(c: Connector, r: &Ran) -> Result<(), Failure> {
+    if r.code == 0 {
+        return Ok(());
+    }
+    let why = [tail(&r.stderr), tail(&r.stdout)]
+        .into_iter()
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    Err(fail(
+        FailKind::Exit,
+        format!("{} が終了コード {} で終わりました：{why}", c.name(), r.code),
+    ))
+}
+
+fn run_in(
+    c: Connector,
+    bin: &Path,
+    messages: &[Message],
+    dir: &Path,
+    timeout: Duration,
+) -> Result<String, Failure> {
+    let work = dir.join("work");
+    let input = prompt_text(messages);
+    match c {
+        Connector::Claude => {
+            let r = run_timed(
+                bin,
+                &claude_args(&schema_line()),
+                &work,
+                &input,
+                path_with(bin),
+                timeout,
+            )?;
+            exited(c, &r)?;
+            claude_answer(&r.stdout).map_err(|e| fail(FailKind::Schema, e))
+        }
+        Connector::Codex => {
+            let schema = dir.join("schema.json");
+            let answer = dir.join("answer.json");
+            std::fs::write(&schema, ANSWER_SCHEMA)
+                .map_err(|e| fail(FailKind::Start, e.to_string()))?;
+            let r = run_timed(
+                bin,
+                &codex_args(&schema, &answer, &work),
+                &work,
+                &input,
+                path_with(bin),
+                timeout,
+            )?;
+            exited(c, &r)?;
+            let text = std::fs::read_to_string(&answer).map_err(|e| {
+                fail(
+                    FailKind::Schema,
+                    format!("Codex の答えのファイルを読めません：{e}"),
+                )
+            })?;
+            parse_answer(&text).map_err(|e| fail(FailKind::Schema, e))
+        }
+        Connector::Local => Err(fail(FailKind::Start, "ローカルは CLI ではありません")),
+    }
+}
+
 /// Runs Claude Code or Codex on the messages in an empty temporary working
 /// folder under `tmp`, removed afterwards; the answer's JSON or why it failed.
 pub fn run(
-    _c: Connector,
-    _bin: &Path,
-    _messages: &[Message],
-    _tmp: &Path,
-    _timeout: Duration,
+    c: Connector,
+    bin: &Path,
+    messages: &[Message],
+    tmp: &Path,
+    timeout: Duration,
 ) -> Result<String, Failure> {
-    todo!()
+    let dir = scratch(tmp, c)?;
+    let out = run_in(c, bin, messages, &dir, timeout);
+    let _ = std::fs::remove_dir_all(&dir);
+    out
 }
 
 /// Why the answer came from the local connector instead (I8).
@@ -142,21 +449,67 @@ pub struct Answered {
 /// approved (I6) and found, and the local connector once more when they fail
 /// (I8). `local` asks the local connector and gives the answer and the model.
 pub fn ask(
-    _c: Connector,
-    _approved: bool,
-    _bin: Option<&Path>,
-    _messages: &[Message],
-    _tmp: &Path,
-    _timeout: Duration,
-    _local: impl FnOnce(&[Message]) -> Result<(String, String), String>,
+    c: Connector,
+    approved: bool,
+    bin: Option<&Path>,
+    messages: &[Message],
+    tmp: &Path,
+    timeout: Duration,
+    local: impl FnOnce(&[Message]) -> Result<(String, String), String>,
 ) -> Result<Answered, String> {
-    todo!()
+    let t0 = Instant::now();
+    let ms = || t0.elapsed().as_millis() as u64;
+    let local_answer = |fallback_reason: Option<Fallback>| {
+        let lead = fallback_reason
+            .as_ref()
+            .map(|f| {
+                format!(
+                    "{}\nローカルで頼み直しても答えが出ませんでした：",
+                    f.message
+                )
+            })
+            .unwrap_or_default();
+        local(messages)
+            .map(|(answer, model)| Answered {
+                answer,
+                connector: Connector::Local,
+                model: Some(model),
+                ms: ms(),
+                fallback_reason,
+            })
+            .map_err(|e| format!("{lead}{e}"))
+    };
+    if c == Connector::Local {
+        return local_answer(None);
+    }
+    if !approved {
+        return Err(format!("{} の利用は承認されていません", c.name()));
+    }
+    let bin = bin.ok_or_else(|| format!("{} が見つかりません", c.name()))?;
+    match run(c, bin, messages, tmp, timeout) {
+        Ok(answer) => Ok(Answered {
+            answer,
+            connector: c,
+            model: None,
+            ms: ms(),
+            fallback_reason: None,
+        }),
+        Err(f) => local_answer(Some(Fallback {
+            from: c,
+            kind: f.kind,
+            message: f.message,
+        })),
+    }
 }
 
 /// The text of the native dialog asking to approve `c`: what is sent to which
 /// company (docs/adr/0081).
-pub fn notice(_c: Connector) -> String {
-    todo!()
+pub fn notice(c: Connector) -> String {
+    match c {
+        Connector::Claude => "Claude Code を使うと、頼み、対象のテキスト、資料を、書き手のアカウントで Anthropic に送ります。Claude Code にはツールを渡さないので、ファイルの読み書きもコマンドの実行もしません。使いますか。".into(),
+        Connector::Codex => "Codex を使うと、頼み、対象のテキスト、資料と、Codex が読んだファイルを、書き手のアカウントで OpenAI に送ります。Codex は読むだけのサンドボックスで動き、書き込みは止めますが、コマンドの実行とファイルの読み取りは止めません。作業のフォルダは空の一時フォルダですが、ディスクのほかの場所を読むことは止められません。使いますか。".into(),
+        Connector::Local => "ローカルのコネクタは、何も外に送りません。".into(),
+    }
 }
 
 #[cfg(test)]
@@ -620,7 +973,11 @@ printf '%s' '{OK}' > "$out"
                 assert!(!Path::new(&at("--output-schema").unwrap()).starts_with(&work));
                 assert!(!Path::new(&at("-o").unwrap()).starts_with(&work));
             } else {
-                assert_eq!(args, claude_args(crate::llama::ANSWER_SCHEMA));
+                assert_eq!(args, claude_args(&schema_line()));
+                let schema: serde_json::Value = serde_json::from_str(&args[4]).unwrap();
+                let want: serde_json::Value =
+                    serde_json::from_str(crate::llama::ANSWER_SCHEMA).unwrap();
+                assert_eq!(schema, want);
             }
             assert_eq!(
                 std::fs::read_dir(&tmp).unwrap().count(),

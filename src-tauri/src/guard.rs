@@ -163,7 +163,14 @@ pub fn allowed(program: &str, args: &[String]) -> Result<(), String> {
 
 // ---- the settings Rust alone changes (docs/adr/0050) ----
 
-const PATHS: [&str; 4] = ["libraryDir", "gitPath", "golemPath", "shemPath"];
+const PATHS: [&str; 6] = [
+    "libraryDir",
+    "gitPath",
+    "golemPath",
+    "shemPath",
+    "claudePath",
+    "codexPath",
+];
 
 /// The model of the local connector (docs/adr/0081), chosen through Rust,
 /// which checks it against the list; the webview's saves keep it as it was.
@@ -174,13 +181,21 @@ pub const ASSISTANT_MODEL: &str = "assistantModel";
 pub const ASSISTANT_APPROVED: &str = "assistantApproved";
 
 /// Whether the writer approved the connector `id`.
-pub fn approved(_current: &Value, _id: &str) -> bool {
-    todo!()
+pub fn approved(current: &Value, id: &str) -> bool {
+    strings(current.get(ASSISTANT_APPROVED))
+        .iter()
+        .any(|a| a == id)
 }
 
 /// The settings with the connector `id` approved once.
-pub fn approve(_current: &Value, _id: &str) -> Value {
-    todo!()
+pub fn approve(current: &Value, id: &str) -> Value {
+    let mut o = object(current);
+    let mut ids = strings(current.get(ASSISTANT_APPROVED));
+    if !ids.iter().any(|a| a == id) {
+        ids.push(id.into());
+    }
+    o.insert(ASSISTANT_APPROVED.into(), ids.into());
+    Value::Object(o)
 }
 
 fn strings(v: Option<&Value>) -> Vec<String> {
@@ -194,15 +209,17 @@ fn strings(v: Option<&Value>) -> Vec<String> {
 
 /// The settings to write when the webview saves `incoming`: its values, except
 /// that it may only remove workspaces and empty the paths, never add or change them,
-/// and the chosen model stays as Rust wrote it.
+/// and the chosen model and the approved connectors stay as Rust wrote them.
 pub fn merge(current: &Value, incoming: Value) -> Value {
     let Value::Object(mut out) = incoming else {
         return current.clone();
     };
-    match current.get(ASSISTANT_MODEL) {
-        Some(v) => out.insert(ASSISTANT_MODEL.into(), v.clone()),
-        None => out.remove(ASSISTANT_MODEL),
-    };
+    for k in [ASSISTANT_MODEL, ASSISTANT_APPROVED] {
+        match current.get(k) {
+            Some(v) => out.insert(k.into(), v.clone()),
+            None => out.remove(k),
+        };
+    }
     let had = strings(current.get("workspaces"));
     let mut kept: Vec<String> = Vec::new();
     for w in strings(out.get("workspaces")) {
@@ -249,6 +266,8 @@ pub fn binary_key(name: &str) -> Option<&'static str> {
         "git" => Some("gitPath"),
         "golem" => Some("golemPath"),
         "shem" => Some("shemPath"),
+        "claude" => Some("claudePath"),
+        "codex" => Some("codexPath"),
         _ => None,
     }
 }

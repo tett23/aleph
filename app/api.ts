@@ -17,6 +17,14 @@ export type ToolInfo = { path: string; version: string; bundled: string };
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 /** The local model's answer: its JSON as written, the model's name, and the time it took. */
 export type LocalAnswer = { content: string; model: string; ms: number };
+/** The assistant's connectors (docs/adr/0081). */
+export type ConnectorId = "local" | "claude" | "codex";
+/** Whether a connector is found and approved; the local connector always is. */
+export type ConnectorInfo = { id: ConnectorId; name: string; found: boolean; approved: boolean };
+/** Why Claude Code or Codex failed and the local connector answered instead (I8). */
+export type FallbackReason = { from: ConnectorId; kind: "start" | "exit" | "schema" | "timeout"; message: string };
+/** An answer's JSON, the connector that gave it, the local model's name, the time it took, and why it fell back. */
+export type Answered = { answer: string; connector: ConnectorId; model: string | null; ms: number; fallbackReason: FallbackReason | null };
 export type Tool = "golem" | "shem";
 
 export const api = {
@@ -90,4 +98,8 @@ export const api = {
   assistantLocalAsk: (messages: ChatMessage[]) => invoke<LocalAnswer>("assistant_local_ask", { messages }),
   assistantLocalCount: (texts: string[]) => invoke<number[]>("assistant_local_count", { texts }),
   assistantLocalTemplateCount: (messages: ChatMessage[]) => invoke<number>("assistant_local_template_count", { messages }),
+  /** The connectors, found and approved; Rust finds the CLIs and keeps the approvals. */
+  assistantConnectors: () => invoke<ConnectorInfo[]>("assistant_connectors"),
+  /** Asks a connector; Rust asks for the approval in a native dialog the first time (I6) and falls back to the local connector once (I8). */
+  assistantAsk: (connector: ConnectorId, messages: ChatMessage[]) => invoke<Answered>("assistant_ask", { connector, messages }),
 };

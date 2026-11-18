@@ -1003,6 +1003,107 @@ async fn assistant_local_template_count(app: AppHandle, messages: Vec<llama::Mes
     .await
 }
 
+// ---- the assistant's connectors: local, Claude Code and Codex (docs/adr/0081) ----
+
+/// The writer's login shell, which tells where claude and codex are.
+fn login_shell() -> PathBuf {
+    std::env::var_os("SHELL")
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/bin/zsh"))
+}
+
+/// Where the CLI of `c` is: the setting Rust keeps, ~/.local/bin, Homebrew,
+/// then the login shell's PATH.
+fn connector_path(app: &AppHandle, c: connectors::Connector) -> Option<PathBuf> {
+    let name = c.program()?;
+    let shell = login_shell();
+    connectors::find(
+        c,
+        configured(app, name).as_deref(),
+        &roots(app),
+        Some(&shell),
+    )
+}
+
+/// Whether the writer approved `c`; asks in Rust's native dialog the first
+/// time and keeps the approval in the settings only Rust changes (I6).
+fn connector_approved(app: &AppHandle, c: connectors::Connector) -> R<bool> {
+    if c == connectors::Connector::Local || guard::approved(&kept_config(app), c.id()) {
+        return Ok(true);
+    }
+    if !confirm(
+        app,
+        &format!("{} を使う", c.name()),
+        &connectors::notice(c),
+        "使う",
+    ) {
+        return Ok(false);
+    }
+    write_config(app, guard::approve(&kept_config(app), c.id()))?;
+    Ok(true)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConnectorInfo {
+    id: connectors::Connector,
+    name: String,
+    /// Found where Aleph looks (always for the local connector).
+    found: bool,
+    /// Approved by the writer (always for the local connector).
+    approved: bool,
+}
+
+/// The connectors, whether each is found and approved; for choosing one.
+/// Off the main thread: it may run the login shell.
+#[tauri::command]
+async fn assistant_connectors(app: AppHandle) -> R<Vec<ConnectorInfo>> {
+    use connectors::Connector::{Claude, Codex, Local};
+    blocking(move || {
+        let config = kept_config(&app);
+        Ok([Local, Claude, Codex]
+            .into_iter()
+            .map(|c| ConnectorInfo {
+                id: c,
+                name: c.name().into(),
+                found: c == Local || connector_path(&app, c).is_some(),
+                approved: c == Local || guard::approved(&config, c.id()),
+            })
+            .collect())
+    })
+    .await
+}
+
+/// Asks the connector `connector` with the messages of app/assistant/prompt.ts.
+/// Claude Code and Codex run only after the writer approves them (I6); when
+/// they fail, the local connector is asked once and the answer says why (I8).
+/// Off the main thread (docs/adr/0062).
+#[tauri::command]
+async fn assistant_ask(
+    app: AppHandle,
+    connector: connectors::Connector,
+    messages: Vec<llama::Message>,
+) -> R<connectors::Answered> {
+    blocking(move || {
+        let bin = connector_path(&app, connector);
+        if connector != connectors::Connector::Local && bin.is_none() {
+            return Err(format!("{} が見つかりません", connector.name()));
+        }
+        let approved = connector_approved(&app, connector)?;
+        connectors::ask(
+            connector,
+            approved,
+            bin.as_deref(),
+            &messages,
+            &std::env::temp_dir(),
+            connectors::TIMEOUT,
+            |ms| with_local(&app, |sock| llama::ask(sock, ms)).map(|(a, m)| (a, m.name)),
+        )
+    })
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -1539,7 +1640,9 @@ pub fn run_app() {
             assistant_choose_model,
             assistant_local_ask,
             assistant_local_count,
-            assistant_local_template_count
+            assistant_local_template_count,
+            assistant_connectors,
+            assistant_ask
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")
