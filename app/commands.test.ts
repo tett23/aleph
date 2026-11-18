@@ -68,12 +68,12 @@ test("recent commands keep 20, newest first, without repeats", () => {
 });
 
 // the ids ADR 0023 lists, except those their own ADRs add (file.quickOpen: 0022; file.closeTab and
-// view.split: 0024), with the ids ADR 0082 renamed
+// view.split: 0024), with the ids ADR 0082 renamed and without preview.none (ADR 0087)
 const INITIAL = [
   "file.newSheet", "file.newFolder", "file.newProject", "file.save",
   "view.sidebar.files", "view.sidebar.search", "view.sidebar.git", "view.sidebar.diagnostics", "view.sidebar.library", "view.toggleSidebar",
   "view.rightSidebar.attach", "view.rightSidebar.outline", "view.rightSidebar.links", "view.rightSidebar.library", "view.toggleRightSidebar", "view.plot", "view.vertical", "view.horizontal",
-  "preview.none", "preview.plain", "preview.pages", "preview.window",
+  "preview.plain", "preview.pages", "preview.window",
   "editor.undo", "editor.redo", "editor.selectAll", "editor.find", "editor.indent", "editor.outdent", "editor.complete", "editor.format",
   "git.commit", "git.push", "git.pull",
   "palette.open", "settings.open", "md.convertToGm", "library.copyFonts", "dev.recordIme",
@@ -91,7 +91,7 @@ test("every command ADR 0023 lists is registered somewhere in the app", async ()
   const src = files(new URL(".", import.meta.url).pathname).map((p) => readFileSync(p, "utf8")).join("\n");
   const ids = new Set([...src.matchAll(/id: "([\w.-]+)"/g), ...src.matchAll(/\["(editor\.\w+)"/g)].map((m) => m[1]));
   // ids built from the panel and preview tables of palette.ts
-  for (const [prefix, table] of [["view.sidebar.", /\["(files|git|diagnostics|library)", "/g], ["view.rightSidebar.", /\["(attach|outline|links|library)", "/g], ["preview.", /\["(none|plain|pages)", "/g]] as const)
+  for (const [prefix, table] of [["view.sidebar.", /\["(files|git|diagnostics|library)", "/g], ["view.rightSidebar.", /\["(attach|outline|links|library)", "/g], ["preview.", /\["(plain|pages)", "/g]] as const)
     for (const m of src.matchAll(table)) ids.add(prefix + m[1]);
   assert.deepEqual(INITIAL.filter((id) => !ids.has(id)), []);
 });

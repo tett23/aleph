@@ -11,7 +11,7 @@ import { goalOf, metaFor, parseMeta, renameKey, writeMeta, type Meta } from "./n
 import { dirname, rel } from "./path.ts";
 import { linesCell, namesCell, rowsFor, targetFor } from "./plot/data.ts";
 import { plotRows, plotRowsNow } from "./plot/mount.ts";
-import { allDocs, focused } from "./store.ts";
+import { allDocs, shownDoc } from "./store.ts";
 import { item } from "./ui/settings.ts";
 import { kindOf, projectOf, workspaceOf } from "./workspace.ts";
 
@@ -106,7 +106,7 @@ const KW_PLACE = "#8aa37f";
 const KW_SUB = "#c9a862";
 
 const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
-  const d = focused(ctx.store.get());
+  const d = shownDoc(ctx.store.get());
   if (!d) return void (el.innerHTML = `<div class="sec"><div class="muted">シートを開くと、目標、キーワード、書くこと、ノートがここに出ます。</div></div>`);
   const root = rootOf(ctx, d.path);
   if (!root) return void (el.innerHTML = `<div class="sec"><div class="muted">ワークスペースの外のシートです。</div></div>`);
@@ -190,7 +190,7 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
 };
 
 const drawOutline = (el: HTMLElement, ctx: Ctx) => {
-  const d = focused(ctx.store.get());
+  const d = shownDoc(ctx.store.get());
   if (!d) return void (el.innerHTML = "");
   const heads =
     d.kind === "gm"
@@ -222,7 +222,7 @@ export const mountAttach = (ctx: Ctx) => {
   ctx.rightSidebar.outline = { icon: "list", title: "アウトライン", render: (el) => drawOutline(el, ctx) };
 
   ctx.status.push((s) => {
-    const d = focused(s);
+    const d = shownDoc(s);
     if (!d) return "";
     // the editor's buffer, unsaved edits included: it follows input, undo, redo and sheet switches (docs/adr/0075)
     const c = sheetCounts(d.kind, d.text, ctx.config.manuscript, separatorOf(d.project, d.path, d.text));

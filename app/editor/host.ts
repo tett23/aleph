@@ -7,7 +7,7 @@ import { createEditor, type Editor } from "../ed/editor.ts";
 import { dispatchKey, keyContextChanged } from "../keybind.ts";
 import { separatorOf } from "../separator.ts";
 import { markdownHook } from "../preview/render.ts";
-import { allDocs, focused, type Doc } from "../store.ts";
+import { allDocs, type Doc, shownDoc } from "../store.ts";
 import { canVertical, PROSE } from "../toolbar.ts";
 import { mountPanes } from "./panes.ts";
 import { item, toggle } from "../ui/settings.ts";
@@ -53,15 +53,16 @@ const editorFor = (el: HTMLElement, doc: Doc, ctx: Ctx, _index: number, scroller
 export const mountEditors = (ctx: Ctx) => {
   mountPanes(ctx, (el, doc, index, scroller) => editorFor(el, doc, ctx, index, scroller));
 
-  // the grid and the caret in the status bar
+  // the grid and the caret in the status bar, of the shown sheet (docs/adr/0087)
   ctx.status.push((s) => {
-    const d = focused(s);
+    const d = shownDoc(s);
     if (!d || !d.project) return "";
     const chars = charsOf(d, ctx.config.charsOverride);
     return `<span>${chars} 字 × ${d.grid.lines} 行${ctx.config.charsOverride ? "（上書き）" : ""}${d.grid.vertical ? " · 縦組み" : ""}</span>`;
   });
   ctx.status.push((s) => {
-    const core = (focused(s) && ctx.editors.get(focused(s)!.path))?.edit?.core;
+    const d = shownDoc(s);
+    const core = (d && ctx.editors.get(d.path))?.edit?.core;
     if (!core) return "";
     const head = core.sel().head;
     const line = core.doc().lineAt(head);
@@ -101,7 +102,7 @@ export const mountEditors = (ctx: Ctx) => {
         c.config.markdownBreaks = mb;
         await c.saveConfig();
         markdownHook.version++;
-        c.refresh(["previewArea"]);
+        c.refresh(["previewTab"]);
         return true;
       }
       const k = el.closest<HTMLElement>("[data-toggle]")?.dataset.toggle;

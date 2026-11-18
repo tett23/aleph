@@ -9,7 +9,7 @@ import type { TextEditor } from "./ed/editor.ts";
 import { esc } from "./esc.ts";
 import { basename, rel } from "./path.ts";
 import { sheetsOf } from "./quickopen.ts";
-import { allDocs, focused } from "./store.ts";
+import { allDocs, shownDoc } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree, treeEntries, treeReloaded } from "./ui/tree.ts";
 import { backlinks, buildIndex, completeAt, findHeading, groupBacklinks, markMissing, outlinks, parseWikilinks, renameEdits, resolveLink, type Index, type Sheet, type Wikilink } from "./wikilink.ts";
@@ -106,7 +106,7 @@ const follow = async (ctx: Ctx, from: string, l: Pick<Wikilink, "target" | "head
 // ---- the right sidebar ----
 
 const drawPanel = (el: HTMLElement, ctx: Ctx) => {
-  const d = focused(ctx.store.get());
+  const d = shownDoc(ctx.store.get());
   const ws = wsOf(ctx);
   if (!d || !ws) return void (el.innerHTML = `<div class="empty">シートを開くと、そのシートを指すリンクを出します。</div>`);
   const row = (path: string, line: number, text: string, key: string, missing = false) =>
@@ -167,7 +167,7 @@ export const mountWikilinks = (ctx: Ctx) => {
     drawPanel(el, ctx);
     el.onclick = async (e) => {
       const t = (e.target as HTMLElement).closest<HTMLElement>("[data-lk-open],[data-lk-target]");
-      const d = focused(ctx.store.get());
+      const d = shownDoc(ctx.store.get());
       if (!t || !d) return;
       if (t.dataset.lkOpen) {
         const line = Number(t.dataset.lkLine);
@@ -241,10 +241,10 @@ export const mountWikilinks = (ctx: Ctx) => {
     })();
   });
 
-  // the preview's links
+  // the preview's links, resolved from the shown sheet: pressing one in the preview tab selects its pane (docs/adr/0087)
   document.addEventListener("click", (e) => {
     const a = (e.target as HTMLElement).closest<HTMLAnchorElement>("a.wikilink");
-    const d = focused(ctx.store.get());
+    const d = shownDoc(ctx.store.get());
     if (!a || !d) return;
     e.preventDefault();
     void follow(ctx, d.path, { target: a.dataset.wikilink ?? "", heading: a.dataset.heading ?? null });
@@ -265,13 +265,13 @@ export const mountWikilinks = (ctx: Ctx) => {
       const before = allDocs(prev).find((x) => x.path === d.path);
       if (!before || before.saved === d.saved) continue;
       others.delete(d.path);
-      const f = focused(s);
+      const f = shownDoc(s);
       if (f?.kind === "md" && f.path !== d.path) {
         markdownHook.version++;
-        ctx.refresh(["previewArea"]);
+        ctx.refresh(["previewTab"]);
       }
     }
-    if (s.rightSidebarPanel === "links" && s.showRightSidebar && (s.focus !== prev.focus || s.open !== prev.open)) ctx.refresh(["rightSidebar"]);
+    if (s.rightSidebarPanel === "links" && s.showRightSidebar && (s.focus !== prev.focus || s.open !== prev.open || s.followed !== prev.followed)) ctx.refresh(["rightSidebar"]);
   });
 
   // a renamed file: the links that named it by path or by file name follow, after asking

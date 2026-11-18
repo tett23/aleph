@@ -1,6 +1,6 @@
 # ADR 0072: ⌘S で保存したら PDF のページをすぐ組み直す
 
-Status: accepted
+Status: superseded [{"part":"組みなおす対象の条件","by":["docs/adr/0087-preview-in-a-tab.md"]}]
 
 ## 文脈
 

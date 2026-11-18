@@ -6,7 +6,7 @@ import type { Ctx } from "./ctx.ts";
 import type { TextEditor } from "./ed/editor.ts";
 import { checkText, englishWords, RULES, segments, spellDiags, toAsk } from "./proofread.ts";
 import { forgetGrid } from "./docs.ts";
-import { allDocs, focused, type Doc } from "./store.ts";
+import { allDocs, type Doc, shownDoc } from "./store.ts";
 import { readGrid } from "./workspace.ts";
 import { item, toggle } from "./ui/settings.ts";
 import { esc } from "./esc.ts";
@@ -91,7 +91,7 @@ export const mountProofread = (ctx: Ctx) => {
   });
 
   ctx.status.push((s) => {
-    const d = focused(s);
+    const d = shownDoc(s);
     const t = d && ctx.editors.get(d.path)?.edit;
     return t && tooLong.has(t) && ctx.config.proofread.enabled ? `<span class="muted">長いため文章の検査をしていません</span>` : "";
   });

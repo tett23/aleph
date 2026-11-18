@@ -20,7 +20,7 @@
 - 「画面の文言」は、ボタンの表示、ツールチップ、コマンドの名前に使う文字列である。画面に名前が出ない要素は「(無し)」とする。
 - 「英語の名前」は、README の英語版と、コードの名前の元にする名前である。
 - 「コードの名前」は、CSS のクラス、`data-*` の属性、`ctx` の鍵、型、関数の名前である。
-- 「今のコードの名前」は、[ADR 0082](adr/0082-ui-names-and-glossary.md) の実装で「コードの名前」に変えた、前の名前である。`config.json` に保存された前の名前は、`app/legacy-names.ts` だけが新しい名前に読みかえる。
+- 「今のコードの名前」は、[ADR 0082](adr/0082-ui-names-and-glossary.md) か後の ADR の実装で「コードの名前」に変えた、前の名前である。`config.json` に保存された前の名前は、`app/legacy-names.ts` だけが新しい名前に読みかえる。
 - 「使わない名前」は、その要素を指して、画面の文言と仕様書で使わない名前である。
 
 | 正式な名前 | 英語の名前 | 指すもの | 画面の文言 | コードの名前 | 今のコードの名前 | 使わない名前 |
@@ -34,11 +34,12 @@
 | 右サイドバー | Right sidebar | 右の区画 | 「右サイドバー」 | `.right-sidebar`、`ctx.rightSidebar`、型 `RightSidebarPanelId` | `.right`、`ctx.right`、型 `RightPanel` | 「右のパネル」 |
 | ツールバー | Toolbar | 中央の列の上端の帯 | (無し) | `.toolbar` | (無し) | (無し) |
 | ほかの操作 | More actions | ツールバーの「…」のメニュー | 「ほかの操作」 | `data-toolbar="more-actions"` | `data-tb="more"` | 「ツールバーのメニュー」 |
-| エディタの領域 | Editor area | 中央の列の左の区画。ペインを並べる | (無し) | `.editor-area`、`ctx.view.editorArea` | `.main-pane`、`ctx.view.main` | (無し) |
+| エディタの領域 | Editor area | 中央の列の、ツールバーの下の区画。ペインを並べる | (無し) | `.editor-area`、`ctx.view.editorArea` | `.main-pane`、`ctx.view.main` | (無し) |
 | ペイン | Pane | エディタの領域を左右に分けた一つ。タブの並びを持つ ([ADR 0024](adr/0024-tabs-and-split.md)) | (無し) | `.pane` | `.epane` | (無し) |
-| タブ | Tab | ペインの中の、開いたもの (シート、まとめて開いた章、プロット) の一つ | (無し) | `.tab` | (無し) | (無し) |
-| プレビューの領域 | Preview area | 中央の列の右の区画。本文、ページ、プレビューを出す | (無し) | `.preview-area`、`ctx.view.previewArea`、型 `PreviewMode` | `.side-pane`、`ctx.view.side`、型 `SidePane` | (無し) |
-| 下部パネル | Bottom panel | エディタの領域とプレビューの領域の下、ステータスバーの上の区画。下部パネルのタブで中身を切り替える | 「下部パネル」 | `.bottom-panel`、`ctx.view.bottomPanel` | `.problems-panel`、`ctx.view.problems` | 「問題のパネル」、「問題パネル」 |
+| タブ | Tab | ペインの中の、開いたもの (シート、まとめて開いた章、プロット、プレビュー) の一つ | (無し) | `.tab` | (無し) | (無し) |
+| プレビューのタブ | Preview tab | ペインのタブの一つ。映すタブのシートの、本文、ページ、図を出す | 「プレビュー」 | `Tab.preview`、`ctx.view.previewTab`、型 `PreviewMode` | `.preview-area`、`ctx.view.previewArea` | 「プレビューの領域」 |
+| 映すタブ | Followed tab | プレビューのタブが映す、シートを持つタブ | (無し) | `followed`、`shown` | (無し) | (無し) |
+| 下部パネル | Bottom panel | エディタの領域の下、ステータスバーの上の区画。下部パネルのタブで中身を切り替える | 「下部パネル」 | `.bottom-panel`、`ctx.view.bottomPanel` | `.problems-panel`、`ctx.view.problems` | 「問題のパネル」、「問題パネル」 |
 | 下部パネルのタブ | Bottom panel tab | 下部パネルの中身を切り替える見出しの一つと、その中身 | (無し) | `.bottom-panel-tab` | `.ptab` | (無し) |
 | 問題のタブ | Problems tab | 下部パネルのタブの一つ。診断の一覧 | 「問題」 | `data-tab="problems"` | (無し) | 「問題の一覧」 |
 | 通知のタブ | Notifications tab | 下部パネルのタブの一つ。通知の履歴 | 「通知」 | `data-tab="notifications"` | `data-tab="notes"` | (無し) |

@@ -110,7 +110,7 @@ test("the store notifies only on change", () => {
   let calls = 0;
   store.subscribe(() => calls++);
   store.dispatch({ type: "focus", index: 3 }); // no sheet: no change
-  store.dispatch({ type: "previewMode", mode: "plain" });
+  store.dispatch({ type: "previewMode", mode: "pages" });
   assert.equal(calls, 1);
 });
 

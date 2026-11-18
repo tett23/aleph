@@ -22,7 +22,7 @@ import {
   type BuildOptions,
   type BuildResult,
 } from "./projectbuild.ts";
-import { focused } from "./store.ts";
+import { focused, shownDoc } from "./store.ts";
 import { golem } from "./tools.ts";
 import { uiState } from "./uistate.ts";
 import { notifications } from "./ui/notices.ts";
@@ -41,7 +41,8 @@ const seg = <T extends string>(name: string, list: T[], on: T) =>
 
 export const mountProjectBuild = (ctx: Ctx) => {
   const options = () => readBuildOptions(uiState().get<unknown>(KEY, {}));
-  const projectNow = () => focused(ctx.store.get())?.project ?? null;
+  // the toolbar's build button follows the shown sheet (docs/adr/0087)
+  const projectNow = () => shownDoc(ctx.store.get())?.project ?? null;
 
   const run = createRunner(async (project) => {
     const started = performance.now();
@@ -139,7 +140,7 @@ export const mountProjectBuild = (ctx: Ctx) => {
   ctx.statusActions.buildOptions = () => (popup ? closePopup() : openPopup());
 
   ctx.status.push((s) => {
-    const project = focused(s)?.project;
+    const project = shownDoc(s)?.project;
     if (!project) return "";
     const st = buildStatus(results.get(project) ?? null, buildLogs.get(project)?.result.state === "running");
     return st ? `<span class="chk ${st.cls === "running" ? "running" : st.cls}" data-status="build" title="ビルドログを開く">${esc(st.text)}</span>` : "";

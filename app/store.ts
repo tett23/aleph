@@ -16,10 +16,13 @@ export type Doc = {
 
 export type SidebarPanelId = "files" | "bookmarks" | "keywords" | "search" | "git" | "diagnostics" | "library" | "trash";
 export type RightSidebarPanelId = "attach" | "outline" | "links" | "library";
-export type PreviewMode = "none" | "plain" | "pages";
+export type PreviewMode = "plain" | "pages";
 
-/** A tab: one sheet, chapters opened together (and the one the right sidebar follows), or a project's plot (docs/adr/0024). */
-export type Tab = { id: number; open: Doc[]; focus: number; plot: string | null };
+/**
+ * A tab: one sheet, chapters opened together (and the one the right sidebar follows), or a project's plot (docs/adr/0024),
+ * or the preview tab, which holds no sheet and shows the followed tab's (docs/adr/0087).
+ */
+export type Tab = { id: number; open: Doc[]; focus: number; plot: string | null; preview: boolean };
 /** A pane of the editor area: its tabs and the selected one. */
 export type Pane = { tabs: Tab[]; active: number };
 
@@ -47,6 +50,8 @@ export type State = {
   expanded: string[];
   /** The selected tab's plot (a copy kept by the reducer). */
   plot: string | null;
+  /** The id of the followed tab: the sheet tab the preview tab shows (docs/adr/0087). Not kept. */
+  followed: number | null;
 };
 
 export type Action =
@@ -61,7 +66,7 @@ export type Action =
   | { type: "moveTab"; from: { pane: number; index: number }; to: { pane: number; index: number } }
   | { type: "split" }
   | { type: "focusDoc"; path: string }
-  | { type: "restoreTabs"; panes: { tabs: Omit<Tab, "id">[]; active: number }[]; pane: number }
+  | { type: "restoreTabs"; panes: { tabs: (Omit<Tab, "id" | "preview"> & { preview?: boolean })[]; active: number }[]; pane: number }
   | { type: "focus"; index: number }
   | { type: "edit"; path: string; text: string }
   | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "automatic" | "intermediate"; beforeFormat?: string }
@@ -74,7 +79,9 @@ export type Action =
   | { type: "vertical"; on: boolean }
   | { type: "expand"; path: string; on: boolean }
   | { type: "collapseAll" }
-  | { type: "plot"; project: string | null; newTab?: boolean };
+  | { type: "plot"; project: string | null; newTab?: boolean }
+  /** preview.plain and preview.pages (with their mode) and the toolbar's button (without): shows the preview tab (docs/adr/0087). */
+  | { type: "showPreview"; mode?: PreviewMode };
 
 export const initialState = (): State => ({
   workspaces: [],
@@ -83,7 +90,7 @@ export const initialState = (): State => ({
   showSidebar: true,
   rightSidebarPanel: "attach",
   showRightSidebar: true,
-  previewMode: "none",
+  previewMode: "plain",
   vertical: false,
   panes: [{ tabs: [], active: 0 }],
   pane: 0,
@@ -94,6 +101,7 @@ export const initialState = (): State => ({
   anchor: null,
   expanded: [],
   plot: null,
+  followed: null,
 });
 
 const activeTab = (s: State): Tab | null => {
@@ -140,6 +148,70 @@ const findDoc = (s: State, path: string) => {
   return null;
 };
 
+/** Whether a tab holds sheets: neither the preview tab nor a plot, and not empty (docs/adr/0087). */
+const isSheetTab = (t: Tab | null | undefined): t is Tab => !!t && !t.preview && !t.plot && t.open.length > 0;
+
+/** Where a tab is, by its id. */
+const locate = (s: State, id: number): { pane: number; tab: number } | null => {
+  for (let pi = 0; pi < s.panes.length; pi++) {
+    const ti = s.panes[pi].tabs.findIndex((t) => t.id === id);
+    if (ti >= 0) return { pane: pi, tab: ti };
+  }
+  return null;
+};
+
+/** The sheet tab of a pane nearest an index; of two at the same distance, the one further right. */
+const nearest = (p: Pane | undefined, at: number): Tab | null => {
+  let best: { t: Tab; d: number } | null = null;
+  for (const [k, t] of (p?.tabs ?? []).entries()) {
+    if (!isSheetTab(t)) continue;
+    const d = Math.abs(k - at);
+    if (!best || d <= best.d) best = { t, d };
+  }
+  return best?.t ?? null;
+};
+
+/** The first sheet tab found: in each pane in turn, the one nearest that pane's selected tab. */
+const nearestIn = (s: State, panes: number[]): Tab | null =>
+  panes.reduce<Tab | null>((found, pi) => found ?? nearest(s.panes[pi], s.panes[pi]?.active ?? 0), null);
+
+/**
+ * The followed tab after an action (docs/adr/0087): the selected tab when it holds sheets; else the one
+ * followed before while it is still there; else the nearest sheet tab, first in its pane, then in the other.
+ */
+const follow = (prev: State, s: State, a: Action): number | null => {
+  const sel = activeTab(s);
+  if (isSheetTab(sel)) return sel.id;
+  const was = prev.followed;
+  if (a.type !== "restoreTabs" && was !== null && s.panes.some((p) => p.tabs.some((t) => t.id === was && isSheetTab(t)))) return was;
+  const others = (pi: number) => s.panes.map((_, k) => k).filter((k) => k !== pi);
+  const at = a.type === "restoreTabs" || was === null ? null : locate(prev, was);
+  if (!at) return nearestIn(s, [s.pane, ...others(s.pane)])?.id ?? null;
+  // the followed tab's pane after the action: the same, unless a pane went away and it was that one
+  const kept = new Set(prev.panes[at.pane].tabs.map((t) => t.id));
+  const pi = s.panes.length === prev.panes.length ? at.pane : s.panes.findIndex((p) => p.tabs.some((t) => kept.has(t.id)));
+  return (pi >= 0 ? nearest(s.panes[pi], at.tab) : null)?.id ?? nearestIn(s, others(pi))?.id ?? null;
+};
+
+/**
+ * Opens a tab's content in place of the selected tab or in a new tab. While the preview tab is selected,
+ * the content goes to the followed tab (or after it), and the preview tab stays (docs/adr/0087).
+ */
+const place = (s: State, c: Content, newTab: boolean | undefined): State => {
+  if (!activeTab(s)?.preview) return newTab ? addTab(s, c) : replaceActive(s, c);
+  const at = s.followed === null ? null : locate(s, s.followed);
+  if (at) {
+    const there = select(s, at.pane, at.tab);
+    return newTab ? addTab(there, c) : replaceActive(there, c);
+  }
+  // nothing followed: a new tab, at the end of the pane without the preview tab, or after the preview tab
+  const pi = s.panes.length > 1 ? s.panes.findIndex((p) => !p.tabs.some((t) => t.preview)) : -1;
+  if (pi < 0) return addTab(s, c);
+  const p = s.panes[pi];
+  const t: Tab = { ...c, id: s.seq };
+  return withPanes({ ...s, seq: s.seq + 1 }, setPane(s.panes, pi, { tabs: [...p.tabs, t], active: p.tabs.length }), pi);
+};
+
 const select = (s: State, pane: number, tab: number, focus?: number): State => {
   const panes = s.panes.map((p, k) =>
     k === pane ? { ...p, active: tab, tabs: focus === undefined ? p.tabs : p.tabs.map((t, j) => (j === tab ? { ...t, focus } : t)) } : p,
@@ -176,6 +248,13 @@ const ancestors = (path: string, root: string): string[] => {
 };
 
 export const reduce = (s: State, a: Action): State => {
+  const next = step(s, a);
+  if (next === s) return s;
+  const followed = follow(s, next, a);
+  return followed === next.followed ? next : { ...next, followed };
+};
+
+const step = (s: State, a: Action): State => {
   switch (a.type) {
     case "workspaces": {
       const workspace = s.workspace && a.workspaces.includes(s.workspace) ? s.workspace : (a.workspaces[0] ?? null);
@@ -212,8 +291,8 @@ export const reduce = (s: State, a: Action): State => {
             ? withPanes(base, setPane(base.panes, at.pane, { ...base.panes[at.pane], tabs: base.panes[at.pane].tabs.map((x, k) => (k === at.tab ? { ...x, open: rest, focus: 0 } : x)) }))
             : removeTab(base, at.pane, at.tab);
         }
-      const tab: Content = { open: a.docs, focus: 0, plot: null };
-      return { ...(a.newTab ? addTab(base, tab) : replaceActive(base, tab)), ...tree };
+      const tab: Content = { open: a.docs, focus: 0, plot: null, preview: false };
+      return { ...place(base, tab, a.newTab), ...tree };
     }
     case "close":
       return { ...removeTab(s, s.pane, s.panes[s.pane]?.active ?? 0), selected: [] };
@@ -266,7 +345,7 @@ export const reduce = (s: State, a: Action): State => {
     case "restoreTabs": {
       if (!a.panes.length) return s;
       let seq = s.seq;
-      const panes = a.panes.map((p) => ({ active: Math.max(0, Math.min(p.active, p.tabs.length - 1)), tabs: p.tabs.map((t) => ({ ...t, id: seq++ })) }));
+      const panes = a.panes.map((p) => ({ active: Math.max(0, Math.min(p.active, p.tabs.length - 1)), tabs: p.tabs.map((t) => ({ ...t, preview: !!t.preview, id: seq++ })) }));
       return withPanes({ ...s, seq }, panes, a.pane);
     }
     case "focus":
@@ -309,11 +388,25 @@ export const reduce = (s: State, a: Action): State => {
     case "collapseAll":
       return { ...s, expanded: [] };
     case "plot": {
-      if (!a.project) return s.plot ? replaceActive(s, { open: [], focus: 0, plot: null }) : s;
+      if (!a.project) return s.plot ? replaceActive(s, { open: [], focus: 0, plot: null, preview: false }) : s;
       const at = s.panes.flatMap((p, pi) => p.tabs.flatMap((t, ti) => (t.plot === a.project ? [{ pi, ti }] : [])))[0];
       if (at) return { ...select(s, at.pi, at.ti), selected: [] };
-      const tab: Content = { open: [], focus: 0, plot: a.project };
-      return { ...(a.newTab ? addTab(s, tab) : replaceActive(s, tab)), selected: [] };
+      const tab: Content = { open: [], focus: 0, plot: a.project, preview: false };
+      return { ...place(s, tab, a.newTab), selected: [] };
+    }
+    case "showPreview": {
+      // with no tab there is nothing to show (docs/adr/0087)
+      if (!previewAvailable(s)) return s;
+      const m = a.mode ? { ...s, previewMode: a.mode } : s;
+      const at = m.panes.flatMap((p, pi) => p.tabs.flatMap((t, ti) => (t.preview ? [{ pi, ti }] : [])))[0];
+      // the selected pane stays; the preview tab is selected in its own pane
+      if (at) return withPanes(m, setPane(m.panes, at.pi, { ...m.panes[at.pi], active: at.ti }));
+      const t: Tab = { open: [], focus: 0, plot: null, preview: true, id: m.seq };
+      const n = { ...m, seq: m.seq + 1 };
+      if (n.panes.length === 1) return withPanes(n, [...n.panes, { tabs: [t], active: 0 }]);
+      const other = 1 - n.pane;
+      const p = n.panes[other];
+      return withPanes(n, setPane(n.panes, other, { tabs: [...p.tabs, t], active: p.tabs.length }));
     }
   }
 };
@@ -324,13 +417,13 @@ export const allDocs = (s: State): Doc[] => s.panes.flatMap((p) => p.tabs.flatMa
 /** The sheets with changes to save before a tab closes. */
 export const closeTarget = (s: State, pane: number, index: number): Doc[] => (s.panes[pane]?.tabs[index]?.open ?? []).filter((d) => d.text !== d.saved);
 
-/** The tabs as kept in config.json's ui: sheet paths or a plot's project (docs/adr/0024). */
-export type TabUi = { paths: string[]; focus: number } | { plot: string };
+/** The tabs as kept in config.json's ui: sheet paths, a plot's project (docs/adr/0024), or the preview tab (docs/adr/0087). */
+export type TabUi = { paths: string[]; focus: number } | { plot: string } | { preview: true };
 export type TabsUi = { pane: number; panes: { active: number; tabs: TabUi[] }[] };
 
 export const writeTabs = (s: State): TabsUi => ({
   pane: s.pane,
-  panes: s.panes.map((p) => ({ active: p.active, tabs: p.tabs.map((t) => (t.plot ? { plot: t.plot } : { paths: t.open.map((d) => d.path), focus: t.focus })) })),
+  panes: s.panes.map((p) => ({ active: p.active, tabs: p.tabs.map((t): TabUi => (t.preview ? { preview: true } : t.plot ? { plot: t.plot } : { paths: t.open.map((d) => d.path), focus: t.focus })) })),
 });
 
 const isStrs = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
@@ -338,16 +431,25 @@ const isStrs = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) =>
 export const readTabs = (v: unknown): TabsUi | null => {
   const r = v as TabsUi | null | undefined;
   if (!r || typeof r !== "object" || !Array.isArray(r.panes) || typeof r.pane !== "number") return null;
-  const panes = r.panes.flatMap((p) => {
+  const read = r.panes.flatMap((p) => {
     if (!p || typeof p !== "object" || !Array.isArray(p.tabs)) return [];
     const tabs = p.tabs.flatMap((t): TabUi[] =>
-      t && typeof t === "object" && "plot" in t && typeof t.plot === "string"
-        ? [{ plot: t.plot }]
-        : t && typeof t === "object" && "paths" in t && isStrs(t.paths) && t.paths.length
-          ? [{ paths: t.paths, focus: typeof t.focus === "number" ? t.focus : 0 }]
-          : [],
+      t && typeof t === "object" && "preview" in t && t.preview === true
+        ? [{ preview: true }]
+        : t && typeof t === "object" && "plot" in t && typeof t.plot === "string"
+          ? [{ plot: t.plot }]
+          : t && typeof t === "object" && "paths" in t && isStrs(t.paths) && t.paths.length
+            ? [{ paths: t.paths, focus: typeof t.focus === "number" ? t.focus : 0 }]
+            : [],
     );
     return [{ active: typeof p.active === "number" ? p.active : 0, tabs }];
+  });
+  // one preview tab at most: the first one is kept (docs/adr/0087)
+  const first = read.flatMap((p, pi) => p.tabs.flatMap((t, ti) => ("preview" in t ? [{ pi, ti }] : [])))[0];
+  const panes = read.map((p, pi) => {
+    const keep = (t: TabUi, ti: number) => !("preview" in t) || (first.pi === pi && first.ti === ti);
+    const before = p.tabs.filter((t, ti) => ti < p.active && !keep(t, ti)).length;
+    return { active: p.active - before, tabs: p.tabs.filter(keep) };
   });
   return panes.length ? { pane: r.pane, panes } : null;
 };
@@ -357,7 +459,7 @@ export const dropMissing = (t: TabsUi, exists: (path: string) => boolean): TabsU
   const panes = t.panes
     .map((p) => {
       const kept = p.tabs.flatMap((x, k): { x: TabUi; k: number }[] => {
-        if ("plot" in x) return [{ x, k }];
+        if (!("paths" in x)) return [{ x, k }];
         const paths = x.paths.filter(exists);
         return paths.length ? [{ x: { paths, focus: Math.min(x.focus, paths.length - 1) }, k }] : [];
       });
@@ -369,8 +471,35 @@ export const dropMissing = (t: TabsUi, exists: (path: string) => boolean): TabsU
   return { pane: Math.max(0, Math.min(t.pane, panes.length - 1)), panes: panes.length ? panes : [{ active: 0, tabs: [] }] };
 };
 
-/** The sheet the right sidebar and the status bar follow. */
+/** The selected tab's focused sheet: what the editor's commands, saving and the like act on. */
 export const focused = (s: State): Doc | null => s.open[s.focus] ?? null;
+
+/**
+ * The sheets shown by the toolbar, the right sidebar, the status bar and the preview tab (docs/adr/0087):
+ * the selected tab's when it holds sheets, else the followed tab's, else none.
+ */
+export const shown = (s: State): { open: Doc[]; focus: number } => {
+  const sel = activeTab(s);
+  if (isSheetTab(sel)) return { open: sel.open, focus: sel.focus };
+  const at = s.followed === null ? null : locate(s, s.followed);
+  const t = at ? s.panes[at.pane].tabs[at.tab] : null;
+  return t ? { open: t.open, focus: t.focus } : { open: [], focus: 0 };
+};
+
+/** The focused sheet of `shown(s)`: the followed sheet while the preview tab is selected. */
+export const shownDoc = (s: State): Doc | null => {
+  const x = shown(s);
+  return x.open[x.focus] ?? null;
+};
+
+/** Whether preview.plain and the toolbar's preview button can run: some tab is open (docs/adr/0087). */
+export const previewAvailable = (s: State): boolean => s.panes.some((p) => p.tabs.length > 0);
+
+/** Whether preview.pages can run: some tab is open and the shown sheet is a chapter of Golem (docs/adr/0087). */
+export const pagesAvailable = (s: State): boolean => previewAvailable(s) && shownDoc(s)?.kind === "gm";
+
+/** previewMode as kept in config.json's ui: "plain" or "pages"; anything else ("none" included) is "plain" (docs/adr/0087). */
+export const readPreviewMode = (v: unknown): PreviewMode => (v === "plain" || v === "pages" ? v : "plain");
 
 export const dirty = (d: Doc) => d.text !== d.saved;
 

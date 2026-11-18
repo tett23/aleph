@@ -6,16 +6,20 @@ import type { Doc, Tab } from "./store.ts";
 const doc = (path: string) => ({ path }) as Doc;
 
 test("a sheet tab shows its focused sheet", () => {
-  const t: Tab = { id: 1, open: [doc("/w/p/a.gm"), doc("/w/p/b.gm")], focus: 1, plot: null };
+  const t: Tab = { id: 1, open: [doc("/w/p/a.gm"), doc("/w/p/b.gm")], focus: 1, plot: null, preview: false };
   assert.equal(tabTarget(t), "/w/p/b.gm");
 });
 
 test("a plot tab shows the project's plot.csv", () => {
-  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: "/w/p" }), "/w/p/plot.csv");
+  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: "/w/p", preview: false }), "/w/p/plot.csv");
 });
 
 test("an empty tab shows nothing", () => {
-  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: null }), null);
+  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: null, preview: false }), null);
+});
+
+test("the preview tab shows nothing (docs/adr/0087)", () => {
+  assert.equal(tabTarget({ id: 1, open: [], focus: 0, plot: null, preview: true }), null);
 });
 
 test("the menu offers Finder for files and folders alike", () => {
