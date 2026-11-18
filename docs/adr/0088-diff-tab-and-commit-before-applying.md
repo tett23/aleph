@@ -1,6 +1,6 @@
 # ADR 0088: 差分のタブと、アシスタントの書き換えを適用する前のコミット
 
-Status: accepted
+Status: superseded [{"part":"差分のタブ の、パスに :(literal) を付けて読むこと","by":[],"kind":"note","note":"git diff --no-index は :(literal) を付けたパスを読めないので、追跡していないファイルには付けない。追跡しているファイルと名前を変えたファイルには付ける"}]
 
 ## 文脈
 
