@@ -21,9 +21,9 @@ const H0: [u32; 8] = [
 ];
 
 /// The state after one 64-byte block.
-fn compress(h: [u32; 8], block: &[u8]) -> [u32; 8] {
+fn compress(h: [u32; 8], block: &[u8; 64]) -> [u32; 8] {
     let mut w = [0u32; 64];
-    for (i, c) in block.chunks_exact(4).enumerate() {
+    for (i, c) in block.as_chunks::<4>().0.iter().enumerate() {
         w[i] = u32::from_be_bytes([c[0], c[1], c[2], c[3]]);
     }
     for i in 16..64 {
@@ -67,7 +67,9 @@ fn finish(h: [u32; 8], rest: &[u8], total: u64) -> String {
         tail.push(0);
     }
     tail.extend_from_slice(&total.wrapping_mul(8).to_be_bytes());
-    tail.chunks_exact(64)
+    tail.as_chunks::<64>()
+        .0
+        .iter()
         .fold(h, compress)
         .iter()
         .map(|x| format!("{x:08x}"))
@@ -78,7 +80,7 @@ fn finish(h: [u32; 8], rest: &[u8], total: u64) -> String {
 #[cfg(test)]
 pub fn hex(bytes: &[u8]) -> String {
     let whole = bytes.len() / 64 * 64;
-    let h = bytes[..whole].chunks_exact(64).fold(H0, compress);
+    let h = bytes[..whole].as_chunks::<64>().0.iter().fold(H0, compress);
     finish(h, &bytes[whole..], bytes.len() as u64)
 }
 
@@ -99,7 +101,7 @@ pub fn file_hex(path: &Path) -> std::io::Result<String> {
         }
         total += n as u64;
         let whole = n / 64 * 64;
-        h = buf[..whole].chunks_exact(64).fold(h, compress);
+        h = buf[..whole].as_chunks::<64>().0.iter().fold(h, compress);
         if n < buf.len() {
             return Ok(finish(h, &buf[whole..n], total));
         }
