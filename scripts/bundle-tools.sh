@@ -12,14 +12,21 @@
 #   manual <file> <repo> <sha256>
 #       manual/chapters/<file> of <repo> at the tag of the golem row, checked
 #       against <sha256>; installs manual/<file>.
+#   model <file> <repo> <revision> <sha256>
+#       <file> of the Hugging Face repository <repo> at <revision>, checked
+#       against <sha256>; installs models/<file>. A file already installed
+#       that matches <sha256> is kept instead of being fetched again.
 #
 # {tag} in <archive> is replaced with the tag.
 #
 #   bundle-tools.sh [versions file] [resources dir]
 #
 # ALEPH_RELEASES_URL replaces https://github.com/tett23, ALEPH_GITHUB_URL
-# https://github.com and ALEPH_RAW_URL https://raw.githubusercontent.com
-# (tests use file://). Every file is fetched and checked before anything is
+# https://github.com, ALEPH_RAW_URL https://raw.githubusercontent.com and
+# ALEPH_HF_URL https://huggingface.co (tests use file://). With
+# ALEPH_SKIP_MODELS set to anything but the empty string, the model rows are
+# skipped and the installed models are left as they are (the benchmark, which
+# needs golem only). Every file is fetched and checked before anything is
 # installed, so a failure leaves the resources as they were.
 # Exit status: 0 bundled, 1 a download or a check failed, 64 usage.
 set -eu
@@ -30,6 +37,8 @@ resources=${2:-$root/src-tauri/resources}
 releases=${ALEPH_RELEASES_URL:-https://github.com/tett23}
 github=${ALEPH_GITHUB_URL:-https://github.com}
 raw=${ALEPH_RAW_URL:-https://raw.githubusercontent.com}
+hf=${ALEPH_HF_URL:-https://huggingface.co}
+skip_models=${ALEPH_SKIP_MODELS:-}
 [ -f "$versions" ] || { echo "bundle-tools: no $versions" >&2; exit 64; }
 
 sha256() {
@@ -120,14 +129,34 @@ chapter() { # file repo sha256
   echo "checked manual $1 $golem_tag"
 }
 
+# <file> of the Hugging Face repository <repo> at <revision>, checked against
+# the SHA-256 given; the installed copy when it matches
+model() { # file repo revision sha256
+  [ $# -eq 4 ] || { echo "bundle-tools: a model row is: model <file> <repo> <revision> <sha256>" >&2; exit 64; }
+  mkdir -p "$stage/models"
+  installed="$resources/models/$1"
+  if [ -f "$installed" ] && [ "$(sha256 "$installed")" = "$4" ]; then
+    # a hard link where it can, as the file is large
+    ln "$installed" "$stage/models/$1" 2>/dev/null || cp "$installed" "$stage/models/$1"
+    echo "checked model $1 (installed)"
+  else
+    fetch "$hf/$2/resolve/$3/$1" "$stage/models/$1"
+    check "$stage/models/$1" "$4" "$1"
+    echo "checked model $1 $3"
+  fi
+}
+
 while read -r first second rest; do
   set -f; set -- $rest; set +f
   if [ "$first" = manual ]; then chapter "$second" "$@"
+  elif [ "$first" = model ]; then
+    if [ -n "$skip_models" ]; then echo "skipped model $second"; else model "$second" "$@"; fi
   elif [ $# -eq 1 ]; then released "$first" "$second" "$1"
   else pinned "$first" "$second" "$@"; fi
 done < "$work/rows"
 
-# all checked: install them together, replacing the directories
+# all checked: install them together, replacing the directories; moved, not
+# copied, as the stage goes anyway and a model is large
 mkdir -p "$resources"
 for entry in "$stage"/* "$stage"/licenses/*; do
   [ -e "$entry" ] || continue
@@ -135,6 +164,6 @@ for entry in "$stage"/* "$stage"/licenses/*; do
   [ "$rel" = licenses ] && continue
   rm -rf "${resources:?}/$rel"
   mkdir -p "$(dirname "$resources/$rel")"
-  cp -R "$entry" "$resources/$rel"
+  mv "$entry" "$resources/$rel"
 done
 echo "bundled into $resources"

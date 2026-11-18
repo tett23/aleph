@@ -26,63 +26,108 @@ struct ListFile {
 
 /// The list Aleph has, the same one the benchmark measures.
 pub fn list() -> Vec<Model> {
-    vec![]
+    serde_json::from_str::<ListFile>(include_str!("../../bench/assistant/models.json"))
+        .map(|l| l.models)
+        .unwrap_or_default()
 }
 
 /// The model marked as the default.
-pub fn default_of(_list: &[Model]) -> Option<&Model> {
-    None
+pub fn default_of(list: &[Model]) -> Option<&Model> {
+    list.iter().find(|m| m.default)
 }
 
 /// Where a model is downloaded from: its file at the pinned revision.
-pub fn url(_base: &str, _m: &Model) -> String {
-    String::new()
+pub fn url(base: &str, m: &Model) -> String {
+    format!("{base}/{}/resolve/{}/{}", m.repo, m.revision, m.file)
 }
 
 /// The model the local connector uses (I10): the chosen one when it is in the
 /// list and downloaded (or is the bundled default), else the default.
 pub fn choose<'a>(
     list: &'a [Model],
-    _chosen: Option<&str>,
-    _downloaded: &[String],
+    chosen: Option<&str>,
+    downloaded: &[String],
 ) -> Option<&'a Model> {
-    list.first()
+    chosen
+        .and_then(|id| list.iter().find(|m| m.id == id))
+        .filter(|m| m.default || downloaded.contains(&m.id))
+        .or_else(|| default_of(list))
 }
 
 /// The model a writer may delete: one of the list, never the default (I10).
 pub fn deletable<'a>(list: &'a [Model], id: &str) -> Result<&'a Model, String> {
-    list.iter()
-        .find(|m| m.id == id)
-        .ok_or_else(|| format!("一覧に無いモデルです：{id}"))
+    match list.iter().find(|m| m.id == id) {
+        None => Err(format!("一覧に無いモデルです：{id}")),
+        Some(m) if m.default => Err(format!("既定のモデル {} は消せません", m.name)),
+        Some(m) => Ok(m),
+    }
 }
 
 /// The ids of the models whose files are in `dir`.
-pub fn downloaded(_dir: &Path, _list: &[Model]) -> Vec<String> {
-    vec![]
+pub fn downloaded(dir: &Path, list: &[Model]) -> Vec<String> {
+    list.iter()
+        .filter(|m| dir.join(&m.file).is_file())
+        .map(|m| m.id.clone())
+        .collect()
 }
 
 /// Checks a file against a SHA-256; a file that does not match is removed (I7).
-pub fn verify(_path: &Path, _sha256: &str) -> Result<(), String> {
-    Ok(())
+pub fn verify(path: &Path, sha256: &str) -> Result<(), String> {
+    let got = crate::sha256::file_hex(path).map_err(|e| format!("{}: {e}", path.display()));
+    match got {
+        Ok(h) if h == sha256 => Ok(()),
+        other => {
+            let _ = std::fs::remove_file(path);
+            Err(match other {
+                Ok(h) => format!(
+                    "{} の SHA-256 が一覧の値と合わないので消しました（{h}、一覧は {sha256}）",
+                    path.display()
+                ),
+                Err(e) => e,
+            })
+        }
+    }
+}
+
+/// The file a download goes to before it is checked, next to the model's.
+fn part_of(dir: &Path, m: &Model) -> PathBuf {
+    dir.join(format!("{}.part", m.file))
 }
 
 /// Downloads a model with `curl` from `url` into `dir`, checked against its
 /// SHA-256; nothing is left in `dir` when the download or the check fails (I7).
-pub fn download(_curl: &Path, url: &str, dir: &Path, m: &Model) -> Result<PathBuf, String> {
-    let _ = std::fs::create_dir_all(dir);
-    let dest = dir.join(&m.file);
-    let _ = std::process::Command::new("/usr/bin/curl")
-        .args(["-fsSL", "-o"])
-        .arg(&dest)
+/// The file gets its name only after the check, so a model already there stays
+/// until a new one has passed.
+pub fn download(curl: &Path, url: &str, dir: &Path, m: &Model) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let part = part_of(dir, m);
+    let out = std::process::Command::new(curl)
+        .args(["-fsSL", "--retry", "3", "-o"])
+        .arg(&part)
         .arg(url)
-        .status();
+        .output()
+        .map_err(|e| format!("{}: {e}", curl.display()))?;
+    if !out.status.success() {
+        let _ = std::fs::remove_file(&part);
+        return Err(format!(
+            "{} をダウンロードできませんでした（{}）",
+            m.name,
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    verify(&part, &m.sha256)?;
+    let dest = dir.join(&m.file);
+    std::fs::rename(&part, &dest).map_err(|e| {
+        let _ = std::fs::remove_file(&part);
+        e.to_string()
+    })?;
     Ok(dest)
 }
 
 /// Deletes a downloaded model; the default cannot be deleted (I10).
 pub fn delete(dir: &Path, list: &[Model], id: &str) -> Result<(), String> {
     let m = deletable(list, id)?;
-    std::fs::remove_file(dir.join(&m.file)).map_err(|e| e.to_string())
+    std::fs::remove_file(dir.join(&m.file)).map_err(|e| format!("{}: {e}", m.name))
 }
 
 #[cfg(test)]

@@ -99,6 +99,9 @@ jobs:
           key: assistant-bench-${{ matrix.model }}-${{ hashFiles('bench/assistant/models.json', 'bench/assistant/sources.json', 'tools.versions') }}
       # The golem that Aleph bundles, for the golem check part of the judging
       - name: Bundle golem
+        # the benchmark takes the models from its own cache, not the bundled default
+        env:
+          ALEPH_SKIP_MODELS: "1"
         run: sh scripts/bundle-tools.sh
       - name: Measure
         env:
@@ -252,6 +255,9 @@ jobs:
           path: ~/Library/Caches/aleph-bench
           key: assistant-bench-${{ steps.budget.outputs.model }}-${{ hashFiles('bench/assistant/models.json', 'bench/assistant/sources.json', 'tools.versions') }}
       - name: Bundle golem
+        # the benchmark takes the models from its own cache, not the bundled default
+        env:
+          ALEPH_SKIP_MODELS: "1"
         run: sh scripts/bundle-tools.sh
       - name: Measure the budgets
         run: |

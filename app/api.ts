@@ -1,6 +1,7 @@
 // Thin wrappers over the Rust commands (docs/adr/0003).
 import { invoke } from "@tauri-apps/api/core";
 import type { Outcome } from "./dropin.ts";
+import type { ModelInfo } from "./assistant/models.ts";
 
 export type Entry = { path: string; name: string; dir: boolean; children: Entry[] };
 export type Out = { code: number; stdout: string; stderr: string };
@@ -11,6 +12,11 @@ export type Spot = { line: number; column: number; matched: string };
 export type SearchArgs = { roots: string[]; pattern: string; regex: boolean; case_sensitive: boolean; kinds: string[]; limit: number };
 
 export type ToolInfo = { path: string; version: string; bundled: string };
+
+/** A message of the local connector's chat (app/assistant/prompt.ts). */
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+/** The local model's answer: its JSON as written, the model's name, and the time it took. */
+export type LocalAnswer = { content: string; model: string; ms: number };
 export type Tool = "golem" | "shem";
 
 export const api = {
@@ -75,4 +81,13 @@ export const api = {
     invoke<{ text: string; replaced: number; skipped: number }>("replace_text", a),
   replacePreview: (a: { matched: string[]; pattern: string; regex: boolean; caseSensitive: boolean; with: string }) => invoke<string[]>("replace_preview", a),
   git: (cwd: string, args: string[]) => invoke<Out>("git", { cwd, args }),
+  // the assistant's local models and inference (docs/adr/0081); Rust keeps the list, the files and the choice
+  assistantModels: () => invoke<ModelInfo[]>("assistant_models"),
+  assistantDownloadModel: (id: string) => invoke<void>("assistant_download_model", { id }),
+  assistantDeleteModel: (id: string) => invoke<boolean>("assistant_delete_model", { id }),
+  /** Returns the settings written. */
+  assistantChooseModel: (id: string) => invoke<string>("assistant_choose_model", { id }),
+  assistantLocalAsk: (messages: ChatMessage[]) => invoke<LocalAnswer>("assistant_local_ask", { messages }),
+  assistantLocalCount: (texts: string[]) => invoke<number[]>("assistant_local_count", { texts }),
+  assistantLocalTemplateCount: (messages: ChatMessage[]) => invoke<number>("assistant_local_template_count", { messages }),
 };

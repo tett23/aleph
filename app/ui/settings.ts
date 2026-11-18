@@ -45,8 +45,4 @@ export const openSettingsDialog = async (ctx: Ctx, sectionId?: string) => {
   document.body.append(dim);
 };
 
-/** A settings item: a label, a note, and the control on the right. */
-export const item = (label: string, note: string, control: string) =>
-  `<div class="item"><div class="d"><div>${esc(label)}</div><small>${note}</small></div>${control}</div>`;
-
-export const toggle = (key: string, on: boolean) => `<span class="toggle ${on ? "on" : ""}" data-toggle="${key}"></span>`;
+export { item, toggle } from "./item.ts";

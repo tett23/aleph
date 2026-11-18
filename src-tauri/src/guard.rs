@@ -165,6 +165,10 @@ pub fn allowed(program: &str, args: &[String]) -> Result<(), String> {
 
 const PATHS: [&str; 4] = ["libraryDir", "gitPath", "golemPath", "shemPath"];
 
+/// The model of the local connector (docs/adr/0081), chosen through Rust,
+/// which checks it against the list; the webview's saves keep it as it was.
+pub const ASSISTANT_MODEL: &str = "assistantModel";
+
 fn strings(v: Option<&Value>) -> Vec<String> {
     v.and_then(Value::as_array)
         .into_iter()
@@ -175,10 +179,15 @@ fn strings(v: Option<&Value>) -> Vec<String> {
 }
 
 /// The settings to write when the webview saves `incoming`: its values, except
-/// that it may only remove workspaces and empty the paths, never add or change them.
+/// that it may only remove workspaces and empty the paths, never add or change them,
+/// and the chosen model stays as Rust wrote it.
 pub fn merge(current: &Value, incoming: Value) -> Value {
     let Value::Object(mut out) = incoming else {
         return current.clone();
+    };
+    match current.get(ASSISTANT_MODEL) {
+        Some(v) => out.insert(ASSISTANT_MODEL.into(), v.clone()),
+        None => out.remove(ASSISTANT_MODEL),
     };
     let had = strings(current.get("workspaces"));
     let mut kept: Vec<String> = Vec::new();

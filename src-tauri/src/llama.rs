@@ -34,15 +34,31 @@ pub struct Message {
 /// The arguments llama-server starts with (I5): it listens on the UNIX socket
 /// `socket` only, with no TCP port and no host name.
 pub fn server_args(model: &Path, socket: &Path, log: &Path) -> Result<Vec<String>, String> {
+    let sock = socket.to_string_lossy();
+    if !sock.ends_with(".sock") || socket.file_name().is_none() {
+        return Err(format!("UNIX ソケットのパスは .sock で終わる：{sock}"));
+    }
+    let model = model.to_string_lossy();
+    let log = log.to_string_lossy();
+    let context = CONTEXT.to_string();
     Ok([
         "--model",
-        &model.display().to_string(),
+        &model,
+        // a path ending in .sock: a UNIX socket instead of TCP
         "--host",
-        &socket.display().to_string(),
-        "--port",
-        "8080",
+        &sock,
+        "--ctx-size",
+        &context,
+        // one slot, so that the whole context serves the one request
+        "--parallel",
+        "1",
+        "--gpu-layers",
+        "all",
+        "--reasoning",
+        "off",
+        "--no-webui",
         "--log-file",
-        &log.display().to_string(),
+        &log,
     ]
     .map(String::from)
     .to_vec())
@@ -51,44 +67,385 @@ pub fn server_args(model: &Path, socket: &Path, log: &Path) -> Result<Vec<String
 /// The body of a request for an answer: the messages, bound to the answer's
 /// schema, at temperature 0, without the thinking (docs/adr/0081).
 pub fn chat_body(messages: &[Message]) -> serde_json::Value {
-    serde_json::json!({ "messages": messages })
+    let schema: serde_json::Value =
+        serde_json::from_str(ANSWER_SCHEMA).unwrap_or(serde_json::Value::Null);
+    serde_json::json!({
+        "messages": messages,
+        "temperature": 0,
+        "seed": 0,
+        "max_tokens": ANSWER_TOKENS,
+        "json_schema": schema,
+        "chat_template_kwargs": { "enable_thinking": false },
+    })
+}
+
+fn error_of(v: &serde_json::Value) -> Option<String> {
+    v.get("error").map(|e| {
+        e.get("message")
+            .and_then(|m| m.as_str())
+            .map(String::from)
+            .unwrap_or_else(|| e.to_string())
+    })
 }
 
 /// The content of the first choice of a chat completion.
-pub fn answer_of(_body: &str) -> Result<String, String> {
-    Err("not yet".into())
+pub fn answer_of(body: &str) -> Result<String, String> {
+    let v: serde_json::Value = serde_json::from_str(body)
+        .map_err(|e| format!("llama-server の答えが JSON ではありません：{e}"))?;
+    if let Some(e) = error_of(&v) {
+        return Err(format!("llama-server：{e}"));
+    }
+    let choice = &v["choices"][0];
+    match (
+        choice["message"]["content"].as_str(),
+        choice["finish_reason"].as_str(),
+    ) {
+        (Some(_), Some("length")) => Err(format!(
+            "答えが {ANSWER_TOKENS} トークンで切れました (finish_reason: length)"
+        )),
+        (Some(c), _) => Ok(c.to_string()),
+        (None, _) => Err("llama-server の答えに content がありません".into()),
+    }
 }
 
 /// The bytes of an HTTP/1.1 request; the connection closes after the answer.
-pub fn request_bytes(_method: &str, _path: &str, _body: Option<&str>) -> Vec<u8> {
-    vec![]
+pub fn request_bytes(method: &str, path: &str, body: Option<&str>) -> Vec<u8> {
+    let head = match body {
+        Some(b) => format!(
+            "{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            b.len()
+        ),
+        None => format!("{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"),
+    };
+    [head.as_bytes(), body.unwrap_or("").as_bytes()].concat()
+}
+
+fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    hay.windows(needle.len()).position(|w| w == needle)
+}
+
+/// The data of a chunked body.
+fn dechunk(mut rest: &[u8]) -> Result<Vec<u8>, String> {
+    let bad = || "HTTP の chunked の本文が壊れています".to_string();
+    let mut out = Vec::new();
+    loop {
+        let eol = find(rest, b"\r\n").ok_or_else(bad)?;
+        let line = std::str::from_utf8(&rest[..eol]).map_err(|_| bad())?;
+        let size_hex = line.split(';').next().unwrap_or("").trim();
+        let size = usize::from_str_radix(size_hex, 16).map_err(|_| bad())?;
+        rest = &rest[eol + 2..];
+        if size == 0 {
+            return Ok(out);
+        }
+        if rest.len() < size + 2 {
+            return Err(bad());
+        }
+        out.extend_from_slice(&rest[..size]);
+        rest = &rest[size + 2..];
+    }
 }
 
 /// The status and the body of an HTTP/1.1 response read to its end.
-pub fn parse_response(_raw: &[u8]) -> Result<(u16, String), String> {
-    Err("not yet".into())
+pub fn parse_response(raw: &[u8]) -> Result<(u16, String), String> {
+    let bad = || "HTTP の答えとして読めません".to_string();
+    let end = find(raw, b"\r\n\r\n").ok_or_else(bad)?;
+    let head = std::str::from_utf8(&raw[..end]).map_err(|_| bad())?;
+    let rest = &raw[end + 4..];
+    let mut lines = head.split("\r\n");
+    let status: u16 = lines
+        .next()
+        .filter(|l| l.starts_with("HTTP/1."))
+        .and_then(|l| l.split(' ').nth(1))
+        .and_then(|c| c.parse().ok())
+        .ok_or_else(bad)?;
+    let headers: Vec<(String, String)> = lines
+        .filter_map(|l| l.split_once(':'))
+        .map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_string()))
+        .collect();
+    let header = |k: &str| {
+        headers
+            .iter()
+            .find(|(n, _)| n == k)
+            .map(|(_, v)| v.as_str())
+    };
+    let body = if header("transfer-encoding").is_some_and(|v| v.eq_ignore_ascii_case("chunked")) {
+        dechunk(rest)?
+    } else if let Some(n) = header("content-length") {
+        let n: usize = n.parse().map_err(|_| bad())?;
+        if rest.len() < n {
+            return Err("HTTP の答えが Content-Length より短いところで切れました".into());
+        }
+        rest[..n].to_vec()
+    } else {
+        rest.to_vec()
+    };
+    Ok((status, String::from_utf8_lossy(&body).into_owned()))
 }
 
 /// One request over the UNIX socket.
 pub fn call(
-    _socket: &Path,
-    _method: &str,
-    _path: &str,
-    _body: Option<&str>,
-    _timeout: Duration,
+    socket: &Path,
+    method: &str,
+    path: &str,
+    body: Option<&str>,
+    timeout: Duration,
 ) -> Result<(u16, String), String> {
-    Err("not yet".into())
+    use std::io::{Read, Write};
+    let fail = |e: std::io::Error| format!("llama-server ({}): {e}", socket.display());
+    let mut s = std::os::unix::net::UnixStream::connect(socket).map_err(fail)?;
+    s.set_read_timeout(Some(timeout)).map_err(fail)?;
+    s.set_write_timeout(Some(timeout)).map_err(fail)?;
+    s.write_all(&request_bytes(method, path, body))
+        .map_err(fail)?;
+    let mut raw = Vec::new();
+    s.read_to_end(&mut raw).map_err(fail)?;
+    parse_response(&raw)
 }
 
 /// Whether llama-server has waited long enough to be stopped: no request
 /// running, and `IDLE` since the last one ended.
-pub fn idle(_last: Instant, _now: Instant, _busy: usize) -> bool {
-    false
+pub fn idle(last: Instant, now: Instant, busy: usize) -> bool {
+    busy == 0 && now.saturating_duration_since(last) >= IDLE
 }
 
 /// The socket in a folder of its own under the temporary directory.
 pub fn socket_dir(tmp: &Path, pid: u32) -> PathBuf {
     tmp.join(format!("aleph-llama-{pid}"))
+}
+
+/// How long one answer may take.
+const ANSWER_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+/// How long llama-server may take to load the model.
+const START_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+fn ok_body((status, body): (u16, String)) -> Result<String, String> {
+    if status == 200 {
+        Ok(body)
+    } else {
+        let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+        Err(format!(
+            "llama-server が {status} を返しました：{}",
+            error_of(&v).unwrap_or(body)
+        ))
+    }
+}
+
+/// Asks for an answer to the messages.
+pub fn ask(socket: &Path, messages: &[Message]) -> Result<String, String> {
+    let body = chat_body(messages).to_string();
+    call(
+        socket,
+        "POST",
+        "/v1/chat/completions",
+        Some(&body),
+        ANSWER_TIMEOUT,
+    )
+    .and_then(ok_body)
+    .and_then(|b| answer_of(&b))
+}
+
+fn tokenize(socket: &Path, content: &str, special: bool) -> Result<usize, String> {
+    let body =
+        serde_json::json!({ "content": content, "add_special": special, "parse_special": special });
+    let b = ok_body(call(
+        socket,
+        "POST",
+        "/tokenize",
+        Some(&body.to_string()),
+        ANSWER_TIMEOUT,
+    )?)?;
+    let v: serde_json::Value = serde_json::from_str(&b).map_err(|e| e.to_string())?;
+    v["tokens"]
+        .as_array()
+        .map(|t| t.len())
+        .ok_or_else(|| "llama-server の /tokenize の答えに tokens がありません".into())
+}
+
+/// The tokens of each text, as the material counts them (docs/adr/0081).
+pub fn count(socket: &Path, texts: &[String]) -> Result<Vec<usize>, String> {
+    texts.iter().map(|t| tokenize(socket, t, false)).collect()
+}
+
+/// The tokens of the messages rendered with the chat template: the fixed part
+/// when the material is empty (docs/adr/0086).
+pub fn template_count(socket: &Path, messages: &[Message]) -> Result<usize, String> {
+    let body = serde_json::json!({ "messages": messages, "chat_template_kwargs": { "enable_thinking": false } });
+    let b = ok_body(call(
+        socket,
+        "POST",
+        "/apply-template",
+        Some(&body.to_string()),
+        ANSWER_TIMEOUT,
+    )?)?;
+    let v: serde_json::Value = serde_json::from_str(&b).map_err(|e| e.to_string())?;
+    let prompt = v["prompt"]
+        .as_str()
+        .ok_or("llama-server の /apply-template の答えに prompt がありません")?;
+    tokenize(socket, prompt, true)
+}
+
+/// A running llama-server.
+struct Running {
+    child: std::process::Child,
+    dir: PathBuf,
+    socket: PathBuf,
+    model: PathBuf,
+}
+
+#[derive(Default)]
+struct State {
+    running: Option<Running>,
+    /// requests running now
+    busy: usize,
+    /// when the last request ended
+    last: Option<Instant>,
+}
+
+/// The local llama-server: none until the first request (docs/adr/0081).
+#[derive(Default)]
+pub struct Local(std::sync::Mutex<State>);
+
+fn tail(path: &Path) -> String {
+    let t = std::fs::read_to_string(path).unwrap_or_default();
+    let lines: Vec<&str> = t.lines().collect();
+    lines[lines.len().saturating_sub(5)..].join("\n")
+}
+
+fn halt(mut r: Running) {
+    let _ = r.child.kill();
+    let _ = r.child.wait();
+    let _ = std::fs::remove_dir_all(&r.dir);
+}
+
+/// Starts llama-server with `model` and waits until it answers /health.
+fn start(bin: &Path, model: &Path, tmp: &Path) -> Result<Running, String> {
+    if !bin.is_file() {
+        return Err(format!(
+            "llama-server が同梱されていません（{}）",
+            bin.display()
+        ));
+    }
+    if !model.is_file() {
+        return Err(format!(
+            "モデルのファイルがありません（{}）",
+            model.display()
+        ));
+    }
+    let dir = socket_dir(tmp, std::process::id());
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
+    let socket = dir.join("llama.sock");
+    let log = dir.join("llama-server.log");
+    let child = std::process::Command::new(bin)
+        .args(server_args(model, &socket, &log)?)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("{}: {e}", bin.display()))?;
+    let mut r = Running {
+        child,
+        dir,
+        socket,
+        model: model.to_path_buf(),
+    };
+    let deadline = Instant::now() + START_TIMEOUT;
+    loop {
+        if let Ok(Some(status)) = r.child.try_wait() {
+            let why = format!("llama-server が終わりました（{status}）：{}", tail(&log));
+            halt(r);
+            return Err(why);
+        }
+        if let Ok((200, _)) = call(&r.socket, "GET", "/health", None, Duration::from_secs(2)) {
+            return Ok(r);
+        }
+        if Instant::now() > deadline {
+            let why = format!(
+                "llama-server が {} 秒で用意できませんでした：{}",
+                START_TIMEOUT.as_secs(),
+                tail(&log)
+            );
+            halt(r);
+            return Err(why);
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+impl Local {
+    fn state(&self) -> std::sync::MutexGuard<'_, State> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Runs `f` with the socket of a llama-server serving `model`, started
+    /// (or restarted with another model) when needed. `f` runs without the
+    /// lock, so the server is not stopped while it waits for the answer.
+    pub fn with_server<T>(
+        &self,
+        bin: &Path,
+        model: &Path,
+        tmp: &Path,
+        f: impl FnOnce(&Path) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let socket = {
+            let mut s = self.state();
+            let usable = s
+                .running
+                .as_mut()
+                .is_some_and(|r| r.model == model && matches!(r.child.try_wait(), Ok(None)));
+            if !usable {
+                if s.busy > 0 && s.running.is_some() {
+                    return Err("ほかのモデルで答えている途中です".into());
+                }
+                if let Some(r) = s.running.take() {
+                    halt(r);
+                }
+                s.running = Some(start(bin, model, tmp)?);
+            }
+            s.busy += 1;
+            s.running
+                .as_ref()
+                .map(|r| r.socket.clone())
+                .unwrap_or_default()
+        };
+        let out = f(&socket);
+        let mut s = self.state();
+        s.busy -= 1;
+        s.last = Some(Instant::now());
+        out
+    }
+
+    /// Stops llama-server when it has waited `IDLE` since the last request.
+    pub fn reap(&self, now: Instant) {
+        let mut s = self.state();
+        let last = s.last.unwrap_or(now);
+        if s.running.is_some() && idle(last, now, s.busy) {
+            if let Some(r) = s.running.take() {
+                halt(r);
+            }
+        }
+    }
+
+    /// Stops llama-server when it serves `model` and no request runs.
+    pub fn stop_model(&self, model: &Path) {
+        let mut s = self.state();
+        if s.busy == 0 && s.running.as_ref().is_some_and(|r| r.model == model) {
+            if let Some(r) = s.running.take() {
+                halt(r);
+            }
+        }
+    }
+
+    /// Stops llama-server (Aleph quits).
+    pub fn stop(&self) {
+        if let Some(r) = self.state().running.take() {
+            halt(r);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -212,7 +569,7 @@ mod tests {
         assert!(r.contains("\r\nConnection: close\r\n"));
         assert!(r.contains("\r\nContent-Type: application/json\r\n"));
         // the length in bytes, not in characters
-        assert!(r.contains("\r\nContent-Length: 12\r\n"));
+        assert!(r.contains("\r\nContent-Length: 11\r\n"));
         assert!(r.ends_with("\r\n\r\n{\"a\":\"あ\"}"));
         let g = String::from_utf8(request_bytes("GET", "/health", None)).unwrap();
         assert!(g.starts_with("GET /health HTTP/1.1\r\n"));

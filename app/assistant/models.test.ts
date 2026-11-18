@@ -30,13 +30,15 @@ test("ADR 0081 I10: the settings offer no way to delete the default model", () =
 });
 
 test("ADR 0081: a model not installed can be downloaded, an installed one deleted", () => {
-  const html = modelsHtml(list);
-  assert.match(html, /data-download="small"/);
-  assert.doesNotMatch(html, /data-delete="small"/);
-  assert.match(html, /data-delete="mid"/);
-  assert.doesNotMatch(html, /data-download="mid"/);
+  const idle = modelsHtml(list.filter((x) => !x.downloading));
+  assert.match(idle, /data-download="small"/);
+  assert.doesNotMatch(idle, /data-delete="small"/);
+  assert.match(idle, /data-delete="mid"/);
+  assert.doesNotMatch(idle, /data-download="mid"/);
   // one download at a time: none offered while one runs
-  assert.doesNotMatch(html, /data-download="load"/);
+  const html = modelsHtml(list);
+  assert.doesNotMatch(html, /data-download=/);
+  assert.match(html, /data-delete="mid"/);
   assert.match(html, /ダウンロード中/);
 });
 
