@@ -55,7 +55,7 @@ test("ADR 0082 I2: a URL in a string is not taken for a comment", () => {
 
 // ---- the tables
 
-test("ADR 0088 I9: the glossary's names are ADR 0087 I7's (ADR 0082's table without the preview area, with the preview tab and the followed tab), with the diff tab after the followed tab, and ADR 0081's assistant tab after the build log tab", () => {
+test("ADR 0088 I9: the glossary's names are ADR 0087 I7's (ADR 0082's table without the preview area, with the preview tab and the followed tab), with the diff tab after the followed tab, ADR 0081's assistant tab after the build log tab, and ADR 0089's connector row and revoke button after the settings dialog", () => {
   const adr = parseTable(read(ADR), "決める名前").map((r) => r["正式な名前"]);
   const added = parseTable(read(ADR_0087), "テストと文書");
   assert.deepEqual(added.map((r) => r["正式な名前"]), ["プレビューのタブ", "映すタブ"]);
@@ -67,7 +67,11 @@ test("ADR 0088 I9: the glossary's names are ADR 0087 I7's (ADR 0082's table with
   // ADR 0081 (下部パネルのタブ): its implementation adds the assistant tab to the glossary, after the bottom panel's last tab
   const log = pinned.indexOf("ビルドログのタブ");
   assert.ok(log >= 0);
-  const want = [...pinned.slice(0, log + 1), "アシスタントのタブ", ...pinned.slice(log + 1)];
+  const withAssistant = [...pinned.slice(0, log + 1), "アシスタントのタブ", ...pinned.slice(log + 1)];
+  // ADR 0089 (文書): its implementation adds the connector row and its button, after the settings dialog that holds them
+  const settings = withAssistant.indexOf("設定のダイアログ");
+  assert.ok(settings >= 0);
+  const want = [...withAssistant.slice(0, settings + 1), "コネクタの行", "承認を取り消す", ...withAssistant.slice(settings + 1)];
   assert.deepEqual(glossary().map((r) => r["正式な名前"]), want);
   // the three rows are the ADRs', cell by cell (the glossary's columns in the same order, by position)
   const rows = glossary().filter((r) => [...added, ...diff].some((x) => x["正式な名前"] === r["正式な名前"]));
@@ -82,6 +86,22 @@ test("ADR 0081: the assistant tab's row names the bottom panel tab of app/assist
   assert.match(row["コードの名前"], /assistant\.open/);
   assert.ok(read("app/problemsmount.ts").includes('data-tab="assistant"'));
   assert.ok(read("app/assistant/mount.ts").includes('"assistant.open"'));
+});
+
+test("ADR 0089: the connector row and its button name the code of app/assistant/models.ts", () => {
+  const row = glossary().find((r) => r["正式な名前"] === "コネクタの行");
+  assert.ok(row);
+  assert.deepEqual(quoted(row["画面の文言"]), []);
+  assert.match(row["コードの名前"], /connectorRowHtml/);
+  const revoke = glossary().find((r) => r["正式な名前"] === "承認を取り消す");
+  assert.ok(revoke);
+  assert.deepEqual(quoted(revoke["画面の文言"]), ["承認を取り消す"]);
+  assert.match(revoke["コードの名前"], /data-revoke/);
+  assert.match(revoke["コードの名前"], /assistant_revoke/);
+  const src = read("app/assistant/models.ts");
+  assert.ok(src.includes("export const connectorRowHtml"));
+  assert.ok(src.includes("data-revoke="));
+  assert.ok(read("src-tauri/src/lib.rs").includes("fn assistant_revoke("));
 });
 
 test("ADR 0082 I1: every UI wording of the glossary appears among the UI strings of app/", () => {

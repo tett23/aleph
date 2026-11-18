@@ -1119,6 +1119,14 @@ async fn assistant_connectors(app: AppHandle) -> R<Vec<ConnectorInfo>> {
     .await
 }
 
+/// Revokes the writer's approval of Claude Code or Codex (docs/adr/0089); the
+/// next request asks again in the native dialog. Nothing is written on an error.
+#[tauri::command]
+fn assistant_revoke(app: AppHandle, connector: String) -> R<()> {
+    let next = guard::revoked(&kept_config(&app), &connector)?;
+    write_config(&app, next).map(|_| ())
+}
+
 /// Asks the connector `connector` with the messages of app/assistant/prompt.ts.
 /// Claude Code and Codex run only after the writer approves them (I6); when
 /// they fail, the local connector is asked once and the answer says why (I8).
@@ -1686,6 +1694,7 @@ pub fn run_app() {
             assistant_local_count,
             assistant_local_template_count,
             assistant_connectors,
+            assistant_revoke,
             assistant_ask,
             assistant_manual,
             assistant_golem_check
