@@ -1,6 +1,6 @@
 # ADR 0089: Claude Code と Codex の承認を、設定から取り消す
 
-Status: proposed
+Status: accepted
 
 ## 文脈
 
