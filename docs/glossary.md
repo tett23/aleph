@@ -45,6 +45,7 @@
 | 問題のタブ | Problems tab | 下部パネルのタブの一つ。診断の一覧 | 「問題」 | `data-tab="problems"` | (無し) | 「問題の一覧」 |
 | 通知のタブ | Notifications tab | 下部パネルのタブの一つ。通知の履歴 | 「通知」 | `data-tab="notifications"` | `data-tab="notes"` | (無し) |
 | ビルドログのタブ | Build log tab | 下部パネルのタブの一つ。手動のビルドの記録で、ビルドした後だけ出る | 「ビルドログ」 | `data-tab="build-log"` | `data-tab="build"` | (無し) |
+| アシスタントのタブ | Assistant tab | 下部パネルのタブの一つ。頼みを書いて送り、アシスタントの書き換えの案と説明を出す ([ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md)) | 「アシスタント」 | `data-tab="assistant"`、`assistant.open` | (無し) | (無し) |
 | ステータスバー | Status bar | 中央の列の下端の帯 | (無し) | `.status-bar` | `.status` | (無し) |
 | 通知 | Notification | Aleph が書き手に知らせる一件の知らせ ([ADR 0064](adr/0064-unified-notifications.md)) | (無し) | `notify` | (無し) | (無し) |
 | トースト | Toast | 通知を画面の右下に出したもの | (無し) | `.toasts` | (無し) | (無し) |

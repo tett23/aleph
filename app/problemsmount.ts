@@ -1,7 +1,9 @@
 // The bottom panel under the editor area (docs/adr/0055, names:
 // docs/adr/0082): the problems tab with the open sheets' diagnostics and the project's
 // check, lint and preflight, grouped by file; the notifications tab with their history
-// (docs/adr/0064); and the build log tab after a build (docs/adr/0069).
+// (docs/adr/0064); the build log tab after a build (docs/adr/0069); and the assistant's tab
+// (docs/adr/0081), whose element is kept across redraws so its field keeps what is typed.
+import { assistantTab, assistantView } from "./assistant/mount.ts";
 import { addCommands } from "./commands.ts";
 import type { Ctx } from "./ctx.ts";
 import { golemResults } from "./diag/mount.ts";
@@ -18,7 +20,8 @@ import type { Note } from "./notify.ts";
 const SHOW = "showBottomPanel";
 const HEIGHT = "bottomPanelHeight";
 const TAB = "bottomPanelTab";
-type Tab = "problems" | "notifications" | "build-log";
+type Tab = "problems" | "notifications" | "build-log" | "assistant";
+const KEPT: Tab[] = ["problems", "notifications", "assistant"];
 
 const SEV: Record<Problem["severity"], [string, string]> = {
   error: ["circle-x", "エラー"],
@@ -65,7 +68,11 @@ export const mountBottomPanel = (ctx: Ctx) => {
   let el: HTMLElement | null = null;
   const shown = () => uiState().get(SHOW, false);
   let buildSelected = false;
-  const tab = (): Tab => buildSelected ? "build-log" : uiState().get<string>(TAB, "problems") === "notifications" ? "notifications" : "problems";
+  const tab = (): Tab => {
+    if (buildSelected) return "build-log";
+    const kept = uiState().get<string>(TAB, "problems");
+    return KEPT.find((t) => t === kept) ?? "problems";
+  };
   const setTab = (t: Tab) => {
     buildSelected = t === "build-log";
     if (!buildSelected) uiState().set(TAB, t);
@@ -95,12 +102,17 @@ export const mountBottomPanel = (ctx: Ctx) => {
     const un = ns.unseen();
     const badge = un.count ? `<span class="nbadge${un.error ? " err" : ""}">${un.count}</span>` : "";
     const history = ns.history();
-    host.innerHTML = `<div class="pgrip" data-grip></div>
-      <div class="phead2"><span class="bottom-panel-tab${t === "problems" ? " on" : ""}" data-tab="problems">問題</span>${countsHtml(countProblems(groups.flatMap((g) => g.items)))}<span class="bottom-panel-tab${t === "notifications" ? " on" : ""}" data-tab="notifications">通知${badge}</span>${log ? `<span class="bottom-panel-tab${t === "build-log" ? " on" : ""}" data-tab="build-log">ビルドログ</span>` : ""}<span class="grow"></span>${
+    const head = `<div class="phead2"><span class="bottom-panel-tab${t === "problems" ? " on" : ""}" data-tab="problems">問題</span>${countsHtml(countProblems(groups.flatMap((g) => g.items)))}<span class="bottom-panel-tab${t === "notifications" ? " on" : ""}" data-tab="notifications">通知${badge}</span>${log ? `<span class="bottom-panel-tab${t === "build-log" ? " on" : ""}" data-tab="build-log">ビルドログ</span>` : ""}<span class="bottom-panel-tab${t === "assistant" ? " on" : ""}" data-tab="assistant">アシスタント</span><span class="grow"></span>${
         t === "notifications" && history.length ? `<span class="btn small" data-clear>履歴を消す</span>` : ""
-      }<span class="iconbtn" data-close title="閉じる（⇧⌘M）">${icon("x", 13)}</span></div>
-      <div class="pbody2" tabindex="-1">${
-        t === "build-log" && log ? renderBuildLog(log) : t === "notifications"
+      }<span class="iconbtn" data-close title="閉じる（⇧⌘M）">${icon("x", 13)}</span></div>`;
+    // the assistant's element stays in place: only the head is drawn again
+    const body = host.querySelector<HTMLElement>(".pbody2");
+    if (t === "assistant" && body?.firstElementChild === assistantView(ctx)) {
+      host.querySelector(".phead2")!.outerHTML = head;
+    } else host.innerHTML = `<div class="pgrip" data-grip></div>
+      ${head}
+      <div class="pbody2${t === "assistant" ? " as-body" : ""}" tabindex="-1">${
+        t === "assistant" ? "" : t === "build-log" && log ? renderBuildLog(log) : t === "notifications"
           ? history.length
             ? history.map(noteRow).join("")
             : `<div class="empty">通知はありません</div>`
@@ -108,15 +120,18 @@ export const mountBottomPanel = (ctx: Ctx) => {
             ? groups.map((g, gi) => `<div class="pg"><div class="pf">${esc(g.label)}<small>${g.items.length}</small></div>${g.items.map((x, i) => rowHtml(x, gi, i)).join("")}</div>`).join("")
             : `<div class="empty">問題はありません</div>`
       }</div>`;
+    if (t === "assistant") host.querySelector(".pbody2")!.append(assistantView(ctx));
 
     // a row: open its file at its place; taken at mousedown so the editor keeps the focus (as the old list did)
     host.onmousedown = (e) => {
       if (e.button !== 0) return;
       const t = e.target as HTMLElement;
       if (t.closest("[data-close]")) return void (e.preventDefault(), setShown(false));
+      // the assistant's tab takes its own clicks, and its field takes the focus
+      if (t.closest(".assistant")) return;
       if (t.closest("[data-grip]")) return drag(e);
       const tb = t.closest<HTMLElement>("[data-tab]")?.dataset.tab;
-      if (tb === "problems" || tb === "notifications" || tb === "build-log") return void (e.preventDefault(), setTab(tb));
+      if (tb === "problems" || tb === "notifications" || tb === "build-log" || tb === "assistant") return void (e.preventDefault(), setTab(tb));
       if (t.closest("[data-clear]")) return void (e.preventDefault(), notifications().clearHistory());
       const na = t.closest<HTMLElement>("[data-na]");
       if (na) return void (e.preventDefault(), notifications().press(Number(na.dataset.nid), Number(na.dataset.na)));
@@ -129,7 +144,7 @@ export const mountBottomPanel = (ctx: Ctx) => {
       if (x?.file) void ctx.open([x.file], x.line !== null ? { line: x.line, col: Math.max(0, (x.col ?? 1) - 1) } : undefined);
     };
     host.onkeydown = (e) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || e.isComposing) return;
       e.stopPropagation();
       setShown(false);
     };
@@ -162,6 +177,7 @@ export const mountBottomPanel = (ctx: Ctx) => {
   };
   ctx.statusActions.problems = () => openTab("problems");
   ctx.statusActions.build = () => openTab("build-log");
+  assistantTab.open = () => openTab("assistant");
 
   // the focused sheet's counts, every source's, also for kinds without a server
   ctx.status.push((s) => {

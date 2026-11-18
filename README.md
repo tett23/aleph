@@ -38,6 +38,9 @@ With page refresh on save enabled, ⌘S refreshes the PDF preview immediately wh
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
 The file tree shows each project’s `build/` folder with every file in it, so outputs such as PDFs can be handed to other applications: drag rows out of the window, choose “コピー” (copy) from the right-click menu and paste in Finder, or choose “zip で書き出す…” (export as zip) on a folder or a project. The zip writes its file names in UTF-8, normalized to NFC and flagged as UTF-8, and leaves out `.DS_Store` and `.git`.
 
+The assistant in the bottom panel takes a request in plain words, such as "widen the line pitch a little", and proposes edits to the focused sheet (or the selection) with an explanation and a diff. Nothing changes until you press “適用” (apply). If the workspace has uncommitted changes, Aleph first offers to commit them, then applies, saves, and opens the diff tab. The ribbon's “差分” (diff) button shows the workspace's changes against the last commit at any time.
+By default the assistant runs Qwen3.5-4B on your Mac with the bundled `llama-server`, and sends nothing outside. The other three models of the list can be downloaded from the settings. Claude Code and Codex can also be chosen when they are installed; they send the request, the target text and the manual excerpts to Anthropic or OpenAI with your own account, so Aleph asks once before using each. If they fail, Aleph asks the local model instead and says so.
+
 In the text editor, press Escape or Control-E to dismiss suggestions. With suggestions closed, Control-E moves to the end of the logical line. Each shortcut’s context can be changed in the key binding settings.
 
 ## Status

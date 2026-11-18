@@ -102,4 +102,8 @@ export const api = {
   assistantConnectors: () => invoke<ConnectorInfo[]>("assistant_connectors"),
   /** Asks a connector; Rust asks for the approval in a native dialog the first time (I6) and falls back to the local connector once (I8). */
   assistantAsk: (connector: ConnectorId, messages: ChatMessage[]) => invoke<Answered>("assistant_ask", { connector, messages }),
+  /** A bundled chapter of the Golem manual for the material: "03-markup", "04-manifest" or "05-style". */
+  assistantManual: (chapter: string) => invoke<string>("assistant_manual", { chapter }),
+  /** golem check --format json of each text in place of `file`, in a copy of `project` in the cache. */
+  assistantGolemCheck: (project: string, file: string, texts: string[]) => invoke<Out[]>("assistant_golem_check", { project, file, texts }),
 };
