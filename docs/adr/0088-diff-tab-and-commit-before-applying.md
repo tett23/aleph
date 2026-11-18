@@ -1,6 +1,6 @@
 # ADR 0088: 差分のタブと、アシスタントの書き換えを適用する前のコミット
 
-Status: proposed
+Status: accepted
 
 ## 文脈
 
