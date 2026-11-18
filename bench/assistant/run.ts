@@ -9,7 +9,7 @@ import { homedir, loadavg, tmpdir } from "node:os";
 import { join } from "node:path";
 import { chapterFor, joinMaterial, materialLimit, selectMaterial, splitSections } from "../../app/assistant/material.ts";
 import { ANSWER_SCHEMA, errorsIn, judgeCommand, judgeEdit, judgeGolem, parseAnswer, type Verdict } from "./lib/judge.ts";
-import { commandList, type Command, type Message } from "./lib/prompt.ts";
+import { commandList, fixedTokens as fixedPart, type Command, type Message } from "../../app/assistant/prompt.ts";
 import {
   CLASSIFY_SCHEMA,
   classifyMessages,
@@ -47,8 +47,10 @@ const USAGE = `usage: bench/assistant/run [options]
   --cold-starts <n>     starts of llama-server for the first-answer time (5)
   --only <id,...>       only these tasks
   --variant <name>      how the prompt and the material are handed to the model:
-                        examples (the default), or features of
-                        lib/variant.ts joined with +
+                        app (the default: the app's prompt), examples (the
+                        app's prompt with all five worked examples), or app
+                        and features of lib/variant.ts joined with +
+                        (app+thinking)
   --validate-tasks      check the expected texts with golem check; no model
   env ALEPH_BENCH_CACHE the cache of llama.cpp, the models, the manual and the
                         Golem project (~/Library/Caches/aleph-bench)`;
@@ -291,14 +293,21 @@ const count = async (s: Server, text: string) => {
   return n;
 };
 
-// The tokens of the rendered chat with the material left empty: the fixed
-// instruction, the request, the target and the chat template
-const fixedTokens = async (s: Server, ms: Message[], thinking: boolean) => {
-  const r = await call(s.socket, "POST", "/apply-template", { messages: ms, chat_template_kwargs: { enable_thinking: thinking } });
-  const prompt = (JSON.parse(r.body) as { prompt: string }).prompt;
-  const t = await call(s.socket, "POST", "/tokenize", { content: prompt, add_special: true, parse_special: true });
-  return (JSON.parse(t.body) as { tokens: unknown[] }).tokens.length;
-};
+// The fixed part (docs/adr/0086 I4): the tokens of the chat built with the
+// material left empty (the instruction, the worked examples, the request and
+// the target), rendered with the model's chat template
+const fixedTokens = (s: Server, build: (material: string) => Message[], thinking: boolean) =>
+  fixedPart(
+    build,
+    async (ms) => {
+      const r = await call(s.socket, "POST", "/apply-template", { messages: ms, chat_template_kwargs: { enable_thinking: thinking } });
+      return (JSON.parse(r.body) as { prompt: string }).prompt;
+    },
+    async (prompt) => {
+      const t = await call(s.socket, "POST", "/tokenize", { content: prompt, add_special: true, parse_special: true });
+      return (JSON.parse(t.body) as { tokens: unknown[] }).tokens.length;
+    },
+  );
 
 type Sections = Map<string, { title: string; text: string }[]>;
 type Budget = { fixed: number; limit: number; materialTokens: number; sections: number; titles: string[] };
@@ -307,7 +316,7 @@ type Budget = { fixed: number; limit: number; materialTokens: number; sections: 
 // `withCommands`) and the ranked sections, chosen within the budget (I9).
 // `build` makes the messages from the material.
 const prompt = async (s: Server, context: number, chapters: Sections, t: Task, fs: readonly Feature[], withCommands: boolean, build: (material: string) => Message[]) => {
-  const fixed = await fixedTokens(s, build(""), fs.includes("thinking"));
+  const fixed = await fixedTokens(s, build, fs.includes("thinking"));
   const limit = Math.max(0, materialLimit(context, fixed) - extraAnswerTokens(fs));
   const chapter = chapterFor(t.file);
   const sections = rankedSections(t.file, chapter ? (chapters.get(chapter) ?? []) : [], t.request, t.target, fs);
@@ -367,7 +376,7 @@ const respond = async (s: Server, context: number, chapters: Sections, t: Task, 
   const kind = parseKind(k.content);
   if (kind === "command") {
     const ms = commandMessages(list, commands, t.request, t.file, t.target, fs);
-    const fixed = await fixedTokens(s, ms, thinking);
+    const fixed = await fixedTokens(s, () => ms, thinking);
     const a = await ask(s, ms, { schema: commandSchema(commands), thinking });
     const c = parseCommand(a.content, commands);
     // the answer of ADR 0081's form, made from the chosen command
