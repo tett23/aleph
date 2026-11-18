@@ -464,6 +464,22 @@ mod tests {
     }
 
     #[test]
+    fn adr0081_saving_keeps_the_chosen_model_rust_wrote() {
+        // the model is chosen through Rust, which checks it against the list
+        let cur = json!({ "assistantModel": "qwen3.5-2b", "theme": "light" });
+        let out = merge(
+            &cur,
+            json!({ "assistantModel": "/tmp/evil.gguf", "theme": "dark" }),
+        );
+        assert_eq!(out["assistantModel"], json!("qwen3.5-2b"));
+        assert_eq!(out["theme"], json!("dark"));
+        let kept = merge(&cur, json!({ "theme": "dark" }));
+        assert_eq!(kept["assistantModel"], json!("qwen3.5-2b"));
+        let none = merge(&json!({}), json!({ "assistantModel": "qwen3.5-2b" }));
+        assert_eq!(none.get("assistantModel"), None);
+    }
+
+    #[test]
     fn a_chosen_workspace_is_added_once_and_paths_are_set() {
         let cur = json!({ "workspaces": ["/w/a"], "theme": "dark" });
         let once = add_workspace(&add_workspace(&cur, "/w/b"), "/w/b");
