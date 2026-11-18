@@ -1,20 +1,34 @@
 // The variants of how the benchmark hands the prompt and the material to the
 // model (docs/research/2026-11-18-assistant-prompt-and-context.md). A variant
-// is the default ("examples": bench/assistant/lib/prompt.ts as it is) or one or
-// more features joined with "+", such as "title-rank+md-no-manual". These are
-// experiments of the benchmark; the app follows docs/adr/0081 and is not
-// changed by them.
+// is the default "app" (the app's prompt, app/assistant/prompt.ts, as
+// docs/adr/0086 asks), "examples" alone (the app's prompt with all five worked
+// examples), or app with one or more features joined with "+", such as
+// "app+title-rank+md-no-manual". These are experiments of the benchmark; the
+// app is not changed by them.
 import { rankSections, terms, type Section } from "../../../app/assistant/material.ts";
+import {
+  EXAMPLES,
+  examplesFor as appExamplesFor,
+  exampleTurns,
+  INSTRUCTION,
+  INTRO,
+  isCommandExample,
+  REWRITE_RULES,
+  userMessage,
+  withMaterial,
+  type Command,
+  type Example,
+  type Message,
+} from "../../../app/assistant/prompt.ts";
 import type { Answer } from "./judge.ts";
-import { EXAMPLES, INSTRUCTION, INTRO, REWRITE_RULES, userMessage, type Command, type Message } from "./prompt.ts";
 
-export const DEFAULT_VARIANT = "examples";
+export const DEFAULT_VARIANT = "app";
+// the name of the variant with all five worked examples; it takes no feature
+export const ALL_EXAMPLES_VARIANT = "examples";
 
 export const FEATURES = [
   // the material in the last user message, before the request, instead of the system message
   "user-material",
-  // only the worked examples for the kind of the target file, and the one for a command
-  "kind-examples",
   // rank the sections by the words of the request found in their titles first
   "title-rank",
   // no section of the Golem manual for a Markdown file
@@ -24,13 +38,16 @@ export const FEATURES = [
   // let the model think before it answers
   "thinking",
 ] as const;
-export type Feature = (typeof FEATURES)[number];
+// "all-examples" is not joined by name: the variant "examples" stands for it
+export type Feature = (typeof FEATURES)[number] | "all-examples";
 
 export const parseVariant = (name: string): Feature[] => {
   if (name === DEFAULT_VARIANT) return [];
-  const parts = name.split("+");
+  if (name === ALL_EXAMPLES_VARIANT) return ["all-examples"];
+  const [head, ...parts] = name.split("+");
   const bad = parts.filter((p) => !(FEATURES as readonly string[]).includes(p));
-  if (name === "" || bad.length > 0) throw new Error(`unknown variant: ${name} (${DEFAULT_VARIANT}, or one or more of ${FEATURES.join(", ")} joined with +)`);
+  if (head !== DEFAULT_VARIANT || parts.length === 0 || bad.length > 0)
+    throw new Error(`unknown variant: ${name} (${DEFAULT_VARIANT}, ${ALL_EXAMPLES_VARIANT}, or ${DEFAULT_VARIANT} and one or more of ${FEATURES.join(", ")} joined with +)`);
   if (new Set(parts).size !== parts.length) throw new Error(`a feature is repeated: ${name}`);
   return parts as Feature[];
 };
@@ -48,25 +65,10 @@ export const serverExtra = (fs: readonly Feature[]): string[] => (fs.includes("t
 
 // --- worked examples -------------------------------------------------------------
 
-type Example = (typeof EXAMPLES)[number];
-
 const base = (path: string) => path.slice(path.lastIndexOf("/") + 1).toLowerCase();
-// style.toml and manifest.toml by name, any other file by its extension
-const fileKind = (path: string) => {
-  const name = base(path);
-  return name.endsWith(".toml") ? name : name.slice(name.lastIndexOf("."));
-};
 
-export const isCommandExample = (e: Example) => e.answer.edits.length === 0;
-
-export const examplesFor = (file: string, fs: readonly Feature[]): Example[] =>
-  fs.includes("kind-examples") ? EXAMPLES.filter((e) => isCommandExample(e) || fileKind(e.file) === fileKind(file)) : [...EXAMPLES];
-
-const turns = (examples: readonly Example[], answer: (e: Example) => string): Message[] =>
-  examples.flatMap((e) => [
-    { role: "user" as const, content: userMessage(e.request, e.file, e.target) },
-    { role: "assistant" as const, content: answer(e) },
-  ]);
+// The app's examples for the target, or all five for the variant "examples"
+export const examplesFor = (file: string, fs: readonly Feature[]): Example[] => (fs.includes("all-examples") ? [...EXAMPLES] : appExamplesFor(file));
 
 // --- the sections of the manual ------------------------------------------------
 
@@ -99,15 +101,13 @@ export const rankedSections = (file: string, sections: readonly Section[], reque
 
 // --- one call ------------------------------------------------------------------
 
-const withMaterial = (head: string, material: string) => (material === "" ? head : `${head}\n\n# 資料\n\n${material}`);
-
-// The messages of one call. With no feature, they are prompt.ts's messages().
+// The messages of one call. With no feature, they are the app's messages().
 export const singleMessages = (fs: readonly Feature[], material: string, request: string, file: string, target: string): Message[] => {
   const inUser = fs.includes("user-material");
   const last = userMessage(request, file, target);
   return [
     { role: "system", content: inUser ? INSTRUCTION : withMaterial(INSTRUCTION, material) },
-    ...turns(examplesFor(file, fs), (e) => JSON.stringify(e.answer)),
+    ...exampleTurns(examplesFor(file, fs), (e) => JSON.stringify(e.answer)),
     { role: "user", content: inUser && material !== "" ? `# 資料\n\n${material}\n\n${last}` : last },
   ];
 };
@@ -146,13 +146,13 @@ export const exampleCommand = (e: Example, commands: readonly Command[]) => comm
 
 export const classifyMessages = (commandList: string, request: string, file: string, target: string, fs: readonly Feature[]): Message[] => [
   { role: "system", content: `${CLASSIFY_INSTRUCTION}\n\n${commandList}` },
-  ...turns(examplesFor(file, fs), (e) => JSON.stringify({ kind: isCommandExample(e) ? "command" : "rewrite" })),
+  ...exampleTurns(examplesFor(file, fs), (e) => JSON.stringify({ kind: isCommandExample(e) ? "command" : "rewrite" })),
   { role: "user", content: userMessage(request, file, target) },
 ];
 
 export const commandMessages = (commandList: string, commands: readonly Command[], request: string, file: string, target: string, fs: readonly Feature[]): Message[] => [
   { role: "system", content: `${COMMAND_INSTRUCTION}\n\n${commandList}` },
-  ...turns(examplesFor(file, fs).filter(isCommandExample), (e) => JSON.stringify({ command: exampleCommand(e, commands) })),
+  ...exampleTurns(examplesFor(file, fs).filter(isCommandExample), (e) => JSON.stringify({ command: exampleCommand(e, commands) })),
   { role: "user", content: userMessage(request, file, target) },
 ];
 
@@ -163,7 +163,7 @@ export const rewriteMessages = (fs: readonly Feature[], material: string, reques
   const last = userMessage(request, file, target);
   return [
     { role: "system", content: inUser ? REWRITE_INSTRUCTION : withMaterial(REWRITE_INSTRUCTION, material) },
-    ...turns(
+    ...exampleTurns(
       examplesFor(file, fs).filter((e) => !isCommandExample(e)),
       (e) => JSON.stringify(e.answer),
     ),

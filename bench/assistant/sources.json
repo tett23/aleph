@@ -16,7 +16,7 @@
   },
   "contexts": [4096, 8192],
   "budget": {
-    "model": "qwen3-0.6b",
+    "model": "qwen3.5-4b",
     "context": 4096
   }
 }

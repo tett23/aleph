@@ -1,6 +1,6 @@
 # ADR 0081: 下部パネルに、ローカル LLM で動くアシスタントを置く
 
-Status: superseded-pending [{"part":"計測を CI で続ける の、計測を動かす時","by":["docs/adr/0085-run-assistant-benchmark-nightly.md"]}]
+Status: superseded-pending [{"part":"計測を CI で続ける の、計測を動かす時","by":["docs/adr/0085-run-assistant-benchmark-nightly.md"]},{"part":"モデルの管理 の、既定のモデルを選び方で決めること","by":["docs/adr/0086-qwen3-5-4b-as-provisional-default-model.md"]},{"part":"既定のモデルの選び方 の、満たすものが無いときの扱い","by":["docs/adr/0086-qwen3-5-4b-as-provisional-default-model.md"]},{"part":"アシスタントに渡す資料 の、コンテキストの長さ","by":["docs/adr/0086-qwen3-5-4b-as-provisional-default-model.md"]},{"part":"予算 の値と計測するモデル","by":["docs/adr/0086-qwen3-5-4b-as-provisional-default-model.md"]},{"part":"受けいれ条件 A1","by":["docs/adr/0086-qwen3-5-4b-as-provisional-default-model.md"]},{"part":"アシスタントに渡す資料 の、決まった指示の数え方","by":["docs/adr/0086-qwen3-5-4b-as-provisional-default-model.md"],"kind":"supplement"},{"part":"ローカルの推論 の、プロンプトの形","by":["docs/adr/0086-qwen3-5-4b-as-provisional-default-model.md"],"kind":"supplement"}]
 
 ## 文脈
 

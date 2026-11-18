@@ -1,6 +1,7 @@
-// The messages sent to the model: the fixed instruction and the material in
-// the system message, worked examples as earlier turns of the chat, then the
-// request and the target in the last user message.
+// The prompt of the local connector (docs/adr/0086): the fixed instruction and
+// the material in the system message (docs/adr/0081), the worked examples for
+// the target's kind and the one of a command as earlier turns of the chat, then
+// the writer's request and the target in the last user message.
 
 export type Command = { id: string; label: string };
 export type Message = { role: "system" | "user" | "assistant"; content: string };
@@ -29,9 +30,12 @@ explanation には、何をしたかを日本語で一文か二文で書きま�
 
 export const INSTRUCTION = [INTRO, COMMAND_RULE, REWRITE_RULES].join("\n\n");
 
-// Worked examples, one or two per kind of request. None of them is a task of
-// the benchmark (bench/assistant/lib/set.test.ts checks it).
-export const EXAMPLES: readonly { request: string; file: string; target: string; answer: { explanation: string; edits: { find: string; replace: string }[] } }[] = [
+export type Example = { request: string; file: string; target: string; answer: { explanation: string; edits: { find: string; replace: string }[] } };
+
+// Worked examples: one for each of style.toml, manifest.toml, .gm and .md, and
+// one of a command. None of them is a task of the benchmark
+// (bench/assistant/lib/set.test.ts checks it, ADR 0086 I2).
+export const EXAMPLES: readonly Example[] = [
   {
     request: "段組みを 2 段にして",
     file: "style.toml",
@@ -72,14 +76,44 @@ export const commandList = (commands: readonly Command[]) => ["## Aleph のコ�
 export const userMessage = (request: string, file: string, target: string) =>
   `頼み: ${request}\n対象のファイル: ${file}\n対象のテキスト (<target> と </target> のあいだ):\n<target>\n${target}</target>`;
 
-const exampleTurns = (): Message[] =>
-  EXAMPLES.flatMap((e) => [
+// The kind of a file: style.toml and manifest.toml by name, any other file by
+// its extension ("" when it has none), all in lower case
+export const fileKind = (path: string) => {
+  const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase();
+  if (name === "style.toml" || name === "manifest.toml") return name;
+  const dot = name.lastIndexOf(".");
+  return dot < 0 ? "" : name.slice(dot);
+};
+
+export const isCommandExample = (e: Example) => e.answer.edits.length === 0;
+
+// The examples of the target's kind (if any), then the one of a command (I1)
+export const examplesFor = (file: string): Example[] => [
+  ...EXAMPLES.filter((e) => !isCommandExample(e) && fileKind(e.file) === fileKind(file)),
+  ...EXAMPLES.filter(isCommandExample),
+];
+
+// Each example as the request of a user message and its answer
+export const exampleTurns = (examples: readonly Example[], answer: (e: Example) => string = (e) => JSON.stringify(e.answer)): Message[] =>
+  examples.flatMap((e) => [
     { role: "user" as const, content: userMessage(e.request, e.file, e.target) },
-    { role: "assistant" as const, content: JSON.stringify(e.answer) },
+    { role: "assistant" as const, content: answer(e) },
   ]);
 
-export const messages = (material: string, request: string, file: string, target: string): Message[] => [
-  { role: "system", content: material === "" ? INSTRUCTION : `${INSTRUCTION}\n\n# 資料\n\n${material}` },
-  ...exampleTurns(),
+export const withMaterial = (head: string, material: string) => (material === "" ? head : `${head}\n\n# 資料\n\n${material}`);
+
+// The system message, the examples' turns, then the request (I3)
+export const messages = (material: string, request: string, file: string, target: string, examples: readonly Example[] = examplesFor(file)): Message[] => [
+  { role: "system", content: withMaterial(INSTRUCTION, material) },
+  ...exampleTurns(examples),
   { role: "user", content: userMessage(request, file, target) },
 ];
+
+// The fixed part (I4): the tokens of the messages built with the material left
+// empty, rendered with the chat template. The material limit is
+// materialLimit(context, fixed) of material.ts.
+export const fixedTokens = async (
+  build: (material: string) => Message[],
+  render: (ms: Message[]) => string | Promise<string>,
+  count: (text: string) => number | Promise<number>,
+): Promise<number> => count(await render(build("")));

@@ -58,7 +58,8 @@ export const regressions = (
 };
 
 export type Budgets = { firstAnswerMsP95: number; answerMsP95: number; peakRssMb: number };
-// docs/budgets.md
+// The budgets of the selection rule of docs/adr/0081, kept as they are by
+// docs/adr/0086; not the budgets of docs/budgets.md, which differ
 export const BUDGETS: Budgets = { firstAnswerMsP95: 30000, answerMsP95: 15000, peakRssMb: 2048 };
 
 export type Judged = { key: string; ok: boolean; reasons: string[] };

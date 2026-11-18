@@ -5,8 +5,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { judgeCommand, parseAnswer } from "./judge.ts";
-import { commandList, EXAMPLES, INSTRUCTION, messages, userMessage, type Command } from "./prompt.ts";
+import { commandList, EXAMPLES, examplesFor as appExamplesFor, INSTRUCTION, messages, userMessage, type Command } from "../../../app/assistant/prompt.ts";
 import {
+  DEFAULT_VARIANT,
   classifyMessages,
   commandAnswer,
   commandMessages,
@@ -30,13 +31,20 @@ import {
 const commands = JSON.parse(readFileSync(join(import.meta.dirname, "..", "commands.json"), "utf8")) as Command[];
 const list = commandList(commands);
 
-test("a variant is the default or features joined with +", () => {
-  assert.deepEqual(parseVariant("examples"), []);
-  assert.deepEqual(parseVariant("title-rank+md-no-manual"), ["title-rank", "md-no-manual"]);
+test("a variant is app (the default), examples alone, or app with features joined with +", () => {
+  assert.equal(DEFAULT_VARIANT, "app");
+  assert.deepEqual(parseVariant("app"), []);
+  assert.deepEqual(parseVariant("examples"), ["all-examples"]);
+  assert.deepEqual(parseVariant("app+title-rank+md-no-manual"), ["title-rank", "md-no-manual"]);
   assert.throws(() => parseVariant(""));
   assert.throws(() => parseVariant("nothing"));
-  assert.throws(() => parseVariant("title-rank+nothing"));
-  assert.throws(() => parseVariant("thinking+thinking"));
+  assert.throws(() => parseVariant("title-rank"));
+  assert.throws(() => parseVariant("app+"));
+  assert.throws(() => parseVariant("app+title-rank+nothing"));
+  assert.throws(() => parseVariant("app+thinking+thinking"));
+  assert.throws(() => parseVariant("examples+thinking"));
+  assert.throws(() => parseVariant("app+all-examples"));
+  assert.throws(() => parseVariant("app+kind-examples"));
 });
 
 test("with no feature, the messages of one call are the default prompt's", () => {
@@ -55,13 +63,14 @@ test("user-material puts the material before the request in the last user messag
   assert.deepEqual(singleMessages(["user-material"], "", "頼み", "a.gm", "本文。\n"), messages("", "頼み", "a.gm", "本文。\n"));
 });
 
-test("kind-examples keeps the examples of the target's kind and the one of a command", () => {
-  const files = (file: string) => examplesFor(file, ["kind-examples"]).map((e) => e.file);
-  assert.deepEqual(files("style.toml"), ["style.toml", "chapters/03.gm"]);
-  assert.deepEqual(files("manifest.toml"), ["manifest.toml", "chapters/03.gm"]);
-  assert.deepEqual(files("notes.md"), ["notes.md", "chapters/03.gm"]);
-  assert.deepEqual(files("chapters/01.gm"), ["chapters/03.gm", "chapters/03.gm"]);
-  assert.equal(examplesFor("style.toml", []).length, EXAMPLES.length);
+test("app gives the app's examples for the target; examples gives all five", () => {
+  for (const file of ["style.toml", "chapters/01.gm", "data.csv"]) {
+    assert.deepEqual(examplesFor(file, []), appExamplesFor(file));
+    assert.deepEqual(examplesFor(file, ["all-examples"]), [...EXAMPLES]);
+  }
+  assert.equal(EXAMPLES.length, 5);
+  const ms = singleMessages(["all-examples"], "", "頼み", "data.csv", "a\n");
+  assert.equal(ms.length, 2 + 2 * EXAMPLES.length);
 });
 
 test("the words of a request leave out the quoted words", () => {
@@ -104,7 +113,9 @@ test("two-step: the first step's examples answer the kind; the command step's ex
   const k = classifyMessages(list, "頼み", "chapters/01.gm", "本文。\n", []);
   assert.ok(k[0].content.endsWith(list));
   const kinds = k.filter((m) => m.role === "assistant").map((m) => JSON.parse(m.content).kind);
-  assert.deepEqual(kinds, EXAMPLES.map((e) => (e.answer.edits.length === 0 ? "command" : "rewrite")));
+  assert.deepEqual(kinds, appExamplesFor("chapters/01.gm").map((e) => (e.answer.edits.length === 0 ? "command" : "rewrite")));
+  const all = classifyMessages(list, "頼み", "chapters/01.gm", "本文。\n", ["all-examples"]).filter((m) => m.role === "assistant");
+  assert.equal(all.length, EXAMPLES.length);
 
   const c = commandMessages(list, commands, "頼み", "chapters/01.gm", "本文。\n", []);
   const answers = c.filter((m) => m.role === "assistant").map((m) => JSON.parse(m.content).command);
