@@ -9,22 +9,44 @@ use std::path::{Component, Path, PathBuf};
 
 /// The bundled file of a chapter of the material (`resources/manual/<file>`).
 pub fn manual_file(chapter: &str) -> Option<&'static str> {
-    let _ = chapter;
-    unimplemented!()
+    match chapter {
+        "03-markup" => Some("03-markup.gm"),
+        "04-manifest" => Some("04-manifest.gm"),
+        "05-style" => Some("05-style.gm"),
+        _ => None,
+    }
 }
 
 /// The path of `file` from `project`, when it is inside the project; only
 /// plain names, so the copy's file is inside the copy.
 pub fn relative(project: &Path, file: &Path) -> Option<PathBuf> {
-    let _ = (project, file);
-    unimplemented!()
+    let rel = file.strip_prefix(project).ok()?;
+    let plain = rel.components().all(|c| matches!(c, Component::Normal(_)));
+    (plain && rel.components().next().is_some()).then(|| rel.to_path_buf())
 }
 
 /// Copies the project's folders and files into `to`, made fresh; `.git` and
 /// symbolic links are left out.
 pub fn copy_project(from: &Path, to: &Path) -> std::io::Result<()> {
-    let _ = (from, to);
-    unimplemented!()
+    fn copy(from: &Path, to: &Path) -> std::io::Result<()> {
+        std::fs::create_dir_all(to)?;
+        std::fs::read_dir(from)?.try_for_each(|e| {
+            let e = e?;
+            let t = e.file_type()?;
+            let target = to.join(e.file_name());
+            if t.is_symlink() || e.file_name() == ".git" {
+                Ok(())
+            } else if t.is_dir() {
+                copy(&e.path(), &target)
+            } else {
+                std::fs::copy(e.path(), target).map(|_| ())
+            }
+        })
+    }
+    if to.exists() {
+        std::fs::remove_dir_all(to)?;
+    }
+    copy(from, to)
 }
 
 /// Copies `project` into `work` once, then for each text writes it to the
@@ -36,8 +58,21 @@ pub fn check_texts(
     work: &Path,
     run: impl Fn(&Path) -> Result<Out, String>,
 ) -> Result<Vec<Out>, String> {
-    let _ = (project, rel, texts, work, run);
-    unimplemented!()
+    let dir = work.join("project");
+    let file = relative(&dir, &dir.join(rel))
+        .map(|r| dir.join(r))
+        .ok_or_else(|| format!("プロジェクトの外のファイルです：{}", rel.display()))?;
+    copy_project(project, &dir).map_err(|e| e.to_string())?;
+    if let Some(parent) = file.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    texts
+        .iter()
+        .map(|t| {
+            std::fs::write(&file, t).map_err(|e| e.to_string())?;
+            run(&dir)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -115,7 +150,8 @@ mod tests {
             &work,
             |dir| {
                 assert!(dir.starts_with(&work));
-                let t = std::fs::read_to_string(dir.join("style.toml")).map_err(|e| e.to_string())?;
+                let t =
+                    std::fs::read_to_string(dir.join("style.toml")).map_err(|e| e.to_string())?;
                 seen.borrow_mut().push(t.clone());
                 Ok(Out {
                     code: 0,

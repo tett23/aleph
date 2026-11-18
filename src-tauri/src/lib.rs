@@ -1004,6 +1004,49 @@ async fn assistant_local_template_count(app: AppHandle, messages: Vec<llama::Mes
     .await
 }
 
+// ---- the assistant's tab: the manual's chapters and golem check (docs/adr/0081) ----
+
+/// A chapter of the Golem manual bundled for the material: 03-markup,
+/// 04-manifest or 05-style; read by Rust from the resources (docs/adr/0042).
+#[tauri::command]
+fn assistant_manual(app: AppHandle, chapter: String) -> R<String> {
+    let file = assistant::manual_file(&chapter)
+        .ok_or_else(|| format!("マニュアルの章ではありません：{chapter}"))?;
+    let dir = roots(&app)
+        .resources
+        .ok_or("アプリのリソースのフォルダがありません")?;
+    std::fs::read_to_string(dir.join("manual").join(file)).map_err(err)
+}
+
+/// golem check --format json of each text in place of `file`, in a copy of
+/// `project` in the cache; the project is not touched, and nothing goes to the
+/// problems tab. Off the main thread (docs/adr/0062).
+#[tauri::command]
+async fn assistant_golem_check(
+    app: AppHandle,
+    project: String,
+    file: String,
+    texts: Vec<String>,
+) -> R<Vec<process::Out>> {
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    blocking(move || {
+        may(&app, &project, RD)?;
+        let project = PathBuf::from(project);
+        let rel = assistant::relative(&project, Path::new(&file))
+            .ok_or_else(|| format!("プロジェクトの外のファイルです：{file}"))?;
+        let golem = tool_path(&app, "golem")?;
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let work = cache_dir(&app)?.join(format!("assistant-check-{n}"));
+        let args = ["check".to_string(), "--format".into(), "json".into()];
+        let out = assistant::check_texts(&project, &rel, &texts, &work, |dir| {
+            process::run(&golem, dir, &args)
+        });
+        let _ = std::fs::remove_dir_all(&work);
+        out
+    })
+    .await
+}
+
 // ---- the assistant's connectors: local, Claude Code and Codex (docs/adr/0081) ----
 
 /// The writer's login shell, which tells where claude and codex are.
@@ -1643,7 +1686,9 @@ pub fn run_app() {
             assistant_local_count,
             assistant_local_template_count,
             assistant_connectors,
-            assistant_ask
+            assistant_ask,
+            assistant_manual,
+            assistant_golem_check
         ])
         .build(tauri::generate_context!())
         .expect("error while building Aleph")

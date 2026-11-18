@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ANSWER_TOKENS, SEPARATOR } from "./material.ts";
 import { commandList, messages, type Message } from "./prompt.ts";
-import { addedErrors, askChecked, buildPrompt, checkedFile, errorsIn, retryRequest, type CheckRun } from "./request.ts";
+import { addedErrors, askChecked, buildPrompt, checkDiagnostics, checkedFile, errorsIn, LOCAL_CONTEXT, retryRequest, type CheckRun } from "./request.ts";
 import type { Diagnostic } from "../diag/parse.ts";
 
 // One character is one token; the chat template adds nothing
@@ -167,4 +167,16 @@ test("ADR 0081: the edits of a selection apply inside the selection", async () =
   const t = { path: "/w/p/style.toml", scope: { kind: "selection" as const, text: "a = 1\n" + "a" }, from: 0, to: 7 };
   const o = await askChecked({ ask: async () => answer([{ find: "a = 1", replace: "a = 2" }]), request: "r", sheet: text, target: t, file: null, check: checkByBad });
   assert.equal(o.after, "a = 2\na = 1\n");
+});
+
+test("ADR 0081: golem check's JSON is read from standard output, or from standard error when the output is empty", () => {
+  const ds = JSON.stringify([err("style.toml", "a")]);
+  assert.equal(checkDiagnostics({ code: 0, stdout: ds, stderr: "" })?.length, 1);
+  assert.equal(checkDiagnostics({ code: 1, stdout: "", stderr: ds })?.length, 1);
+  assert.deepEqual(checkDiagnostics({ code: 0, stdout: "[]", stderr: "" }), []);
+  assert.equal(checkDiagnostics({ code: 2, stdout: "", stderr: "error: no manifest" }), null);
+});
+
+test("ADR 0086: the context of the material's limit is the local connector's 4,096", () => {
+  assert.equal(LOCAL_CONTEXT, 4096);
 });

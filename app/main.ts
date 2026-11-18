@@ -44,6 +44,7 @@ import { mountDragOut } from "./dragout.ts";
 import { mountDiagnostics } from "./diag/mount.ts";
 import { mountSearch } from "./searchpanel.ts";
 import { mountBottomPanel } from "./problemsmount.ts";
+import { mountAssistant } from "./assistant/mount.ts";
 import { mountProjectBuild } from "./projectbuildmount.ts";
 import { mountMdConvert } from "./mdconvert.ts";
 import { mountPlugins } from "./plugins/mount.ts";
@@ -189,6 +190,7 @@ const start = async () => {
   mountAssistantSettings(ctx);
   mountEditors(ctx);
   mountBottomPanel(ctx); // before the LSP: the counts sit left of its state in the status bar
+  mountAssistant(ctx);
   mountLsp(ctx);
   mountJson(ctx);
   mountDiagnostics(ctx); // lint and preflight sit beside the LSP in the status bar
