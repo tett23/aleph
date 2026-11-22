@@ -223,3 +223,135 @@ test("ADR 0078 I8: the value of a progress notification is kept within 0 and 1",
   n.notify({ key: "k", message: "m", sticky: true, progress: { value: -1, text: "" } });
   assert.equal(n.shown().notes[0].progress!.value, 0);
 });
+
+test("ADR 0106 I1, I2, I3: closing a sticky error clears its contribution and preserves the history row", () => {
+  const n = createNotifications(fakeClock().clock);
+  const h = n.notify({ message: "error", level: "error", sticky: true, actions: [{ label: "fix", run() {} }] });
+  n.notify({ message: "info", sticky: true });
+  n.notify({ message: "warning", level: "warning", sticky: true });
+  const { message, level, at, repeats } = n.history().find((note) => note.id === h.id)!;
+  n.dismissByUser(h.id);
+  assert.deepEqual(n.unseen(), { count: 2, error: false });
+  const closed = n.history().find((note) => note.id === h.id)!;
+  assert.deepEqual(closed, { ...closed, message, level, at, repeats, actions: [], live: false });
+});
+
+test("ADR 0106 I1, I3, I4: keyed occurrences keep their original levels and only their unseen occurrences are cleared", () => {
+  const n = createNotifications(fakeClock().clock);
+  const notify = (level: "error" | "info") => n.notify({ message: level, key: "group", level, sticky: true });
+  const oldest = notify("error");
+  notify("info");
+  const group = notify("info");
+  const other = n.notify({ message: "other", level: "error", sticky: true });
+  n.dismissByUser(oldest.id);
+  assert.deepEqual(n.unseen(), { count: 4, error: true });
+  n.dismissByUser(other.id);
+  assert.deepEqual(n.unseen(), { count: 3, error: true });
+  n.dismissByUser(group.id);
+  n.dismissByUser(group.id);
+  assert.deepEqual(n.unseen(), { count: 0, error: false });
+  assert.equal(n.history().find((note) => note.id === group.id)?.repeats, 3);
+  notify("error");
+  n.seen();
+  const afterSeen = notify("info");
+  assert.deepEqual(n.unseen(), { count: 1, error: false });
+  n.dismissByUser(afterSeen.id);
+  assert.deepEqual(n.unseen(), { count: 0, error: false });
+  n.dismissByUser(notify("info").id);
+  assert.equal(n.history()[0].repeats, 6);
+});
+
+test("ADR 0106 I4: dismissal acknowledges only a user-closed sticky notice", () => {
+  const c = fakeClock();
+  const n = createNotifications(c.clock);
+  n.notify({ message: "timer" });
+  c.advance(TIMEOUT);
+  n.dismissByUser(n.notify({ message: "user-closed timed" }).id);
+  n.notify({ message: "by handle", sticky: true }).dismiss();
+  n.notify({ message: "by key", sticky: true, key: "key" });
+  n.dismissKey("key");
+  n.dismissByUser(n.notify({ message: "progress", sticky: true, progress: { value: 0, text: "" } }).id);
+  let ran = 0;
+  const h = n.notify({ message: "actions", sticky: true, actions: [
+    { label: "keep", run: () => ran++, keep: true },
+    { label: "close", run: () => ran++ },
+  ] });
+  n.press(h.id, 0);
+  assert.equal(n.unseen().count, 5);
+  n.press(h.id, 1);
+  n.press(h.id, 1);
+  assert.equal(ran, 2);
+  assert.equal(n.unseen().count, 4);
+  const seen = n.notify({ message: "seen", sticky: true });
+  n.seen();
+  n.notify({ message: "unrelated" });
+  n.dismissByUser(seen.id);
+  assert.equal(n.unseen().count, 1);
+});
+
+test("ADR 0106 I4: history eviction and clearing preserve unseen counts and error levels", () => {
+  const n = createNotifications(fakeClock().clock);
+  n.notify({ message: "evicted error", level: "error" });
+  for (let i = 0; i < HISTORY_MAX; i++) n.notify({ message: "timed" });
+  assert.equal(n.history().some((note) => note.message === "evicted error"), false);
+  n.clearHistory();
+  const h = n.notify({ message: "sticky", sticky: true });
+  n.dismissByUser(h.id);
+  assert.deepEqual(n.unseen(), { count: HISTORY_MAX + 1, error: true });
+  n.seen();
+  assert.deepEqual(n.unseen(), { count: 0, error: false });
+});
+
+test("ADR 0106 I5: delivery order, duplicates, identical text and window recreation preserve identity", () => {
+  const n = createNotifications(fakeClock().clock);
+  const first = { type: "added", origin: "plot:original", id: 1, message: "same", level: "error", sticky: true } as const;
+  const closed = { type: "acknowledged", origin: first.origin, ids: [1] } as const;
+  n.receive(closed);
+  n.receive(closed);
+  n.receive(first);
+  n.receive(first);
+  const next = { ...first, id: 2 };
+  n.receive(next);
+  n.receive({ ...first, origin: "plot:recreated" });
+  n.receive(closed);
+  assert.equal(n.history().length, 3);
+  assert.deepEqual(n.unseen(), { count: 2, error: true });
+  n.receive({ ...closed, ids: [2] });
+  assert.equal(n.history().length, 3);
+  assert.deepEqual(n.unseen(), { count: 1, error: true });
+});
+
+test("ADR 0106 I5: forwarding a grouped acknowledgment covers exactly the source occurrences", () => {
+  const c = fakeClock();
+  const main = createNotifications(c.clock);
+  const pending: Parameters<typeof main.receive>[0][] = [];
+  const source = createNotifications(c.clock, { origin: "pages:instance", send: (event) => pending.push(event) });
+  source.notify({ message: "old", key: "group", sticky: true, level: "error" });
+  source.seen();
+  const grouped = source.notify({ message: "new", key: "group", sticky: true });
+  source.dismissByUser(grouped.id);
+  source.notify({ message: "next", key: "group", sticky: true });
+  source.notify({ message: "progress", sticky: true, progress: { value: 0, text: "" } });
+  assert.equal(pending.length, 4);
+  for (const i of [0, 2, 1, 3, 2]) main.receive(pending[i]);
+  assert.deepEqual(main.unseen(), { count: 1, error: false });
+  assert.deepEqual(main.history().map(({ message, repeats, live }) => ({ message, repeats, live })), [
+    { message: "next", repeats: 3, live: false },
+  ]);
+});
+
+test("ADR 0106 I5: a delayed grouped occurrence keeps the newest message and time", () => {
+  const n = createNotifications(fakeClock().clock);
+  const source = { type: "added", origin: "pages:instance", key: "group", sticky: true } as const;
+  const addedFirst = { ...source, id: 1, message: "older", at: 100, level: "error" } as const;
+  const addedSecond = { ...source, id: 2, message: "newer", at: 200, level: "info" } as const;
+  n.receive(addedSecond);
+  n.receive(addedFirst);
+  n.receive(addedFirst);
+  assert.deepEqual(n.unseen(), { count: 2, error: true });
+  n.receive({ type: "acknowledged", origin: source.origin, ids: [1] });
+  assert.deepEqual(n.unseen(), { count: 1, error: false });
+  assert.deepEqual(n.history().map(({ message, at, level, repeats }) => ({ message, at, level, repeats })), [
+    { message: "newer", at: 200, level: "info", repeats: 2 },
+  ]);
+});

@@ -1,12 +1,12 @@
 // The notifications on the screen (docs/adr/0064): stacked at the bottom right above the
 // status bar, timed or sticky, with buttons and ×. Every window has its own; those of the
 // other windows (the pages, the plot) also go into the main window's history.
-import { emit, listen } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { esc } from "../esc.ts";
 import { h, icon } from "../icons.ts";
 import { swallowLatePress } from "./press.ts";
-import { createNotifications, type Handle, type Level, type Note, type Notifications, type NotifyOpts } from "../notify.ts";
+import { createNotifications, type Handle, type Level, type Note, type NotificationEvent, type Notifications, type NotifyOpts } from "../notify.ts";
 
 export const LEVEL_ICON: Record<Level, string> = { info: "info", warning: "triangle-alert", error: "circle-x" };
 
@@ -25,18 +25,24 @@ const label = () => {
 /** This window's notifications. */
 export const notifications = (): Notifications => {
   if (model) return model;
-  model = createNotifications({ now: () => Date.now(), set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => clearTimeout(id) });
+  const windowLabel = label();
+  const clock = { now: () => Date.now(), set: (fn: () => void, ms: number) => window.setTimeout(fn, ms), clear: (id: number) => clearTimeout(id) };
+  if (windowLabel === "main") {
+    const main = createNotifications(clock);
+    model = main;
+    void listen<NotificationEvent>("aleph:notified", (e) => main.receive(e.payload)).catch(() => {});
+  } else {
+    const instance = crypto.getRandomValues(new Uint32Array(4)).join("-");
+    model = createNotifications(clock, {
+      origin: `${windowLabel}:${instance}`,
+      send: (event) => void emitTo("main", "aleph:notified", event).catch(() => {}),
+    });
+  }
   model.subscribe(draw);
-  // the main window keeps the other windows' notifications in its history
-  if (label() === "main") void listen<{ message: string; level: Level }>("aleph:notified", (e) => model!.record(e.payload)).catch(() => {});
   return model;
 };
 
-export const notify = (o: NotifyOpts): Handle => {
-  const handle = notifications().notify(o);
-  if (label() !== "main") void emit("aleph:notified", { message: o.message, level: o.level ?? "info" }).catch(() => {});
-  return handle;
-};
+export const notify = (o: NotifyOpts): Handle => notifications().notify(o);
 
 /** A failure: an error that stays until closed. */
 export const notifyError = (message: string, actions?: NotifyOpts["actions"]) => notify({ message, level: "error", sticky: true, actions });
@@ -80,7 +86,7 @@ function draw() {
       if (t.closest("[data-more]")) return notifications().expand(true);
       const id = Number(t.closest<HTMLElement>("[data-id]")?.dataset.id);
       if (!id) return;
-      if (t.closest("[data-x]")) return (swallowLatePress(), notifications().dismiss(id));
+      if (t.closest("[data-x]")) return (swallowLatePress(), notifications().dismissByUser(id));
       const a = t.closest<HTMLElement>("[data-a]")?.dataset.a;
       if (a !== undefined) {
         swallowLatePress();
