@@ -11,6 +11,9 @@ export const identityInputValid = (name: string, email: string, inherited?: Reco
   [name, email].every((value, index) => value.trim() ? validIdentity(value) :
     !/[\r\n\0]/.test(value) && validIdentity(inherited?.[index === 0 ? "name" : "email"]?.value ?? ""));
 
+export const identityWarningKey = (o: { repository: string; identityTarget?: string; missing: readonly IdentityKey[] }) =>
+  JSON.stringify([o.identityTarget ?? o.repository, [...o.missing].sort()]);
+
 export const withGitCredentials = async <T>(run: (credentials?: GitCredentials) => Promise<T>, prompt: () => Promise<GitLogin | null>) => {
   let target: string;
   try {

@@ -35,6 +35,8 @@ pub struct Error {
     auth_target: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     repository: Option<String>,
+    #[serde(rename = "identityTarget", skip_serializing_if = "Option::is_none")]
+    identity_target: Option<Box<Path>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     missing: Vec<identity::Field>,
 }
@@ -46,6 +48,7 @@ impl Error {
             message: message.into(),
             auth_target: None,
             repository: None,
+            identity_target: None,
             missing: Vec::new(),
         }
     }

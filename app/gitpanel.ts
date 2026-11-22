@@ -11,7 +11,7 @@ import { esc } from "./esc.ts";
 import { autosaveMessage, shouldAutoCommit, ymd } from "./git.ts";
 import { gitFailure, gitOperation, type GitStatus } from "./git-ipc.ts";
 import { askGitCredentials, mountGitSettings, openRepositorySettings, showIdentityRequired, withPullInProgress } from "./git-settings.ts";
-import { commitWithIdentity, withGitCredentials } from "./git-workflow.ts";
+import { commitWithIdentity, identityWarningKey, withGitCredentials } from "./git-workflow.ts";
 import { icon } from "./icons.ts";
 import { basename, rel } from "./path.ts";
 import { allDocs, dirty, type State } from "./store.ts";
@@ -51,7 +51,7 @@ const reportFailure = (ctx: Ctx, ws: string, error: unknown, automatic = false) 
     const repository = fail.repository ?? ws;
     const missing = fail.missing ?? ["name", "email"];
     if (!automatic) return showIdentityRequired(ctx, ws, repository, missing);
-    const key = JSON.stringify([repository, [...missing].sort()]);
+    const key = identityWarningKey({ repository, identityTarget: fail.identityTarget, missing });
     if (warned.has(key)) return;
     warned.add(key);
   }
@@ -67,7 +67,7 @@ export const commit = async (ctx: Ctx, ws: string, message: string, opts: { here
       if (!identity) throw { kind: "read", message: "Git のリポジトリではありません" };
       if (identity.missing.length) throw {
         kind: "identityRequired", message: "Git の名前とメールアドレスを設定してください",
-        repository: identity.repository?.root, missing: identity.missing,
+        repository: identity.repository?.root, identityTarget: identity.target, missing: identity.missing,
       };
       if (opts.automatic && identity.repository?.conflicted) throw {
         kind: "conflict", message: "競合を解消して手動でコミットしてください",

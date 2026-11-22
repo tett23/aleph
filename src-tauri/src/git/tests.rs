@@ -435,3 +435,48 @@ fn adr0105_i2_staged_changes_outside_the_registered_workspace_are_refused() {
     assert_eq!(std::fs::read(repo.path().join("index")).unwrap(), before);
     assert!(repo.head().is_err());
 }
+
+#[test]
+fn adr0105_i2_two_workspaces_of_one_repository_serialize_commits() {
+    let root = testdir::fresh("embedded-git-concurrent")
+        .canonicalize()
+        .unwrap();
+    let nested = root.join("nested");
+    std::fs::create_dir(&nested).unwrap();
+    let repo = initialize(&root).unwrap();
+    let mut config = repo.config().unwrap();
+    config.set_str("user.name", "Fixture").unwrap();
+    config
+        .set_str("user.email", "fixture@example.test")
+        .unwrap();
+    std::fs::write(nested.join("a.gm"), "変更\n").unwrap();
+    let reach = guard::Reach {
+        roots: vec![root.clone(), nested.clone()],
+        ..Default::default()
+    };
+    let start = std::sync::Barrier::new(2);
+    let run = |workspace| {
+        start.wait();
+        operate(
+            &reach,
+            workspace,
+            Operation::Commit {
+                message: "Save current change".into(),
+                automatic: false,
+                scope: Some(Scope::Repository),
+            },
+        )
+        .unwrap()
+    };
+    let (first, second) = std::thread::scope(|thread| {
+        let first = thread.spawn(|| run(&root));
+        let second = thread.spawn(|| run(&nested));
+        (first.join().unwrap(), second.join().unwrap())
+    });
+    assert!(matches!(
+        (first, second),
+        (Response::Commit(Some(_)), Response::Commit(None))
+            | (Response::Commit(None), Response::Commit(Some(_)))
+    ));
+    assert_eq!(history(&repo).unwrap().len(), 1);
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { commitWithIdentity, identityInputValid, withGitCredentials } from "./git-workflow.ts";
+import { commitWithIdentity, identityInputValid, identityWarningKey, withGitCredentials } from "./git-workflow.ts";
 
 test("ADR 0105 I3: failed preflight prevents both sheet save and commit", async () => {
   const operations: string[] = [];
@@ -37,4 +37,13 @@ test("ADR 0105 I6: credentials are bound to the challenged remote and are attemp
     throw { kind: "authentication", message: "wrong credentials" };
   }, async () => ({ username: "user", password: "token" })), { kind: "authentication" });
   assert.equal(attempts, 2);
+});
+
+test("ADR 0105 I3: linked worktrees share the warning for the same missing fields", () => {
+  const config = "/main/.git/config";
+  const main = { repository: "/main", identityTarget: config, missing: ["name", "email"] as const };
+  const linked = { repository: "/linked", identityTarget: config, missing: ["email", "name"] as const };
+  assert.equal(identityWarningKey(main), identityWarningKey(linked));
+  assert.notEqual(identityWarningKey(main), identityWarningKey({ ...linked, missing: ["email"] }));
+  assert.notEqual(identityWarningKey(main), identityWarningKey({ ...linked, identityTarget: "/other/.git/config" }));
 });
