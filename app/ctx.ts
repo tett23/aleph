@@ -32,6 +32,8 @@ export type View = {
   editorArea?: (el: HTMLElement, ctx: Ctx) => (() => void) | void;
   /** Draws the preview tab's head and body; called only while the preview tab is shown in its pane (docs/adr/0087). */
   previewTab?: (head: HTMLElement, body: HTMLElement, ctx: Ctx) => void;
+  pausePreviewTab?: (body: HTMLElement) => void;
+  closePreviewTab?: (body: HTMLElement) => void;
   /** Reads and draws the diff tab's head and body; called only while the diff tab is shown in its pane (docs/adr/0088). */
   diffTab?: (head: HTMLElement, body: HTMLElement, ctx: Ctx) => void;
   /** Draws the bottom panel under the editor area (docs/adr/0055, docs/adr/0082). */

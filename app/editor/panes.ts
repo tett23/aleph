@@ -98,6 +98,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
         ed.destroy();
         if (ctx.editors.get(p) === ed) ctx.editors.delete(p);
       });
+      if (v.el.classList.contains("preview-tab")) ctx.view.closePreviewTab?.(v.el.querySelector<HTMLElement>(".pbody")!);
       v.el.remove();
       views.delete(key);
     };
@@ -165,6 +166,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
           v.el.hidden = k !== p.active;
           // the preview tab is drawn while shown only: when it is made or selected, with the sheet followed now (docs/adr/0087)
           if (t.preview && !v.el.hidden && (fresh || was)) shownPreviews.push(v.el);
+          if (t.preview && v.el.hidden && !was) ctx.view.pausePreviewTab?.(v.el.querySelector<HTMLElement>(".pbody")!);
           // the diff tab is read when it is made or selected in its pane, and not while it is not (docs/adr/0088)
           if (t.diff && !v.el.hidden && (fresh || was)) shownDiffs.push(v.el);
           // the vertical switch changes the writing mode of the editors in place

@@ -41,6 +41,8 @@ Right-click menus stay within the window, including when you open them near an e
 
 With page refresh on save enabled, ⌘S refreshes the PDF preview immediately when the saved content changes. Autosave waits for five seconds of idle time and skips rendering if the pages already match.
 
+The text and page previews keep your scroll position when the same content target refreshes, both in the tab and in a separate window. The position is measured in pixels from the reading start.
+
 The writing checks for `.gm`, `.md`, and `.txt` skip absolute HTTP and HTTPS URLs with a host, including URLs enclosed in angle brackets.
 
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
