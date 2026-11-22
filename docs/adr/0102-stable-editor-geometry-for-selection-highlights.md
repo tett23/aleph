@@ -1,6 +1,6 @@
 # ADR 0102: 一致箇所のハイライトで本文の幅と位置を変えない
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

@@ -1,6 +1,6 @@
 # ADR 0078: Finder やほかのアプリケーションからサイドバーへのドロップを受けいれる
 
-Status: accepted
+Status: superseded [{"part":"実装しないこと の、ツリーの中での行のドラッグによる移動","by":["docs/adr/0100-move-tree-files-and-folders.md"],"kind":"replace"}]
 
 ## 文脈
 

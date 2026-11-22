@@ -1,6 +1,6 @@
 # ADR 0004: ワークスペースとプロジェクト
 
-Status: accepted
+Status: superseded [{"part":"プロジェクト作成","by":["docs/adr/0101-initialize-workspace-root-as-golem-project.md"],"kind":"supplement"}]
 
 ## 文脈
 

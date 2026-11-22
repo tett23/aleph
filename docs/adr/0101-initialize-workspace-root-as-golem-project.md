@@ -1,6 +1,6 @@
 # ADR 0101: ワークスペースのルートを Golem プロジェクトに初期化する
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

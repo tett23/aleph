@@ -1,6 +1,6 @@
 # ADR 0100: ツリーのドラッグでシートとフォルダを移動する
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
