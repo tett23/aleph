@@ -21,7 +21,7 @@ test("ADR 0073 invariants 1, 3 and 5: editor key path dismisses once and then mo
           coordsAt: () => ({ left: 0, right: 0, top: 0, bottom: 0 }), isVertical: () => false,
           setMarks() {}, setBreaks() {}, syncSelection() {}, revealCaret() {}, focus() {},
           whenIdle(f) { f(); }, destroy() {}, setChars() {}, setInvisibles() {}, setVertical() {},
-          setDiagLines() {}, setLayer() {}, layersChanged() {}, toggleClass() {} };
+          setDiagLines() {}, setLayer() {}, layersChanged() {}, selectionMatchesChanged() {}, toggleClass() {} };
       };`;
       if (id === "virtual:editor-test-panels") return `export const createCompletionList = () => {
         globalThis.__editorTestPopup = true;
