@@ -2,6 +2,8 @@
 // repository, and each file's `git diff` made into the files shown, with what kind of change each is.
 // Pure: no DOM and no Tauri here, so that node --test can run it.
 
+import { readDiffText, type DiffLine, type DiffOutput } from "./text.ts";
+
 /** The kinds of change, from the two letters of `git status` (XY). */
 export type ChangeKind = "競合" | "追加" | "削除" | "名前の変更" | "変更";
 
@@ -18,7 +20,7 @@ export type DiffFile = {
   removed: number;
   /** The diff's lines (from the first @@), a binary file, a folder (a nested repository), or no difference. */
   body: "lines" | "binary" | "folder" | "empty";
-  lines: string[];
+  lines: DiffLine[];
   /** The lines past MAX_LINES. */
   moreLines: number;
   /** Whether its name opens the sheet: not for a deleted file nor a folder. */
@@ -69,43 +71,29 @@ const isFolder = (e: DiffEntry) => e.path.endsWith("/");
  */
 export const diffArgs = (e: DiffEntry, hasHead: boolean): string[] | null => {
   if (isFolder(e)) return null;
-  if (!hasHead || e.xy === "??") return ["diff", "--no-index", "--no-color", "--", "/dev/null", e.path];
-  if (e.from !== undefined && changeKind(e.xy) === "名前の変更") return ["diff", "HEAD", "--no-color", "-M", "--", `:(literal)${e.from}`, `:(literal)${e.path}`];
-  return ["diff", "HEAD", "--no-color", "--", `:(literal)${e.path}`];
+  if (!hasHead || e.xy === "??") return ["diff", "--no-index", "--", "/dev/null", e.path];
+  if (e.from !== undefined && changeKind(e.xy) === "名前の変更") return ["diff", "HEAD", "-M", "--", `:(literal)${e.from}`, `:(literal)${e.path}`];
+  return ["diff", "HEAD", "--", `:(literal)${e.path}`];
 };
 
-/** One file's diff output: the lines from the first @@ (at most MAX_LINES), and the + and - after it, all counted. */
-export const readDiff = (out: string): { body: "lines" | "binary" | "empty"; lines: string[]; moreLines: number; added: number; removed: number } => {
-  const all = out.split("\n");
-  if (all.length && all[all.length - 1] === "") all.pop();
-  const start = all.findIndex((l) => l.startsWith("@@"));
-  if (start < 0) {
-    const binary = all.some((l) => l.startsWith("Binary files"));
-    return { body: binary ? "binary" : "empty", lines: [], moreLines: 0, added: 0, removed: 0 };
-  }
-  const shown = all.slice(start);
-  let added = 0;
-  let removed = 0;
-  for (const l of shown) {
-    if (l.startsWith("+")) added++;
-    else if (l.startsWith("-")) removed++;
-  }
-  return { body: "lines", lines: shown.slice(0, MAX_LINES), moreLines: Math.max(0, shown.length - MAX_LINES), added, removed };
-};
+/** The restored display lines and the ordinary patch's full line counts. */
+export const readDiff = (ordinary: string, porcelain: string) =>
+  readDiffText({ ordinary, porcelain }, MAX_LINES);
 
 /**
  * The diff tab's list (I6, I7): the files of `git status` in its order (at most MAX_FILES), each with its
  * path from the workspace, its kind of change, its counts and the lines shown. `diffs` holds each file's
  * diff output by its path from the workspace; a file without one shows no difference.
  */
-export const diffFiles = (z: string, prefix: string, diffs: ReadonlyMap<string, string>): { files: DiffFile[]; moreFiles: number } => {
+export const diffFiles = (z: string, prefix: string, diffs: ReadonlyMap<string, DiffOutput>): { files: DiffFile[]; moreFiles: number } => {
   const entries = readStatus(z, prefix);
   const files = entries.slice(0, MAX_FILES).map((e): DiffFile => {
     const kind = changeKind(e.xy);
     const openable = kind !== "削除" && e.xy[1] !== "D" && !isFolder(e);
     const base = { path: e.path, ...(e.from !== undefined ? { from: e.from } : {}), kind, openable };
     if (isFolder(e)) return { ...base, body: "folder", lines: [], moreLines: 0, added: 0, removed: 0 };
-    return { ...base, ...readDiff(diffs.get(e.path) ?? "") };
+    const { ordinary, porcelain } = diffs.get(e.path) ?? { ordinary: "", porcelain: "" };
+    return { ...base, ...readDiff(ordinary, porcelain) };
   });
   return { files, moreFiles: Math.max(0, entries.length - MAX_FILES) };
 };

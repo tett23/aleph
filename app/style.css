@@ -255,8 +255,8 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .git textarea { height: 72px; margin: 8px -8px; }
 .git .row { display: flex; gap: 6px; flex-wrap: wrap; }
 .git pre { font: 11px/1.6 var(--mono); white-space: pre-wrap; margin: 8px 0 0; color: var(--text-2); }
-.git .d-add { color: var(--add); }
-.git .d-del { color: var(--del); }
+.d-word-del { background: color-mix(in srgb, var(--del) 23%, var(--bg)); text-decoration: line-through; }
+.d-word-add { background: color-mix(in srgb, var(--add) 23%, var(--bg)); text-decoration: underline; }
 .git .log div { font-size: 12px; padding: 2px 0; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .git .log b { font: 11px var(--mono); color: var(--faint); font-weight: 400; margin-right: 6px; }
 /* status */
@@ -634,7 +634,7 @@ body.dragging-image, body.dragging-image * { user-select: none; cursor: copy !im
 .diff-tab pre { font: 11.5px/1.6 var(--mono); white-space: pre-wrap; margin: 0; padding: 6px 10px; color: var(--text-2); }
 .diff-tab .d-add { color: var(--add); }
 .diff-tab .d-del { color: var(--del); }
-.diff-tab .d-hunk { color: var(--faint); }
+.d-hunk { color: var(--faint); }
 .diff-tab .dnote, .diff-tab .dmore { padding: 6px 10px; font-size: 12px; }
 /* the modal dialogs before applying (docs/adr/0088): the buttons take the focus */
 .dim.pre-apply button.btn { font: inherit; font-size: 12.5px; color: inherit; }

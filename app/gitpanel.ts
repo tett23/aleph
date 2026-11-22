@@ -6,6 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
+import { diffTextHtml, fetchDiff, readDiffText } from "./difftab/text.ts";
 import { esc } from "./esc.ts";
 import { autosaveMessage, gitMissingHtml, parseStatus, shouldAutoCommit, ymd, type StatusEntry } from "./git.ts";
 import { icon } from "./icons.ts";
@@ -86,12 +87,6 @@ const autoCommit = async (ctx: Ctx) => {
 let selected: string | null = null;
 let message = "";
 
-const diffHtml = (text: string) =>
-  esc(text)
-    .split("\n")
-    .map((l) => (l.startsWith("+") && !l.startsWith("+++") ? `<span class="d-add">${l}</span>` : l.startsWith("-") && !l.startsWith("---") ? `<span class="d-del">${l}</span>` : l))
-    .join("\n");
-
 const drawPanel = async (el: HTMLElement, ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
   if (!ws) return void (el.innerHTML = `<div class="sec"><div class="muted">ワークスペースがありません。</div></div>`);
@@ -106,7 +101,7 @@ const drawPanel = async (el: HTMLElement, ctx: Ctx) => {
   if (selected && !files.some((f) => f.path === selected)) selected = null;
   const [log, diff] = await Promise.all([
     git(ctx, ws, ["log", "--oneline", "-20"]).catch(() => null),
-    selected ? git(ctx, ws, ["diff", "HEAD", "--", selected]).catch(() => null) : null,
+    selected ? fetchDiff((args) => git(ctx, ws, args), ["diff", "HEAD", "--", `:(literal)${selected}`]).catch(() => undefined) : undefined,
   ]);
   el.innerHTML = `<div class="git">
     <div class="sec"><h5>${esc(basename(ws))} <small>${icon("git-branch", 12)} ${esc(branch)}</small></h5>
@@ -119,7 +114,7 @@ const drawPanel = async (el: HTMLElement, ctx: Ctx) => {
       }
       <textarea class="soft commitmsg" placeholder="コミットメッセージ（⌘↩ でコミット）">${esc(message)}</textarea>
       <div class="row"><span class="btn pri" data-a="commit">コミット</span><span class="btn" data-a="push">push</span><span class="btn" data-a="pull">pull</span><span class="btn" data-a="refresh" title="読みなおす">${icon("refresh-cw", 12)}</span></div>
-      ${selected ? `<pre>${diff && diff.stdout ? diffHtml(diff.stdout) : "（HEAD にない新しいファイルです）"}</pre>` : ""}
+      ${selected ? `<pre>${diff?.ordinary ? diffTextHtml(readDiffText(diff, Infinity, true).lines) : "（HEAD にない新しいファイルです）"}</pre>` : ""}
     </div>
     <div class="sec log"><h5>履歴</h5>${(log?.stdout ?? "")
       .split("\n")

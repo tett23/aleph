@@ -13,6 +13,7 @@ import { git, gitNow } from "../tools.ts";
 import { opensOnClick } from "../workspace.ts";
 import { applyDecision, commitMessage, hasChanges } from "./apply.ts";
 import { commitBeforeApplyDialog, irreversibleApplyDialog } from "./modal.ts";
+import { diffTextHtml, fetchDiff, type DiffOutput } from "./text.ts";
 import { MAX_FILES, diffArgs, diffFiles, readStatus, type DiffFile } from "./read.ts";
 
 /** The diffs read at the same time, at most. */
@@ -34,18 +35,13 @@ const pool = async <T, R>(items: T[], n: number, f: (x: T) => Promise<R>): Promi
   return out;
 };
 
-const lineHtml = (l: string) => {
-  const cls = l.startsWith("@@") ? "d-hunk" : l.startsWith("+") ? "d-add" : l.startsWith("-") ? "d-del" : "";
-  return cls ? `<span class="${cls}">${esc(l)}</span>` : esc(l);
-};
-
 const fileHtml = (f: DiffFile) => {
   const name = f.openable && opensOnClick(f.path) ? `<span class="dname link" data-open="${esc(f.path)}" title="開く">${esc(f.path)}</span>` : `<span class="dname">${esc(f.path)}</span>`;
   const from = f.from !== undefined ? `<small>${esc(f.from)} から</small>` : "";
   const counts = f.body === "lines" ? `<span class="dstat"><span class="d-add">+${f.added}</span> <span class="d-del">−${f.removed}</span></span>` : "";
   const body =
     f.body === "lines"
-      ? `<pre>${f.lines.map(lineHtml).join("\n")}</pre>${f.moreLines ? `<div class="muted dmore">ほか ${f.moreLines} 行</div>` : ""}`
+      ? `<pre>${diffTextHtml(f.lines)}</pre>${f.moreLines ? `<div class="muted dmore">ほか ${f.moreLines} 行</div>` : ""}`
       : `<div class="muted dnote">${f.body === "binary" ? "バイナリ" : f.body === "folder" ? "フォルダ" : "差分はありません"}</div>`;
   return `<section class="dfile"><div class="dfhead">${icon("file-text", 13)}${name}${from}<span class="dkind">${esc(f.kind)}</span>${counts}</div>${body}</section>`;
 };
@@ -89,12 +85,12 @@ const load = async (ctx: Ctx, head: HTMLElement, body: HTMLElement) => {
   const entries = readStatus(status.stdout, pre);
   const read = await pool(entries.slice(0, MAX_FILES), PARALLEL, async (e) => {
     const args = diffArgs(e, hasHead);
-    if (!args || stale()) return [e.path, ""] as const;
-    const o = await git(ctx, ws, args).catch(() => null);
-    return [e.path, o?.stdout ?? ""] as const;
+    if (!args || stale()) return [e.path, undefined] as const;
+    const diff = await fetchDiff((options) => git(ctx, ws, options), args).catch(() => undefined);
+    return [e.path, diff] as const;
   });
   if (stale()) return;
-  const { files, moreFiles } = diffFiles(status.stdout, pre, new Map(read));
+  const { files, moreFiles } = diffFiles(status.stdout, pre, new Map(read.filter((entry): entry is readonly [string, DiffOutput] => entry[1] !== undefined)));
   head.innerHTML = headHtml(ws, entries.length, !hasHead);
   if (!files.length) return line("HEAD との差分はありません");
   body.innerHTML = files.map(fileHtml).join("") + (moreFiles ? `<div class="muted dmore">ほか ${moreFiles} ファイル</div>` : "");
