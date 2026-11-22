@@ -45,6 +45,11 @@ test("ADR 0090 I2, I3: strict wraps with WebKit's strict rules, hanging lets 。
   assert.deepEqual(styleOf(null), { lineBreak: "", hangingPunctuation: "" });
 });
 
+test("ADR 0090 I2: loose is WebKit's auto, which in lang=ja lets only ー and small kana start a line", () => {
+  assert.deepEqual(styleOf({ kinsoku: "loose", hanging: false }), { lineBreak: "auto", hangingPunctuation: "none" });
+  assert.deepEqual(styleOf({ kinsoku: "loose", hanging: true }), { lineBreak: "auto", hangingPunctuation: "allow-end" });
+});
+
 test("ADR 0090 I4: applying the values touches the view's style only, not the text, selection or history", () => {
   const calls: unknown[] = [];
   const core = new Proxy({}, { get: (_, k) => () => calls.push(`core.${String(k)}`) });
