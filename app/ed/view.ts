@@ -2,6 +2,7 @@
 // are blocks of spans, drawn only near the viewport, in either writing mode.
 // Input comes in through beforeinput and composition events and goes to the
 // core; the browser moves the caret, and the selection is read back from it.
+import type { LineMark } from "../diff.ts";
 import type { Core, Tx } from "./core.ts";
 import type { Severity } from "./diag.ts";
 import { domToOffset, domWalk, lineText, nearestLine, offsetToDom, regionText } from "./dompos.ts";
@@ -13,7 +14,6 @@ import { linesOfRanges, movedLine, mustLines as mustLinesOf } from "./update.ts"
 import { createSelectionDecoration } from "./selection-decoration.ts";
 import { verticalMove } from "./vmove.ts";
 
-export type LineMark = "add" | "mod" | "del";
 export type { Severity };
 
 export type ViewOptions = {

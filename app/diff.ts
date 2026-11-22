@@ -24,10 +24,13 @@ export const changeRuns = (before: string[], after: string[]): LineChange[] => {
   if (!an || !bn || an * bn > 4_000_000) return an || bn ? [range(0, 0, bn, an)] : [];
 
   const same = (b: number, a: number) => before[start + b] === after[start + a];
-  const dp = Array.from({ length: an + 1 }, () => new Uint32Array(bn + 1));
+  const stride = bn + 1;
+  const dp = new Uint32Array((an + 1) * stride);
   for (let a = an - 1; a >= 0; a--)
-    for (let b = bn - 1; b >= 0; b--)
-      dp[a][b] = same(b, a) ? dp[a + 1][b + 1] + 1 : Math.max(dp[a + 1][b], dp[a][b + 1]);
+    for (let b = bn - 1; b >= 0; b--) {
+      const cell = a * stride + b;
+      dp[cell] = same(b, a) ? dp[cell + stride + 1] + 1 : Math.max(dp[cell + stride], dp[cell + 1]);
+    }
 
   const runs: LineChange[] = [];
   let a = 0;
@@ -42,7 +45,7 @@ export const changeRuns = (before: string[], after: string[]): LineChange[] => {
       flush();
       runA = ++a;
       runB = ++b;
-    } else if (b < bn && (a >= an || dp[a][b + 1] >= dp[a + 1][b])) {
+    } else if (b < bn && (a >= an || dp[a * stride + b + 1] >= dp[(a + 1) * stride + b])) {
       b++;
     } else {
       a++;

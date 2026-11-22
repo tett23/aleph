@@ -150,7 +150,15 @@ const run = async () => {
   editor.edit!.view.syncSelection();
   const selection = JSON.stringify(editor.edit!.core.sel());
   const row = marker().closest(".ed-line")!.getBoundingClientRect().toJSON();
+  editor.edit!.setDiagnostics([{ from: 0, to: 1, severity: "warning", message: "診断の確認" }]);
+  const diag = host.querySelector(".dg-slot:has(.dg)")!;
+  fire(diag, "mousemove");
+  tick(300);
+  check("ADR 0104 I4, A4: diagnosis and unmarked gutter positions do not trigger the diff", !popup());
+  fire(diag, "mousedown");
+  check("ADR 0104 A4: the diagnosis keeps its own hover", !!document.querySelector(".ed-hover")?.textContent?.includes("診断の確認"));
   fire(marker(), "mousemove");
+  check("ADR 0104 A4: a change mark dismisses the diagnosis hover", !document.querySelector(".ed-hover"));
   tick(299);
   check("ADR 0104 I2: absent at 299 ms", popup() === null);
   tick(1);
@@ -213,7 +221,9 @@ const run = async () => {
   enter();
   editor.setText(after + " edit");
   check("ADR 0104 I3: editing closes the hover", popup() === null);
-  await checkDiffTab(editor, opened as GutterSnapshot | undefined ?? (() => { throw new Error("Missing clicked snapshot"); })());
+  const clicked = opened as GutterSnapshot | undefined;
+  if (!clicked) throw new Error("No snapshot for the marker click");
+  await checkDiffTab(editor, clicked);
   editor.destroy();
 
   document.body.classList.add("theme-dark");
@@ -245,8 +255,9 @@ const run = async () => {
   viewportOverride = undefined;
   await bounded(2);
   for (const zoom of [2, 4, 1]) {
-    const changed = adjust(zoom, 440, 320);
-    await bounded(5, false);
+    let resized = false;
+    const changed = adjust(zoom, 440, 320).then(() => { resized = true; });
+    while (!resized) await bounded(1, false);
     await changed;
     await bounded(2, false);
     if (!popup()) enter();
