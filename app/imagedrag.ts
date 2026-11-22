@@ -106,8 +106,11 @@ export const mountImageDrag = (ctx: Ctx) => {
         suppressClick = true;
         setTimeout(() => (suppressClick = false), 0);
         e.preventDefault();
-        if (target && "refuse" in target) return ctx.toast(target.refuse);
-        if (target) void drop(ctx, image, target.path, target.line);
+        // The release itself chooses the destination. A stale editor target
+        // must not insert the image when the pointer is released in the tree.
+        const here = targetAt(ctx, e.clientX, e.clientY);
+        if (here && "refuse" in here) return ctx.toast(here.refuse);
+        if (here) void drop(ctx, image, here.path, here.line);
       };
       const key = (e: KeyboardEvent) => {
         if (e.key !== "Escape") return;

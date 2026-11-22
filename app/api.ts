@@ -4,6 +4,14 @@ import type { Outcome } from "./dropin.ts";
 import type { ModelInfo } from "./assistant/models.ts";
 
 export type Entry = { path: string; name: string; dir: boolean; children: Entry[] };
+export type TreeMoveInventory = { entries: Entry[]; projects: string[] };
+export type TreeMoveDiskPlan = {
+  workspace: string; from: string; to: string;
+  documents: { path: string; text: string }[];
+  directories: { path: string; entries: { path: string; kind: "file" | "directory" | "symlink" }[] }[];
+  writes: { path: string; before: string | null; after: string }[];
+};
+export type TreeMoveOutcome = { moved: boolean; error: string | null; remainingWrites: string[] };
 export type Out = { code: number; stdout: string; stderr: string };
 
 export type Hit = { path: string; line: number; column: number; text: string; start: number; end: number };
@@ -42,6 +50,9 @@ export const api = {
   createEntry: (path: string, dir: boolean) => invoke<void>("create_entry", { path, dir }),
   makeDir: (path: string) => invoke<void>("make_dir", { path }),
   rename: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
+  treeMoveInventory: (workspace: string) => invoke<TreeMoveInventory>("tree_move_inventory", { workspace }),
+  treeMoveRead: (workspace: string, path: string) => invoke<string | null>("tree_move_read", { workspace, path }),
+  treeMoveApply: (plan: TreeMoveDiskPlan) => invoke<TreeMoveOutcome>("tree_move_apply", { plan }),
   copyFile: (from: string, to: string, newIn?: string) => invoke<void>("copy_file", { from, to, newIn }),
   /** Copies what was dropped on the tree into `target` (docs/adr/0078); progress comes as `aleph:copy-progress` with `id`. */
   copyDropped: (id: number, target: string, paths: string[]) => invoke<Outcome[]>("copy_dropped", { id, target, paths }),

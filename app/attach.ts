@@ -23,32 +23,83 @@ const rootOf = (ctx: Ctx, path: string): string | null =>
 
 const metas = new Map<string, Meta>();
 const pendingMetaSaves = new Map<string, number>();
-const writingMeta = new Set<Promise<void>>();
-/** A root's metadata, read once (the keywords panel shares it, docs/adr/0028). */
-export const loadMeta = async (root: string) => {
-  if (!metas.has(root)) metas.set(root, parseMeta(await api.readText(`${root}/.aleph/notes.json`).catch(() => "")));
-  return metas.get(root)!;
+const writingMeta = new Map<string, Promise<void>>();
+const frozenMeta = new Set<string>();
+const readingMeta = new Map<string, Promise<Meta>>();
+
+export const forgetMeta = (root: string) => {
+  clearTimeout(pendingMetaSaves.get(root));
+  pendingMetaSaves.delete(root);
+  readingMeta.delete(root);
+  metas.delete(root);
 };
+
+/** A root's metadata, read once (the keywords panel shares it, docs/adr/0028). */
+export const loadMeta = (root: string): Promise<Meta> => {
+  const current = metas.get(root);
+  if (current) return Promise.resolve(current);
+  const pending = readingMeta.get(root);
+  if (pending) return pending;
+  const read = api.readText(`${root}/.aleph/notes.json`).catch(() => "").then((text) => {
+    if (readingMeta.get(root) !== read) return loadMeta(root);
+    readingMeta.delete(root);
+    const meta = parseMeta(text);
+    metas.set(root, meta);
+    return meta;
+  });
+  readingMeta.set(root, read);
+  return read;
+};
+
 /** Replaces a root's metadata and writes it. */
 export const putMeta = async (root: string, m: Meta) => {
+  if (frozenMeta.has(root)) throw new Error(`移動中のためノートを変更できません：${root}`);
+  readingMeta.delete(root);
   metas.set(root, m);
   await saveMeta(root);
 };
+
 const saveMeta = (root: string) => {
-  const write = (async () => {
+  const meta = metas.get(root);
+  if (!meta) return Promise.resolve();
+  const text = writeMeta(meta);
+  const previous = writingMeta.get(root)?.catch(() => {}) ?? Promise.resolve();
+  const write = previous.then(async () => {
     await api.makeDir(`${root}/.aleph`).catch(() => {});
-    await api.writeText(`${root}/.aleph/notes.json`, writeMeta(metas.get(root) ?? {}));
-  })();
-  writingMeta.add(write);
-  void write.then(() => writingMeta.delete(write), () => writingMeta.delete(write));
+    await api.writeText(`${root}/.aleph/notes.json`, text);
+  });
+  writingMeta.set(root, write);
+  const forgetWrite = () => { if (writingMeta.get(root) === write) writingMeta.delete(root); };
+  void write.then(forgetWrite, forgetWrite);
   return write;
 };
 const queueMetaSave = (root: string) => {
   clearTimeout(pendingMetaSaves.get(root));
-  pendingMetaSaves.set(root, window.setTimeout(() => {
+  const timer = window.setTimeout(() => {
+    if (pendingMetaSaves.get(root) !== timer) return;
     pendingMetaSaves.delete(root);
     void saveMeta(root);
-  }, 400));
+  }, 400);
+  pendingMetaSaves.set(root, timer);
+};
+
+const flushMeta = async (roots: string[]) => {
+  await Promise.all(writingMeta.values());
+  const pending = roots.filter((root) => pendingMetaSaves.has(root));
+  for (const root of pending) {
+    clearTimeout(pendingMetaSaves.get(root));
+    pendingMetaSaves.delete(root);
+  }
+  await Promise.all(pending.map(saveMeta));
+};
+
+export const freezeMetaForMove = async (roots: string[]) => {
+  if (roots.some((root) => frozenMeta.has(root))) throw new Error("ノートの移動を実行中です");
+  roots.forEach((root) => frozenMeta.add(root));
+  const done = () => { roots.forEach((root) => frozenMeta.delete(root)); };
+  try { await flushMeta(roots); }
+  catch (error) { done(); throw error; }
+  return done;
 };
 
 // ---- counting, with each project's paragraph separator ----
@@ -157,7 +208,13 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
         : ""
     }
     <div class="sec"><h5>ノート</h5><textarea class="note" data-note placeholder="このシートのメモ">${esc(m.note)}</textarea></div>`;
+  const current = () => {
+    if (metas.get(root) === meta && !frozenMeta.has(root)) return true;
+    ctx.refresh(["rightSidebar"]);
+    return false;
+  };
   const update = (f: (x: typeof m) => typeof m) => {
+    if (!current()) return;
     meta[key] = f(metaFor(meta, key));
     queueMetaSave(root);
   };
@@ -168,14 +225,14 @@ const drawAttach = async (el: HTMLElement, ctx: Ctx) => {
   };
   el.onkeydown = (e) => {
     const x = e.target as HTMLInputElement;
-    if (x.dataset.kwAdd === undefined || e.key !== "Enter" || e.isComposing) return;
+    if (x.dataset.kwAdd === undefined || e.key !== "Enter" || e.isComposing || !current()) return;
     e.preventDefault();
     meta[key] = { ...metaFor(meta, key), keywords: addKeyword(metaFor(meta, key).keywords ?? [], x.value) };
     void saveMeta(root).then(() => ctx.refresh(["rightSidebar", "sidebar"]));
   };
   el.onclick = (e) => {
     const k = (e.target as HTMLElement).closest<HTMLElement>("[data-kw-rm]")?.dataset.kwRm;
-    if (k === undefined) return;
+    if (k === undefined || !current()) return;
     meta[key] = { ...metaFor(meta, key), keywords: removeKeyword(metaFor(meta, key).keywords ?? [], k) };
     void saveMeta(root).then(() => ctx.refresh(["rightSidebar", "sidebar"]));
   };
@@ -211,13 +268,7 @@ const drawOutline = (el: HTMLElement, ctx: Ctx) => {
 };
 
 export const mountAttach = (ctx: Ctx) => {
-  ctx.beforeRename.push(async () => {
-    await Promise.all([...writingMeta]);
-    const roots = [...pendingMetaSaves.keys()];
-    for (const root of roots) clearTimeout(pendingMetaSaves.get(root));
-    pendingMetaSaves.clear();
-    await Promise.all(roots.map(saveMeta));
-  });
+  ctx.beforeRename.push(() => flushMeta([...pendingMetaSaves.keys()]));
   ctx.rightSidebar.attach = { icon: "paperclip", title: "添付", render: (el) => drawAttach(el, ctx) };
   ctx.rightSidebar.outline = { icon: "list", title: "アウトライン", render: (el) => drawOutline(el, ctx) };
 
@@ -253,6 +304,7 @@ export const mountAttach = (ctx: Ctx) => {
 
   // A renamed sheet or folder keeps its metadata. A project carries notes.json with it.
   ctx.onRename.push(async (from, to, c) => {
+    if (c.moveMetadataHandled) { counts.clear(); return; }
     const roots = c.projects.filter((project) => project === from || project.startsWith(`${from}/`));
     if (roots.length) {
       for (const oldRoot of roots) {

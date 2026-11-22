@@ -1,3 +1,4 @@
+import { projectOf } from "./workspace.ts";
 // The app's state as one value, changed only through the reducer (docs/adr/0003).
 // No DOM and no Tauri here, so that node --test can run it.
 
@@ -75,6 +76,8 @@ export type Action =
   | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "automatic" | "intermediate"; beforeFormat?: string }
   | { type: "projectInitialized"; root: string; grid: Grid }
   | { type: "rename"; from: string; to: string }
+  | { type: "move"; from: string; to: string; projects: string[]; grids: Record<string, Grid> }
+  | { type: "moveGrids"; grids: Record<string, Grid> }
   | { type: "select"; paths: string[]; anchor?: string | null }
   | { type: "sidebarPanel"; panel: SidebarPanelId }
   | { type: "rightSidebarPanel"; panel: RightSidebarPanelId }
@@ -370,10 +373,22 @@ const step = (s: State, a: Action): State => {
       return mapTabs(s, (d) => (d.path === a.path ? { ...d, saved: a.text } : d));
     case "projectInitialized":
       return mapTabs(s, (doc) => doc.path.startsWith(a.root + "/") ? { ...doc, project: a.root, grid: a.grid } : doc);
+    case "moveGrids":
+      return mapTabs(s, (d) => d.project && a.grids[d.project] ? { ...d, grid: a.grids[d.project] } : d);
+    case "move":
     case "rename": {
       const panes = s.panes.map((p) => ({ ...p, tabs: p.tabs.map((t) => ({
         ...t,
-        open: t.open.map((d) => ({ ...d, path: moved(d.path, a.from, a.to), project: d.project && moved(d.project, a.from, a.to) })),
+        open: t.open.map((d) => {
+          const path = moved(d.path, a.from, a.to);
+          const project = a.type === "move" && path !== d.path ? projectOf(path, a.projects) : d.project && moved(d.project, a.from, a.to);
+          return {
+            ...d, path, project,
+            grid: a.type === "move" && project !== d.project
+              ? (project && a.grids[project]) || { chars: 40, lines: 16, vertical: false }
+              : d.grid,
+          };
+        }),
         plot: t.plot && moved(t.plot, a.from, a.to),
       })) }));
       return {

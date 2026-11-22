@@ -90,7 +90,7 @@ const closeSheet = (ctx: Ctx, path: string) => {
 /** What an open sheet does now that its file changed or went. */
 export const followChange = async (ctx: Ctx, path: string) => {
   const d = docOf(ctx, path);
-  if (!d) return;
+  if (!d || ctx.moveLocked?.(path)) return;
   const name = basename(path);
   // a view of a file (PDF, images) is drawn again
   if (!TEXT_KINDS.includes(d.kind)) {
@@ -98,6 +98,7 @@ export const followChange = async (ctx: Ctx, path: string) => {
     return;
   }
   const disk = await readDisk(path);
+  if (!docOf(ctx, path) || ctx.moveLocked?.(path)) return;
   const text = textOf(ctx, d);
   const c = classifyChange({ saved: d.saved, text, disk });
   if (c === "none") {

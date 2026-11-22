@@ -19,6 +19,7 @@ mod replace;
 mod search;
 mod sha256;
 mod spell;
+mod tree_move;
 mod watchfs;
 mod window;
 mod zipout;
@@ -288,6 +289,60 @@ fn rename_path(app: AppHandle, from: String, to: String) -> R<()> {
     may(&app, &from, WR)?;
     may(&app, &to, WR)?;
     fsops::rename_path(Path::new(&from), Path::new(&to), &workspace).map_err(err)
+}
+
+fn registered_roots(app: &AppHandle) -> Vec<PathBuf> {
+    kept_config(app)
+        .get("workspaces")
+        .and_then(|p| p.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|p| p.as_str())
+        .map(PathBuf::from)
+        .collect()
+}
+
+fn tree_move_root(app: &AppHandle, workspace: &Path) -> R<()> {
+    if !registered_roots(app).contains(&workspace.to_owned()) {
+        return Err(format!(
+            "登録済みのワークスペースではありません：{}",
+            workspace.display()
+        ));
+    }
+    may(app, &workspace.to_string_lossy(), RD)
+}
+
+#[tauri::command]
+async fn tree_move_inventory(app: AppHandle, workspace: PathBuf) -> R<tree_move::Inventory> {
+    blocking(move || {
+        tree_move_root(&app, &workspace)?;
+        tree_move::inventory(&workspace)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn tree_move_read(app: AppHandle, workspace: PathBuf, path: PathBuf) -> R<Option<String>> {
+    blocking(move || {
+        tree_move_root(&app, &workspace)?;
+        may(&app, &path.to_string_lossy(), RD)?;
+        tree_move::inspect_text(&workspace, &path)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn tree_move_apply(app: AppHandle, plan: tree_move::Plan) -> R<tree_move::Outcome> {
+    blocking(move || {
+        tree_move_root(&app, &plan.workspace)?;
+        may(&app, &plan.from.to_string_lossy(), WR)?;
+        may(&app, &plan.to.to_string_lossy(), WR)?;
+        for write in &plan.writes {
+            may(&app, &write.path.to_string_lossy(), WR)?;
+        }
+        tree_move::apply(&plan, &registered_roots(&app))
+    })
+    .await
 }
 
 /// The trash's folder in the app's config directory (docs/adr/0033).
@@ -1695,6 +1750,9 @@ pub fn run_app() {
             make_dir,
             create_entry,
             rename_path,
+            tree_move_inventory,
+            tree_move_read,
+            tree_move_apply,
             copy_file,
             initialize_workspace_project,
             copy_dropped,

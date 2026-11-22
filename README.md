@@ -27,6 +27,8 @@ It edits these formats:
 - Images (PNG, JPEG, GIF, WebP), for viewing
 
 Right-click a sheet, folder, or project in the file tree to rename it. Open sheets follow the new path.
+Drag a sheet, file, folder, or project to another folder in the same workspace to move it. A drop on a file uses its parent folder, and a drop on the empty part of the tree uses the workspace root.
+When the move crosses a project boundary, Aleph confirms the change and shows any chapter registrations that will move. Every move requires a Golem LSP with workspace move plan version 1. The bundled Golem 0.1.0-rc4 does not support this feature. Use a compatible Golem executable in settings. Open sheets, notes, goals, and references follow the move.
 When Golem LSP supports file operations, Aleph updates local references before renaming; if reference updates are unavailable, you can cancel or rename without updating them.
 Right-click a project or folder to add a folder or an empty sheet of a chosen type. Right-click a Markdown sheet to convert that sheet to gm.
 

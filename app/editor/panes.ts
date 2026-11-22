@@ -161,6 +161,11 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
             v.editors = new Map(t.open.map((d, i) => [d.path, eds[i][1]]));
             eds.forEach(([old, ed]) => ctx.editors.get(old) === ed && ctx.editors.delete(old));
             v.editors.forEach((ed, path) => ctx.editors.set(path, ed));
+            for (const doc of t.open) {
+              const editor = v.editors.get(doc.path);
+              editor?.setGrid(doc.grid);
+              if (canVertical(doc.kind)) editor?.setWidth(ctx.config.charsOverride ?? doc.grid.chars);
+            }
           }
           // A workspace can become a project while its sheets stay open.
           if (!t.plot) t.open.forEach((doc, i) => {

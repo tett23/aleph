@@ -76,7 +76,8 @@ const clientFor = (ctx: Ctx, project: string): Client | null => {
     : undefined;
   const n = startClient(project, {
     onDiagnostics: (uri, list) => {
-      const path = [...synced].find(([p, sheet]) => sheet.project === project && uriOf(p) === uri)?.[0];
+      if (clients.get(project) !== n) return;
+      const path = [...synced].find(([p, doc]) => doc.project === project && uriOf(p) === uri)?.[0];
       if (!path) return;
       diagnostics.set(path, list);
       paint(path);
@@ -396,6 +397,36 @@ export const mountLsp = (ctx: Ctx) => {
     } catch (error) {
       externalWiki.close();
       throw error;
+    }
+  };
+  ctx.resetLspAfterMove = (projects) => {
+    const affected = new Set(projects);
+    const closing = new Map<string, Promise<void>[]>();
+    for (const [path, doc] of synced) {
+      if (!affected.has(doc.project)) continue;
+      const client = clients.get(doc.project);
+      if (client?.state() === "ready") {
+        const sends = closing.get(doc.project) ?? [];
+        sends.push(client.notifyAndWait("textDocument/didClose", { textDocument: { uri: uriOf(path) } }));
+        closing.set(doc.project, sends);
+      }
+      clearTimeout(doc.timer);
+      synced.delete(path);
+      diagnostics.delete(path);
+      tokens.delete(path);
+      views.get(path)?.setLayer("st", []);
+      views.get(path)?.setDiagnostics([]);
+      views.get(path)?.setFallbackColors(true);
+    }
+    for (const project of affected) {
+      const client = clients.get(project);
+      clients.delete(project);
+      if (client) void Promise.allSettled(closing.get(project) ?? []).then(() => client.stop());
+      failedAt.delete(project);
+      wikiReady.delete(project);
+      wikiSignature.delete(project);
+      clearTimeout(idle.get(project));
+      idle.delete(project);
     }
   };
   ctx.onRename.push((from, to) => {

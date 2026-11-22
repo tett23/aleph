@@ -18,7 +18,7 @@ pub struct Entry {
 /// A project's own `build/` is shown all the same (docs/adr/0077).
 const HIDDEN_DIRS: [&str; 4] = ["build", "node_modules", "target", "dist"];
 
-fn shown(name: &str, dir: bool, show_hidden: bool, project: bool) -> bool {
+pub(crate) fn shown(name: &str, dir: bool, show_hidden: bool, project: bool) -> bool {
     (show_hidden || !name.starts_with('.'))
         && !(dir && HIDDEN_DIRS.contains(&name) && !(project && name == "build"))
 }
@@ -199,7 +199,7 @@ pub fn rename_path(from: &Path, to: &Path, workspace: &Path) -> std::io::Result<
 }
 
 #[cfg(target_os = "macos")]
-fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
+pub(crate) fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
     use std::ffi::CString;
     use std::os::raw::{c_char, c_int, c_uint};
     use std::os::unix::ffi::OsStrExt;
@@ -218,9 +218,35 @@ fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
-fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
-    std::fs::rename(from, to)
+#[cfg(target_os = "linux")]
+pub(crate) fn rename_without_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    extern "C" {
+        fn renameat2(
+            from_fd: i32,
+            from: *const std::ffi::c_char,
+            to_fd: i32,
+            to: *const std::ffi::c_char,
+            flags: u32,
+        ) -> i32;
+    }
+    let from = CString::new(from.as_os_str().as_bytes())?;
+    let to = CString::new(to.as_os_str().as_bytes())?;
+    // SAFETY: both C strings live until the operation returns.
+    if unsafe { renameat2(-100, from.as_ptr(), -100, to.as_ptr(), 1) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub(crate) fn rename_without_replacing(_: &Path, _: &Path) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "置き換えをしない改名をサポートしていません",
+    ))
 }
 
 pub fn create_entry(path: &Path, dir: bool) -> std::io::Result<()> {

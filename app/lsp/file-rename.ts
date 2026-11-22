@@ -87,11 +87,12 @@ export type RenameIo = {
 };
 
 /** Apply checked edits before the filesystem rename, with an undo for a failed rename. */
-export const applyFileRenamePlans = async (plans: FileEditPlan[], io: RenameIo): Promise<() => Promise<void>> => {
+export const applyFileRenamePlans = async (plans: FileEditPlan[], io: RenameIo): Promise<(keep?: ReadonlySet<string>) => Promise<void>> => {
   const applied: FileEditPlan[] = [];
-  const rollback = async () => {
+  const rollback = async (keep?: ReadonlySet<string>) => {
     const errors: Error[] = [];
     for (const plan of [...applied].reverse()) {
+      if (keep?.has(plan.path)) continue;
       try {
         if (await io.read(plan.path) !== plan.after) throw new Error(`The edited document changed: ${plan.path}`);
         await io.write(plan.path, plan.before, plan);
