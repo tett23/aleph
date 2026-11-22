@@ -45,6 +45,9 @@ Right-click a Golem document to add it to or remove it from the project chapters
 
 Right-click menus stay within the window, including when you open them near an edge. If the items do not all fit, scroll within the menu to reach the rest.
 
+The ribbon at the left edge shows every item you can use in the normal text color, whether or not it is selected. The selected item also gets a gray background and a bar at the ribbon's edge. An item you cannot use is faint, is not highlighted under the pointer, and does nothing when you click it or press a key on it.
+The plot (“プロット”) can be used only when the project of the sheet you are working on, or of the open plot, has a `plot.csv` that Aleph can read. A `plot.csv` with only its header row counts. Point at a faint plot item to see why it is unavailable, such as a missing `plot.csv` or one that cannot be read. Aleph checks again when you switch projects or create, delete, or rename files, and once more just before opening the plot. The command palette and keyboard shortcuts follow the same rule.
+
 With page refresh on save enabled, ⌘S refreshes the PDF preview immediately when the saved content changes. Autosave waits for five seconds of idle time and skips rendering if the pages already match.
 
 The text and page previews keep your scroll position when the same content target refreshes, both in the tab and in a separate window. The position is measured in pixels from the reading start.
