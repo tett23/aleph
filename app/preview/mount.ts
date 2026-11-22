@@ -4,6 +4,7 @@
 import { emit, listen } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { api } from "../api.ts";
+import { drawingRevision } from "../appearance.ts";
 import type { Ctx } from "../ctx.ts";
 import type { Editor } from "../ed/editor.ts";
 import { stubEditor } from "../editor/stub.ts";
@@ -335,7 +336,9 @@ const drawTab = (head: HTMLElement, body: HTMLElement, ctx: Ctx) => {
     return;
   }
   target.mode = "figure";
-  updateTab(tab, target, d.text, async () => {
+  // a Mermaid figure takes the theme's colours, so a change of theme draws it again in place (docs/adr/0099)
+  const content = d.kind === "svg" ? d.text : drawingRevision(d.text, document.body.classList.contains("theme-dark"));
+  updateTab(tab, target, content, async () => {
     const staging = document.createElement("div");
     if (d.kind === "svg") renderSvg(staging, d.text);
     else await renderMermaid(staging, d.text);
