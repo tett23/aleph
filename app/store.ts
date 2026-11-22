@@ -1,3 +1,4 @@
+import type { SheetSnapshot } from "./difftab/snapshot.ts";
 import { projectOf } from "./workspace.ts";
 // The app's state as one value, changed only through the reducer (docs/adr/0003).
 // No DOM and no Tauri here, so that node --test can run it.
@@ -24,7 +25,7 @@ export type PreviewMode = "plain" | "pages";
  * the preview tab, which holds no sheet and shows the followed tab's (docs/adr/0087), or the diff tab,
  * which holds no sheet and shows the workspace's diff against HEAD (docs/adr/0088).
  */
-export type Tab = { id: number; open: Doc[]; focus: number; plot: string | null; preview: boolean; diff: boolean };
+export type Tab = { id: number; open: Doc[]; focus: number; plot: string | null; preview: boolean; diff: boolean; snapshot?: SheetSnapshot };
 /** A pane of the editor area: its tabs and the selected one. */
 export type Pane = { tabs: Tab[]; active: number };
 
@@ -70,7 +71,7 @@ export type Action =
   | { type: "moveTab"; from: { pane: number; index: number }; to: { pane: number; index: number } }
   | { type: "split" }
   | { type: "focusDoc"; path: string }
-  | { type: "restoreTabs"; panes: { tabs: (Omit<Tab, "id" | "preview" | "diff"> & { preview?: boolean; diff?: boolean })[]; active: number }[]; pane: number }
+  | { type: "restoreTabs"; panes: { tabs: (Omit<Tab, "id" | "preview" | "diff" | "snapshot"> & { preview?: boolean; diff?: boolean })[]; active: number }[]; pane: number }
   | { type: "focus"; index: number }
   | { type: "edit"; path: string; text: string }
   | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "automatic" | "intermediate"; beforeFormat?: string }
@@ -90,7 +91,8 @@ export type Action =
   /** preview.plain and preview.pages (with their mode) and the toolbar's button (without): shows the preview tab (docs/adr/0087). */
   | { type: "showPreview"; mode?: PreviewMode }
   /** view.diff and the ribbon's button: shows the diff tab (docs/adr/0088). */
-  | { type: "showDiff" }
+  | { type: "showDiff"; snapshot?: SheetSnapshot }
+  | { type: "replaceDiffSnapshot"; previous: SheetSnapshot; snapshot: SheetSnapshot }
   /** After the assistant's edit is applied and saved: the diff tab where it does not hide the sheet (docs/adr/0088). */
   | { type: "showDiffAfterApply" }
   /** A modal dialog shown or closed (docs/adr/0088). */
@@ -440,16 +442,29 @@ const step = (s: State, a: Action): State => {
       return withPanes(n, setPane(n.panes, other, { tabs: [...p.tabs, t], active: p.tabs.length }));
     }
     case "showDiff": {
-      // with no workspace there is nothing to compare (docs/adr/0088)
-      if (!diffAvailable(s)) return s;
       const at = findDiff(s);
-      // the diff tab's pane is selected, and the diff tab in it
-      if (at) return select(s, at.pi, at.ti);
-      return addTab(s, DIFF);
+      if (!a.snapshot && !diffAvailable(s) && !at) return s;
+      if (!at) return addTab(s, { ...DIFF, snapshot: a.snapshot });
+      const p = s.panes[at.pi];
+      const tabs = p.tabs.map((t, i) => i === at.ti ? { ...t, snapshot: a.snapshot } : t);
+      return select(withPanes(s, setPane(s.panes, at.pi, { ...p, tabs })), at.pi, at.ti);
+    }
+    case "replaceDiffSnapshot": {
+      const at = findDiff(s);
+      if (!at) return s;
+      const p = s.panes[at.pi];
+      if (p.tabs[at.ti].snapshot !== a.previous) return s;
+      const tabs = p.tabs.map((t, i) => i === at.ti ? { ...t, snapshot: a.snapshot } : t);
+      return withPanes(s, setPane(s.panes, at.pi, { ...p, tabs }));
     }
     case "showDiffAfterApply": {
       if (!diffAvailable(s)) return s;
       const at = findDiff(s);
+      if (at) {
+        const p = s.panes[at.pi];
+        const tabs = p.tabs.map((t, i) => i === at.ti ? { ...t, snapshot: undefined } : t);
+        s = withPanes(s, setPane(s.panes, at.pi, { ...p, tabs }));
+      }
       const other = 1 - s.pane;
       // in the pane not selected: selected there; the selected pane stays
       if (at && at.pi !== s.pane) return withPanes(s, setPane(s.panes, at.pi, { ...s.panes[at.pi], active: at.ti }));

@@ -73,6 +73,8 @@ A separate press of Escape after conversion ends performs the usual action.
 
 The diff tab and Git panel mark changed characters inline, including in Japanese text. Removed text has a strikethrough, and added text is underlined.
 
+Hover over a change marker next to the editor's line numbers to see the before and after text. Click the marker or its “詳細” (details) button to open that sheet's diff, including unsaved edits at the moment of the click. The diff tab's “ワークスペース全体の差分” button returns to the saved workspace changes.
+
 Aleph bundles Git support through libgit2. Its Git panel initializes repositories, shows changes and history, and commits, pushes, and pulls without requiring a Git executable. The Git section of the app settings edits your global author name and email. Use a project's gear button or the Git panel to edit the identity of a particular repository.
 
 For push and pull, configure a tracking branch on an SSH or HTTPS remote. SSH uses your agent and verifies the server against your known hosts. HTTPS verifies the server certificate and asks for a username and password or token when the server requires them.

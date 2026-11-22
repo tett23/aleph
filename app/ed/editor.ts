@@ -1,7 +1,10 @@
 // The editor of a sheet (docs/adr/0019), in horizontal or vertical writing:
 // the core and the view, with the change marks, line numbers, page breaks,
 // key bindings, search, diagnostics, and what plugins (the LSP) add.
-import { lineMarks } from "../diff.ts";
+import { compareLines, markAtLine } from "../diff.ts";
+import type { GutterSnapshot } from "../difftab/snapshot.ts";
+import { attachDiffHover, isChangeMarker } from "./diff-hover.ts";
+import { createDiffSource } from "./diff-source.ts";
 import { diffText } from "./ime.ts";
 import { caretAfter } from "../watch.ts";
 import { estimatePageBreaks } from "../gm.ts";
@@ -64,8 +67,9 @@ export type Editor = {
   setWidth: (chars: number) => void;
   setInvisibles: (on: boolean) => void;
   setGrid: (g: Grid) => void;
-  /** Draws the change marks again; with `reset`, reads HEAD again (after a commit). */
-  refreshMarks: (reset?: boolean) => void;
+  /** Refreshes the gutter comparison; forget it immediately when the sheet path changes. */
+  refreshMarks: (reset?: boolean, forget?: boolean) => void;
+  closeDiffHover?: () => void;
   setVertical: (on: boolean) => void;
   destroy: () => void;
 };
@@ -82,9 +86,9 @@ export type EditorOptions = {
   style: "prose" | "code";
   /** The element that scrolls, when several sheets share one pane. */
   scroller?: HTMLElement;
-  /** HEAD's text, for the change marks; null when the file is not in HEAD. */
   /** The text to mark changes against: null when not in HEAD, false when there is nothing to compare with. */
   base: () => Promise<string | null | false>;
+  onOpenDiff?: (snapshot: GutterSnapshot) => void;
   onChange: (text: string) => void;
   onSave: () => void;
   onFocus?: () => void;
@@ -110,7 +114,8 @@ export const createEditor = (o: EditorOptions): Editor => {
   const core = createCore(o.text);
   const plugins = o.plugins ?? [];
   let grid = o.grid;
-  let baseText: string | null | false | undefined;
+  const diffSource = createDiffSource(o.base);
+  let comparison: { base: string | null; text: string; result: ReturnType<typeof compareLines> } | undefined;
   let marksTimer = 0;
   let search: { ui: SearchUi; matches: Match[] } | null = null;
   let completion: { list: ReturnType<typeof createCompletionList>; from: number } | null = null;
@@ -138,6 +143,9 @@ export const createEditor = (o: EditorOptions): Editor => {
 
   const onUpdate = (tx: Tx | null) => {
     if (tx) {
+      diffHover?.close();
+      comparison = undefined;
+      view.setMarks(new Map());
       o.onChange(core.text());
       clearTimeout(marksTimer);
       marksTimer = window.setTimeout(() => editor.refreshMarks(), 400);
@@ -283,6 +291,7 @@ export const createEditor = (o: EditorOptions): Editor => {
     hoverMark = null;
   };
   const onMouseMove = (e: MouseEvent) => {
+    if (diffHover && isChangeMarker(e.target)) return hideHover();
     if (hoverMark !== null && hoverMark === markLine(markAt(e.target))) return;
     if (e.buttons) return hideHover();
     if (hoverEl && hoverEl.contains(e.target as Node)) return;
@@ -348,6 +357,13 @@ export const createEditor = (o: EditorOptions): Editor => {
   view.content.addEventListener("mouseleave", (e) => {
     if (!hoverEl?.contains(e.relatedTarget as Node)) hideHover();
   });
+
+  const diffHover = o.onOpenDiff && attachDiffHover(view.content, (line) => {
+    if (!comparison) return null;
+    const { base, text, result } = comparison;
+    const selected = markAtLine(result, line);
+    return selected.length ? { base, text, runs: result.runs, selected, line } : null;
+  }, o.onOpenDiff, hideHover);
 
   // ---- search ----
 
@@ -497,15 +513,31 @@ export const createEditor = (o: EditorOptions): Editor => {
       grid = g;
       editor.refreshMarks();
     },
-    refreshMarks: async (reset = false) => {
-      if (reset || baseText === undefined) baseText = await o.base();
+    refreshMarks: async (reset = false, forget = false) => {
+      if (forget) {
+        diffHover?.close();
+        comparison = undefined;
+        view.setMarks(new Map());
+      }
+      const base = await diffSource.get(reset)();
+      if (base === undefined) return;
       const t = core.text();
-      view.setMarks(lineMarks(baseText, t));
+      if (base === false) {
+        if (comparison) diffHover?.close();
+        comparison = undefined;
+      } else if (!comparison || comparison.base !== base || comparison.text !== t) {
+        diffHover?.close();
+        comparison = { base, text: t, result: compareLines(base, t) };
+      }
+      view.setMarks(comparison?.result.marks ?? new Map());
       if (o.kind === "gm") view.setBreaks(estimatePageBreaks(t, grid, o.separator?.() ?? "blank-line"));
     },
+    closeDiffHover: diffHover ? diffHover.close : undefined,
     setVertical: (on) => view.setVertical(on),
     destroy: () => {
       clearTimeout(marksTimer);
+      diffHover?.destroy();
+      diffSource.invalidate();
       closeCompletion();
       hideHover();
       search?.ui.close();
