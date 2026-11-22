@@ -33,7 +33,7 @@ export const diffText = (a: string, b: string): { from: number; to: number; inse
   return { from: head, to: a.length - tail, insert: b.slice(head, b.length - tail) };
 };
 
-export const createIme = () => {
+export const createIme = (onCommit?: (result: Commit) => void) => {
   let on: { baseFrom: number; base: string; sel: { from: number; to: number } } | null = null;
   let justEnded = false;
   let waiting: (() => void)[] = [];
@@ -46,6 +46,8 @@ export const createIme = () => {
     const result: Commit = { commit: d && { from: s.baseFrom + d.from, to: s.baseFrom + d.to, insert: d.insert }, caret: s.sel.from + Math.max(0, inserted) };
     const run = waiting;
     waiting = [];
+    // The composition belongs to the document before any deferred edits.
+    onCommit?.(result);
     run.forEach((f) => f());
     return result;
   };

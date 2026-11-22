@@ -61,6 +61,17 @@ test("ranges are given to each line in the line's own offsets, cut at line ends"
   assert.deepEqual(per.get(3), [{ from: 5, to: 5, cls: "p" }]);
 });
 
+test("ADR 0091 I1: selected-text matches retain line breaks on visible or virtualized lines", () => {
+  const middle = "ignored\n".repeat(200);
+  const d = textOf("a\n" + middle + "\nb");
+  const from = 2 + middle.length;
+  const matches = linesOfRanges(d, [{ from, to: from + 2, cls: "ed-selmatch" }], true);
+  assert.deepEqual([...matches], [
+    [202, [{ from: 0, to: 1, cls: "ed-selmatch" }]],
+    [203, [{ from: 0, to: 1, cls: "ed-selmatch" }]],
+  ]);
+});
+
 test("the lines always drawn: both ends of the selection and the lines being composed (0-based)", () => {
   const d = textOf("a\nb\nc\nd\ne");
   assert.deepEqual(mustLines(d, { anchor: 0, head: 8 }, null), [0, 4]);
