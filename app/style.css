@@ -821,3 +821,40 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 /* Tree drop destinations (ADR 0100). */
 :is(.file-tree, .file-tree .r).tree-move-target { outline: 1px solid var(--mod); outline-offset: -1px; cursor: move; }
 :is(.file-tree, .file-tree .r).tree-move-refuse { outline: 1px dashed var(--del); outline-offset: -1px; cursor: not-allowed; }
+
+/* The gutter diff sits above either writing mode, without affecting line layout. */
+.chg-slot:has(.chg) { cursor: pointer; }
+.ed-diff-hover {
+  position: fixed;
+  z-index: 50;
+  inset: 0 auto auto 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--diff-frame-inset);
+  padding: var(--diff-frame-inset);
+  border: min(1px, var(--diff-frame-inset)) solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: var(--bg-2);
+  color: var(--text);
+  font: 13px/1.4 var(--ui);
+  writing-mode: horizontal-tb;
+}
+.ed-diff-hover section { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.ed-diff-hover h2 { margin: 0; font: inherit; font-weight: 600; overflow-wrap: anywhere; }
+.ed-diff-scroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  background: var(--bg);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.ed-diff-scroll pre { margin: 0; padding-inline: min(6px, var(--diff-frame-inset)); font: 12px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ed-diff-line { display: block; min-height: 1lh; }
+.ed-diff-scroll pre + pre { margin-top: .75em; border-top: 1px solid var(--border); }
+.ed-diff-details { justify-self: end; padding: 0; border: 0; background: transparent; text-decoration: underline; cursor: pointer; overflow-wrap: anywhere; }
+.ed-diff-hover.whole-scroll { display: block; overflow: auto; }
+.whole-scroll .ed-diff-scroll { overflow: visible; }
+.whole-scroll .ed-diff-details { display: block; margin-inline-start: auto; }

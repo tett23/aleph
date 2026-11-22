@@ -110,7 +110,7 @@ export const readDiffText = (output: DiffOutput, limit: number, includeHeader = 
 
 const textHtml = (text: string) => esc(text).replaceAll("\r", "&#13;");
 const noNewline = { before: "変更前", after: "変更後", both: "変更前と変更後" };
-const lineHtml = (line: DiffLine): string => {
+export const diffLineHtml = (line: DiffLine): string => {
   if (line.kind === "hunk") return `<span class="d-hunk">${textHtml(line.text)}</span>`;
   if (line.kind === "no-newline") return `<span class="d-hunk">${noNewline[line.side]}に末尾改行なし</span>`;
   if (line.kind !== "text") return textHtml(line.text);
@@ -122,4 +122,4 @@ const lineHtml = (line: DiffLine): string => {
   }).join("");
 };
 
-export const diffTextHtml = (lines: DiffLine[]) => lines.map(lineHtml).join("\n") + "\n";
+export const diffTextHtml = (lines: DiffLine[]) => lines.map(diffLineHtml).join("\n") + "\n";

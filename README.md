@@ -67,6 +67,8 @@ A separate press of Escape after conversion ends performs the usual action.
 
 The diff tab and Git panel mark changed characters inline, including in Japanese text. Removed text has a strikethrough, and added text is underlined.
 
+Hover over a change marker next to the editor's line numbers to see the before and after text. Click the marker or its “詳細” (details) button to open that sheet's diff, including unsaved edits at the moment of the click. The diff tab's “ワークスペース全体の差分” button returns to the saved workspace changes.
+
 ## Status
 
 The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, the conversion from Markdown, and plugins.

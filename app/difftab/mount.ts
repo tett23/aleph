@@ -1,3 +1,4 @@
+import { activeSnapshot, drawSnapshot } from "./snapshot-view.ts";
 // The diff tab (docs/adr/0088): the workspace's changes against the last commit (HEAD), read while
 // the tab is shown in its pane, and the command view.diff that shows it. Also what runs before the
 // assistant's edit is applied: the decision, the modal dialogs and the commit. That function is
@@ -98,12 +99,21 @@ const load = async (ctx: Ctx, head: HTMLElement, body: HTMLElement) => {
 
 /** The diff tab shown in its pane, read again; nothing when it is not shown. */
 const reloadShown = (ctx: Ctx) => {
+  if (activeSnapshot(ctx.store.get())) return;
   const el = document.querySelector<HTMLElement>(".tabview.diff-tab:not([hidden])");
   if (el) ctx.view.diffTab?.(el.querySelector<HTMLElement>(".dhead")!, el.querySelector<HTMLElement>(".dbody")!, ctx);
 };
 
 export const mountDiffTab = (ctx: Ctx) => {
-  ctx.view.diffTab = (head, body) => void load(ctx, head, body);
+  ctx.view.diffTab = (head, body) => {
+    const snapshot = activeSnapshot(ctx.store.get());
+    if (snapshot) {
+      generation++;
+      drawSnapshot(ctx, head, body, snapshot);
+    } else {
+      void load(ctx, head, body);
+    }
+  };
 
   addCommands(ctx.commands, { id: "view.diff", label: "差分", icon: "git-compare", when: diffAvailable, run: (c) => c.store.dispatch({ type: "showDiff" }) });
 

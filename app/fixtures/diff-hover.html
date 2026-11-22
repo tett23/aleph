@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Gutter diff hover tests</title>
+<link rel="stylesheet" href="../style.css">
+<style>
+  #host { position: absolute; width: 220px; height: 150px; }
+  #host .ed, #host .ed-scroll { height: 100%; width: 100%; }
+  #host .ed-content { min-width: 0; }
+</style>
+<div id="host"></div>
+<script>
+  window.addEventListener("error", ({ message }) => {
+    window.webkit?.messageHandlers.report.postMessage(JSON.stringify({ ok: false, error: message }));
+  });
+  window.addEventListener("unhandledrejection", ({ reason }) => {
+    window.webkit?.messageHandlers.report.postMessage(JSON.stringify({ ok: false, error: String(reason) }));
+  });
+</script>
+<script type="module" src="./diff-hover.ts"></script>
