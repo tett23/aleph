@@ -1,6 +1,6 @@
 # ADR 0060: git が使えないことを知らせ、git を使う機能を止める
 
-Status: accepted
+Status: superseded [{"part":null,"by":["docs/adr/0105-use-libgit2-without-git-executable.md"],"kind":"replace"}]
 
 ## 文脈
 

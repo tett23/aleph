@@ -1,6 +1,6 @@
 # ADR 0064: 通知を一つの仕組みにまとめる
 
-Status: accepted
+Status: superseded [{"part":"通知の履歴の未確認件数","by":["docs/adr/0106-acknowledge-dismissed-sticky-notifications.md"],"kind":"supplement"}]
 
 ## 文脈
 

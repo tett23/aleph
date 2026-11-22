@@ -1,6 +1,6 @@
 # ADR 0046: 自動で走らせる git に、リポジトリの設定の命令を使わせない
 
-Status: accepted
+Status: superseded [{"part":"外部 Git への引数指定とリモート認証コマンドの利用","by":["docs/adr/0105-use-libgit2-without-git-executable.md"],"kind":"replace"}]
 
 ## 文脈
 
