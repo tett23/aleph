@@ -33,7 +33,11 @@ To reorder projects in the same folder, right-click a project and choose “一�
 The file tree shows chapters in their actual folders. The settings can show hidden files or hide files matched by `.gitignore`.
 Right-click a Golem document to add it to or remove it from the project chapters. Selected Golem documents can be exported as one file in tree order.
 
+Right-click menus stay within the window, including when you open them near an edge. If the items do not all fit, scroll within the menu to reach the rest.
+
 With page refresh on save enabled, ⌘S refreshes the PDF preview immediately when the saved content changes. Autosave waits for five seconds of idle time and skips rendering if the pages already match.
+
+The writing checks for `.gm`, `.md`, and `.txt` skip absolute HTTP and HTTPS URLs with a host, including URLs enclosed in angle brackets.
 
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
 The file tree shows each project’s `build/` folder with every file in it, so outputs such as PDFs can be handed to other applications: drag rows out of the window, choose “コピー” (copy) from the right-click menu and paste in Finder, or choose “zip で書き出す…” (export as zip) on a folder or a project. The zip writes its file names in UTF-8, normalized to NFC and flagged as UTF-8, and leaves out `.DS_Store` and `.git`.
