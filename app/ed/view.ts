@@ -10,6 +10,7 @@ import { createInput } from "./control.ts";
 import type { Highlighter } from "./lang.ts";
 import { invisibleRanges, lineSpans, specialRanges, type Range } from "./spans.ts";
 import { linesOfRanges, movedLine, mustLines as mustLinesOf } from "./update.ts";
+import { createSelectionDecoration } from "./selection-decoration.ts";
 import { verticalMove } from "./vmove.ts";
 
 export type LineMark = "add" | "mod" | "del";
@@ -38,7 +39,7 @@ export type ViewOptions = {
 const MARGIN = 1200;
 const BREAK_SIZE = 24;
 /** The layers drawn into the lines, in order: later ones nest inside earlier ones' spans. */
-const LAYERS = ["st", "link", "search", "selmatch", "diag"];
+const LAYERS = ["st", "link", "search", "diag"];
 
 const walk = domWalk;
 /** A block the browser put inside a line while composing (a line break typed into the composition). */
@@ -68,6 +69,7 @@ export const createView = (o: ViewOptions) => {
   content.setAttribute("aria-multiline", "true");
   scrollEl.append(content);
   root.append(scrollEl);
+  const selectionDecoration = createSelectionDecoration(root);
   o.parent.append(root);
   const scroller = () => o.scroller ?? scrollEl;
 
@@ -113,9 +115,13 @@ export const createView = (o: ViewOptions) => {
 
   // ---- drawing ----
 
+  const drawSelectionMatches = () => {
+    if (!destroyed && !ime.composing()) selectionDecoration.draw(core.doc(), core.layer("selmatch"), units.values(), scroller(), vertical);
+  };
+
   const layersOf = (): Map<string, Map<number, Range[]>> => {
     if (layerCache) return layerCache;
-    layerCache = new Map(LAYERS.map((k) => [k, linesOfRanges(core.doc(), core.layer(k), k === "selmatch")]));
+    layerCache = new Map(LAYERS.map((k) => [k, linesOfRanges(core.doc(), core.layer(k))]));
     return layerCache;
   };
 
@@ -127,7 +133,7 @@ export const createView = (o: ViewOptions) => {
     return g;
   };
 
-  const buildLine = (n: number, text: string, spans: ReturnType<typeof lineSpans>, matchedEol: boolean) => {
+  const buildLine = (n: number, text: string, spans: ReturnType<typeof lineSpans>) => {
     const line = el("div", "ed-line");
     line.dataset.line = String(n);
     line.append(gutterOf(n));
@@ -146,7 +152,6 @@ export const createView = (o: ViewOptions) => {
     // the end-of-line mark is drawn by CSS, not as an element: an element at the end of the line would
     // give the DOM a caret position after it, which WebKit draws at the far edge of the line
     if (invisibles && n < core.doc().lines) line.dataset.eol = "";
-    if (matchedEol) line.dataset.selmatchEol = "";
     if (!text) line.classList.add("empty");
     return line;
   };
@@ -158,13 +163,12 @@ export const createView = (o: ViewOptions) => {
     const layers: Range[][] = [highlighter.tokens(doc, n).map((t) => ({ ...t })), ...LAYERS.map((k) => ls.get(k)!.get(n) ?? []), specialRanges(text)];
     if (invisibles) layers.push(invisibleRanges(text));
     const spans = lineSpans(text, layers);
-    const matchedEol = ls.get("selmatch")?.get(n)?.some((r) => r.to > text.length) ?? false;
     const page = breaks.get(n - 1);
-    const key = `${text}\u0000${spans.map((s) => `${s.from}-${s.to}:${s.cls.join(".")}`).join(",")}\u0000${marks.get(n - 1) ?? ""}${diagLines.get(n) ?? ""}${page ?? ""}${invisibles ? "i" : ""}${n === doc.lines ? "l" : ""}${matchedEol ? "m" : ""}`;
+    const key = `${text}\u0000${spans.map((s) => `${s.from}-${s.to}:${s.cls.join(".")}`).join(",")}\u0000${marks.get(n - 1) ?? ""}${diagLines.get(n) ?? ""}${page ?? ""}${invisibles ? "i" : ""}${n === doc.lines ? "l" : ""}`;
     const have = units.get(n);
     if (have && have.key === key) return have;
     const brk = page ? Object.assign(el("div", "page-break", false), { textContent: `改ページ（見積もり）　${page - 1} → ${page}` }) : null;
-    const u = { line: n, el: buildLine(n, text, spans, matchedEol), brk, key };
+    const u = { line: n, el: buildLine(n, text, spans), brk, key };
     units.set(n, u);
     return u;
   };
@@ -250,6 +254,7 @@ export const createView = (o: ViewOptions) => {
       if (Math.abs(delta) > 0.5 && vp.start > 0) scrollBy(delta);
     }
     if (hasFocus()) writeSelection();
+    drawSelectionMatches();
   };
 
   const scrollBy = (delta: number) => {
@@ -546,19 +551,24 @@ export const createView = (o: ViewOptions) => {
   scrollTarget.addEventListener("scroll", onScroll, { passive: true });
   // a new inline size changes every line's wrapping; a new viewport only what is drawn
   let viewSize = 0;
-  const resize = new ResizeObserver(() => {
-    const before = perLine.inline;
+  const onResize = () => {
+    const before = perLine;
     readMetrics();
     const vs = viewport().size;
-    if (Math.abs(perLine.inline - before) > 1) {
+    if (Math.abs(perLine.inline - before.inline) > 1 || perLine.chars !== before.chars || perLine.size !== before.size) {
       rebuildHeights();
       units.clear();
-    } else if (Math.abs(vs - viewSize) < 1) return;
+    } else if (Math.abs(vs - viewSize) < 1) {
+      drawSelectionMatches();
+      return;
+    }
     viewSize = vs;
     draw();
-  });
+  };
+  const resize = new ResizeObserver(onResize);
   resize.observe(content);
   resize.observe(scroller());
+  document.fonts.addEventListener("loadingdone", onResize);
 
   // ---- positions and coordinates ----
 
@@ -623,6 +633,7 @@ export const createView = (o: ViewOptions) => {
       layerCache = null;
       draw();
     },
+    selectionMatchesChanged: drawSelectionMatches,
     layersChanged: () => {
       layerCache = null;
       draw();
@@ -647,6 +658,7 @@ export const createView = (o: ViewOptions) => {
     setChars: (n: number) => {
       o.chars = n;
       setClasses();
+      onResize();
     },
     setInvisibles: (on: boolean) => {
       invisibles = on;
@@ -693,6 +705,7 @@ export const createView = (o: ViewOptions) => {
       for (const [t, k, f, opt] of listeners) t.removeEventListener(k, f, opt);
       scrollTarget.removeEventListener("scroll", onScroll);
       resize.disconnect();
+      document.fonts.removeEventListener("loadingdone", onResize);
       cancelAnimationFrame(frame);
       root.remove();
     },

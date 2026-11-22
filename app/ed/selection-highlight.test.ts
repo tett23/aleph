@@ -38,7 +38,7 @@ const withEditor = async (check: (editor: Editor, view: ViewOptions) => void) =>
           });
           return {
             content: { addEventListener() {} }, setMarks() {}, setBreaks() {},
-            setDiagLines() {}, layersChanged() {}, syncSelection() {}, revealCaret() {},
+            setDiagLines() {}, layersChanged() {}, selectionMatchesChanged() {}, syncSelection() {}, revealCaret() {},
             whenIdle: input.ime.whenIdle, destroy: stop,
           };
         };`;

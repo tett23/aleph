@@ -161,7 +161,7 @@ export const createEditor = (o: EditorOptions): Editor => {
     const ranges = selectionMatches(doc.toString(), range).map((m) => ({ ...m, cls: "ed-selmatch" }));
     if (!ranges.length && !core.layer("selmatch").length) return;
     core.setLayer("selmatch", ranges);
-    view.layersChanged();
+    view.selectionMatchesChanged();
   };
 
   // ---- keys ----
