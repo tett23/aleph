@@ -28,22 +28,51 @@ export type Note = {
 export type Clock = { now: () => number; set: (fn: () => void, ms: number) => number; clear: (id: number) => void };
 export type Handle = { id: number; dismiss: () => void; update: (message: string) => void };
 
+type NotificationIdentity = { origin: string };
+type Added = NotificationIdentity & {
+  type: "added";
+  id: number;
+  message: string;
+  level: Level;
+  sticky: boolean;
+  key?: string;
+  at?: number;
+};
+export type NotificationEvent = Added | (NotificationIdentity & { type: "acknowledged"; ids: readonly number[] });
+type Forwarding = NotificationIdentity & { send: (event: NotificationEvent) => void };
+
 export const TIMEOUT = 5000;
 export const MAX_SHOWN = 4;
 export const HISTORY_MAX = 500;
 
-export const createNotifications = (clock: Clock) => {
+export const createNotifications = (clock: Clock, forwarding?: Forwarding) => {
   let seq = 0;
   /** Every notification, newest first; the live ones are on the screen. */
   let notes: Note[] = [];
   const timers = new Map<number, { handle: number; started: number; left: number }>();
   const hovered = new Set<number>();
   const listeners: (() => void)[] = [];
-  let unseen = 0;
-  let unseenError = false;
+  // Occurrences outlive their history rows until they are seen.
+  const unseen = new Map<number, Level>();
+  let unseenErrors = 0;
+  // Replacing a local row transfers its occurrences, including those the receiving window may not have seen.
+  const occurrences = new WeakMap<Note, number[]>();
+  const remoteRows = new WeakMap<Note, Pick<Added, "origin" | "id">>();
+  // A number maps a delivered source ID to its local occurrence. Null is an acknowledgment received first.
+  const received = new Map<string, Map<number, number | null>>();
   let expanded = false;
 
   const changed = () => listeners.forEach((f) => f());
+
+  const count = (id: number, level: Level) => {
+    unseen.set(id, level);
+    if (level === "error") unseenErrors++;
+  };
+
+  const acknowledge = (id: number) => {
+    if (unseen.get(id) === "error") unseenErrors--;
+    return unseen.delete(id);
+  };
 
   const startTimer = (n: Note, ms: number) => {
     const handle = clock.set(() => close(n.id), ms);
@@ -55,10 +84,17 @@ export const createNotifications = (clock: Clock) => {
     timers.delete(id);
   };
 
-  const close = (id: number) => {
+  const close = (id: number, byUser = false) => {
     const n = notes.find((x) => x.id === id);
     if (!n || !n.live) return;
     n.live = false;
+    n.actions = [];
+    if (byUser && n.sticky && !n.progress) {
+      const ids = occurrences.get(n) ?? [id];
+      for (const occurrence of ids) acknowledge(occurrence);
+      occurrences.delete(n);
+      forwarding?.send({ type: "acknowledged", origin: forwarding.origin, ids });
+    }
     stopTimer(id);
     hovered.delete(id);
     if (!notes.some((x) => x.live)) expanded = false;
@@ -70,11 +106,15 @@ export const createNotifications = (clock: Clock) => {
 
   const clamp = (p: ProgressOpts): ProgressOpts => ({ value: Math.min(1, Math.max(0, p.value)), text: p.text });
 
-  const add = (o: NotifyOpts, show: boolean): Note => {
+  const findGroup = (key: string, origin?: string) =>
+    notes.find((n) => n.key === key && remoteRows.get(n)?.origin === origin);
+
+  const add = (o: NotifyOpts, show: boolean, remote?: Added, alreadyAcknowledged = false): Note => {
     const key = o.key ?? null;
     let repeats = 1;
+    let grouped: number[] | undefined;
     if (key) {
-      const before = notes.find((x) => x.key === key);
+      const before = findGroup(key, remote?.origin);
       // a new value of a bar: the same toast, shown again only if it still is (docs/adr/0078)
       if (before?.progress && o.progress) {
         before.message = o.message;
@@ -84,13 +124,20 @@ export const createNotifications = (clock: Clock) => {
       }
       if (before) {
         repeats = before.progress ? 1 : before.repeats + 1;
+        if (!o.progress) grouped = occurrences.get(before);
+        occurrences.delete(before);
         stopTimer(before.id);
         hovered.delete(before.id);
         notes = notes.filter((x) => x !== before);
       }
     }
-    const n: Note = { id: ++seq, message: o.message, level: o.level ?? "info", sticky: !!o.sticky, actions: o.actions ?? [], key, at: clock.now(), repeats, live: show, progress: o.progress ? clamp(o.progress) : null };
+    const n: Note = {
+      id: ++seq, message: o.message, level: o.level ?? "info", sticky: !!o.sticky,
+      actions: o.actions ?? [], key, at: remote?.at ?? clock.now(), repeats, live: show,
+      progress: o.progress ? clamp(o.progress) : null,
+    };
     notes.unshift(n);
+    if (remote) remoteRows.set(n, { origin: remote.origin, id: remote.id });
     if (notes.length > HISTORY_MAX) {
       // the oldest that are not on the screen go
       const keep = new Set(notes.filter((x) => x.live).map((x) => x.id));
@@ -101,8 +148,16 @@ export const createNotifications = (clock: Clock) => {
       }
     }
     if (!n.progress) {
-      unseen++;
-      if (n.level === "error") unseenError = true;
+      if (!alreadyAcknowledged) count(n.id, n.level);
+      if (show && key) {
+        const ids = grouped ?? [];
+        ids.push(n.id);
+        occurrences.set(n, ids);
+      }
+      if (show) forwarding?.send({
+        type: "added", origin: forwarding.origin, id: n.id, message: n.message,
+        level: n.level, sticky: n.sticky, key: o.key, at: n.at,
+      });
     }
     if (show) {
       if (!n.sticky) startTimer(n, TIMEOUT);
@@ -116,8 +171,39 @@ export const createNotifications = (clock: Clock) => {
         }
       }
     }
-    changed();
+    if (!remote) changed();
     return n;
+  };
+
+  const receive = (event: NotificationEvent) => {
+    let ids = received.get(event.origin);
+    if (!ids) {
+      ids = new Map();
+      received.set(event.origin, ids);
+    }
+    if (event.type === "added") {
+      const before = ids.get(event.id);
+      if (typeof before === "number") return;
+      const group = event.key ? findGroup(event.key, event.origin) : undefined;
+      if (group && remoteRows.get(group)!.id > event.id) {
+        // Count the delayed occurrence without replacing the latest history row.
+        const id = ++seq;
+        group.repeats++;
+        if (before !== null) count(id, event.level);
+        ids.set(event.id, id);
+      } else {
+        ids.set(event.id, add(event, false, event, before === null).id);
+      }
+      changed();
+      return;
+    }
+    let updated = false;
+    for (const id of event.ids) {
+      const local = ids.get(id);
+      if (local === undefined) ids.set(id, null);
+      if (typeof local === "number" && acknowledge(local)) updated = true;
+    }
+    if (updated) changed();
   };
 
   const handle = (n: Note): Handle => ({
@@ -133,7 +219,9 @@ export const createNotifications = (clock: Clock) => {
     notify: (o: NotifyOpts): Handle => handle(add(o, true)),
     /** Into the history only (a notification another window showed). */
     record: (o: NotifyOpts): void => void add({ ...o, sticky: true, actions: [] }, false),
-    dismiss: close,
+    receive,
+    dismiss: (id: number) => close(id),
+    dismissByUser: (id: number) => close(id, true),
     dismissKey: (key: string) => {
       const n = notes.find((x) => x.key === key && x.live);
       if (n) close(n.id);
@@ -151,7 +239,7 @@ export const createNotifications = (clock: Clock) => {
       const n = notes.find((x) => x.id === id);
       const a = n?.live ? n.actions[index] : undefined;
       if (!n || !a) return;
-      if (!a.keep) close(id);
+      if (!a.keep) close(id, true);
       a.run();
     },
     /** The ones to draw, oldest first: at most MAX_SHOWN unless expanded, and how many more there are. */
@@ -170,11 +258,12 @@ export const createNotifications = (clock: Clock) => {
       notes = notes.filter((x) => x.live);
       changed();
     },
-    unseen: () => ({ count: unseen, error: unseenError }),
+    unseen: () => ({ count: unseen.size, error: unseenErrors > 0 }),
     seen: () => {
-      if (!unseen && !unseenError) return;
-      unseen = 0;
-      unseenError = false;
+      if (!unseen.size) return;
+      unseen.clear();
+      unseenErrors = 0;
+      if (!forwarding) for (const n of notes) occurrences.delete(n);
       changed();
     },
     subscribe: (f: () => void) => void listeners.push(f),
