@@ -49,6 +49,10 @@ Select text in the editor to highlight up to 10,000 other exact, case-sensitive 
 
 In the text editor, press Escape or Control-E to dismiss suggestions. With suggestions closed, Control-E moves to the end of the logical line. Each shortcut’s context can be changed in the key binding settings.
 
+When the Japanese input method uses Escape to cancel conversion, that press cancels only the conversion.
+For example, you can continue typing the name of a new sheet in the same dialog.
+A separate press of Escape after conversion ends performs the usual action.
+
 ## Status
 
 The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, the conversion from Markdown, and plugins.
