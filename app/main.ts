@@ -118,7 +118,7 @@ const start = async () => {
     editorPlugins: [],
     kindViews: {},
     save: (paths, opts) => saveSheets(ctx, paths, opts, async (doc, text) => {
-      if (!(await mayWrite(ctx, doc, !!opts?.explicit))) return false;
+      if (ctx.moveLocked?.(doc.path) || !(await mayWrite(ctx, doc, !!opts?.explicit)) || ctx.moveLocked?.(doc.path)) return false;
       await api.writeText(doc.path, text);
       finishWrite(doc.path);
       return true;

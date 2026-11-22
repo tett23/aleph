@@ -161,7 +161,20 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
             v.editors = new Map(t.open.map((d, i) => [d.path, eds[i][1]]));
             eds.forEach(([old, ed]) => ctx.editors.get(old) === ed && ctx.editors.delete(old));
             v.editors.forEach((ed, path) => ctx.editors.set(path, ed));
+            for (const doc of t.open) {
+              const editor = v.editors.get(doc.path);
+              editor?.setGrid(doc.grid);
+              if (canVertical(doc.kind)) editor?.setWidth(ctx.config.charsOverride ?? doc.grid.chars);
+            }
           }
+          if (!t.plot) t.open.forEach((doc, i) => {
+            const previous = v.docs[i];
+            if (previous.doc.grid === doc.grid && previous.doc.project === doc.project) return;
+            previous.update(doc);
+            const editor = v.editors.get(doc.path);
+            editor?.setGrid(doc.grid);
+            if (canVertical(doc.kind)) editor?.setWidth(ctx.config.charsOverride ?? doc.grid.chars);
+          });
           const was = v.el.hidden;
           v.el.hidden = k !== p.active;
           // the preview tab is drawn while shown only: when it is made or selected, with the sheet followed now (docs/adr/0087)

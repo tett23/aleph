@@ -76,7 +76,8 @@ const clientFor = (ctx: Ctx, project: string): Client | null => {
     : undefined;
   const n = startClient(project, {
     onDiagnostics: (uri, list) => {
-      const path = [...synced.keys()].find((p) => uriOf(p) === uri);
+      if (clients.get(project) !== n) return;
+      const path = [...synced].find(([p, doc]) => doc.project === project && uriOf(p) === uri)?.[0];
       if (!path) return;
       diagnostics.set(path, list);
       paint(path);
@@ -110,7 +111,7 @@ const requestTokens = async (c: Client, path: string) => {
   if (!legend || !s) return;
   const version = s.version;
   const r = await c.request<{ data: number[] } | null>("textDocument/semanticTokens/full", { textDocument: { uri: uriOf(path) } }).catch(() => null);
-  if (!r || synced.get(path)?.version !== version) return;
+  if (!r || synced.get(path) !== s || s.version !== version || clients.get(s.project) !== c) return;
   tokens.set(path, { version, ranges: tokenRanges(s.text, decodeSemanticTokens(r.data, legend), path.endsWith(".emet") ? "emet" : "gm") });
   paint(path);
 };
@@ -142,7 +143,7 @@ const flushLatest = (ctx: Ctx, path: string) => {
 const sync = (ctx: Ctx, s: State, prev: State | null) => {
   const now = new Map(allDocs(s).filter((d) => lspDoc(d) || renameDoc(d)).map((d) => [d.path, d]));
   for (const [path, st] of synced) {
-    if (now.has(path)) continue;
+    if (now.get(path)?.project === st.project) continue;
     clearTimeout(st.timer);
     synced.delete(path);
     diagnostics.delete(path);
@@ -259,7 +260,7 @@ const positionAt = (t: TextEditor, pos: number) => {
 type Item = { label: string; detail?: string; insertText?: string };
 
 const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
-  if (!lspDoc(doc)) return null;
+  if (!LSP_KINDS.includes(doc.kind)) return null;
   let editor: TextEditor | null = null;
   const current = () => allDocs(ctx.store.get()).find((d) => d.path === doc.path) ?? doc;
   return {
@@ -272,9 +273,9 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
       };
     },
     keys: [
-      { id: "file.save", key: "Mod-s", run: () => (void formatAndSave(ctx, current()), true) },
+      { id: "file.save", key: "Mod-s", run: () => !!current().project && (void formatAndSave(ctx, current()), true) },
       // ⌥⇧F matches by the key's place too: on macOS the option key turns F into "Ï"
-      { id: "editor.format", key: "Shift-Alt-f", run: () => (void formatNow(ctx, current()), true) },
+      { id: "editor.format", key: "Shift-Alt-f", run: () => !!current().project && (void formatNow(ctx, current()), true) },
     ],
     hover: async (pos) => {
       const path = doc.path;
@@ -383,6 +384,36 @@ export const mountLsp = (ctx: Ctx) => {
     } catch (error) {
       externalWiki.close();
       throw error;
+    }
+  };
+  ctx.resetLspAfterMove = (projects) => {
+    const affected = new Set(projects);
+    const closing = new Map<string, Promise<void>[]>();
+    for (const [path, doc] of synced) {
+      if (!affected.has(doc.project)) continue;
+      const client = clients.get(doc.project);
+      if (client?.state() === "ready") {
+        const sends = closing.get(doc.project) ?? [];
+        sends.push(client.notifyAndWait("textDocument/didClose", { textDocument: { uri: uriOf(path) } }));
+        closing.set(doc.project, sends);
+      }
+      clearTimeout(doc.timer);
+      synced.delete(path);
+      diagnostics.delete(path);
+      tokens.delete(path);
+      views.get(path)?.setLayer("st", []);
+      views.get(path)?.setDiagnostics([]);
+      views.get(path)?.setFallbackColors(true);
+    }
+    for (const project of affected) {
+      const client = clients.get(project);
+      clients.delete(project);
+      if (client) void Promise.allSettled(closing.get(project) ?? []).then(() => client.stop());
+      failedAt.delete(project);
+      wikiReady.delete(project);
+      wikiSignature.delete(project);
+      clearTimeout(idle.get(project));
+      idle.delete(project);
     }
   };
   ctx.onRename.push((from, to) => {

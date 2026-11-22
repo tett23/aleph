@@ -18,6 +18,7 @@ export type Client = {
   state: () => ClientState;
   legend: () => Legend | null;
   supportsFileRename: () => boolean;
+  supportsFileMove: () => boolean;
   request: <T>(method: string, params: unknown) => Promise<T>;
   notify: (method: string, params: unknown) => void;
   notifyAndWait: (method: string, params: unknown) => Promise<void>;
@@ -34,12 +35,13 @@ const TOKEN_MODIFIERS = ["declaration", "definition", "readonly", "static", "dep
 
 let serial = 0;
 
-export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string; workspaceUri?: string; wikiSheets?: { uri: string; title: string | null }[] }): Client => {
+export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string; workspaceUri?: string; wikiSheets?: { uri: string; title: string | null }[] }, fileMoveWorkspace?: string): Client => {
   const id = `p${++serial}`;
   let seq = 0;
   let state: ClientState = "starting";
   let legend: Legend | null = null;
   let supportsFileRename = false;
+  let supportsFileMove = false;
   const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>();
   const unlisten: (() => void)[] = [];
   let sent = Promise.resolve();
@@ -73,6 +75,7 @@ export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string
     state: () => state,
     legend: () => legend,
     supportsFileRename: () => supportsFileRename,
+    supportsFileMove: () => supportsFileMove,
     request,
     notify,
     notifyAndWait,
@@ -102,11 +105,14 @@ export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string
       }),
     );
     await api.lspStart(id, root);
-    const init = await request<{ capabilities: { semanticTokensProvider?: { legend: Legend }; workspace?: { fileOperations?: { willRename?: unknown; didRename?: unknown } } } }>("initialize", {
+    const init = await request<{ capabilities: { experimental?: { golem?: { planFileMove?: number } }; semanticTokensProvider?: { legend: Legend }; workspace?: { fileOperations?: { willRename?: unknown; didRename?: unknown } } } }>("initialize", {
       processId: null,
       rootUri: uriOf(root),
       workspaceFolders: [{ uri: uriOf(root), name: root.split("/").pop() }],
-      initializationOptions: aleph ? { aleph } : undefined,
+      initializationOptions: aleph || fileMoveWorkspace ? {
+        ...(aleph ? { aleph } : {}),
+        ...(fileMoveWorkspace ? { golem: { fileMove: { version: 1, workspaceUri: uriOf(fileMoveWorkspace) } } } : {}),
+      } : undefined,
       capabilities: {
         general: { positionEncodings: ["utf-16"] },
         workspace: { fileOperations: { willRename: true, didRename: true }, workspaceEdit: { documentChanges: true } },
@@ -122,6 +128,7 @@ export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string
     });
     legend = init.capabilities.semanticTokensProvider?.legend ?? null;
     supportsFileRename = !!init.capabilities.workspace?.fileOperations?.willRename && !!init.capabilities.workspace?.fileOperations?.didRename;
+    supportsFileMove = init.capabilities.experimental?.golem?.planFileMove === 1;
     state = "ready";
     void send({ method: "initialized", params: {} }).catch(() => {});
     return true;

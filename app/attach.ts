@@ -22,6 +22,7 @@ const rootOf = (ctx: Ctx, path: string): string | null =>
   allDocs(ctx.store.get()).find((doc) => doc.path === path)?.project ?? projectOf(path, ctx.projects) ?? workspaceOf(path, ctx.store.get().workspaces);
 
 const metas = new Map<string, Meta>();
+export const forgetMeta = (root: string) => { metas.delete(root); };
 const pendingMetaSaves = new Map<string, number>();
 const writingMeta = new Set<Promise<void>>();
 /** A root's metadata, read once (the keywords panel shares it, docs/adr/0028). */
@@ -253,6 +254,7 @@ export const mountAttach = (ctx: Ctx) => {
 
   // A renamed sheet or folder keeps its metadata. A project carries notes.json with it.
   ctx.onRename.push(async (from, to, c) => {
+    if (c.moveMetadataHandled) { counts.clear(); return; }
     const roots = c.projects.filter((project) => project === from || project.startsWith(`${from}/`));
     if (roots.length) {
       for (const oldRoot of roots) {

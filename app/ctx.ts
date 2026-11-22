@@ -87,6 +87,9 @@ export type Ctx = {
   prepareRename?: (from: string, to: string, ctx: Ctx) => Promise<{ rollback: () => Promise<void>; renamed: () => void | Promise<void> } | null>;
   /** Whether the just-completed rename's references were handled by Golem LSP. */
   renameReferencesHandled?: boolean;
+  moveMetadataHandled?: boolean;
+  resetLspAfterMove?: (projects: string[]) => void;
+  moveLocked?: (path: string) => boolean;
   /** Run after a file is renamed in Aleph. */
   onRename: ((from: string, to: string, ctx: Ctx) => void | Promise<void>)[];
   /** The editors of the open sheets, by path. */

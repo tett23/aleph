@@ -804,3 +804,7 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .assistant .as-form .grow { flex: 1; }
 .assistant .as-form textarea { resize: vertical; font: inherit; }
 .assistant .as-target { font-size: 11.5px; }
+
+/* Tree drop destinations (ADR 0100). */
+.tree-move-target { outline: 1px solid var(--mod); outline-offset: -1px; cursor: move; }
+.tree-move-refuse { outline: 1px dashed var(--del); outline-offset: -1px; cursor: not-allowed; }
