@@ -1,6 +1,6 @@
 # ADR 0019: 縦書きと横書きを一つのエディタで書く
 
-Status: superseded [{"by":["docs/adr/0059-arrow-keys-in-vertical-writing.md"],"part":"縦書きの矢印キーの向き"}]
+Status: superseded [{"by":["docs/adr/0059-arrow-keys-in-vertical-writing.md"],"part":"縦書きの矢印キーの向き"},{"part":"描画の禁則とぶら下げ組","by":["docs/adr/0090-editor-composition-settings.md"],"kind":"supplement"},{"part":"選択した文字列の一致箇所のハイライト","by":["docs/adr/0091-selection-occurrence-highlights.md"],"kind":"supplement"}]
 
 ## 文脈
 

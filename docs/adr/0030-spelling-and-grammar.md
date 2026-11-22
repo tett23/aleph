@@ -1,6 +1,6 @@
 # ADR 0030: 表記と綴りの検査
 
-Status: accepted
+Status: superseded [{"part":"検査する範囲の URL 除外","by":["docs/adr/0094-exclude-urls-from-proofreading.md"],"kind":"supplement"}]
 
 ## 文脈
 

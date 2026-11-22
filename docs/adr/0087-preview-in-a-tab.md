@@ -1,6 +1,6 @@
 # ADR 0087: プレビューを、エディタの右の領域からタブに移す
 
-Status: superseded [{"part":"不変条件 I7","by":["docs/adr/0088-diff-tab-and-commit-before-applying.md"]}]
+Status: superseded [{"part":"不変条件 I7","by":["docs/adr/0088-diff-tab-and-commit-before-applying.md"]},{"part":"プレビュー更新後のスクロール位置","by":["docs/adr/0097-restore-preview-scroll-on-refresh.md"],"kind":"supplement"}]
 
 ## 文脈
 

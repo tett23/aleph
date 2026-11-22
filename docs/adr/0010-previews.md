@@ -1,6 +1,6 @@
 # ADR 0010: プレビュー
 
-Status: superseded [{"part":"ツールバーの「原稿のみ」「本文」「ページ」とエディタの右に出すプレビュー","by":["docs/adr/0087-preview-in-a-tab.md"]}]
+Status: superseded [{"part":"ツールバーの「原稿のみ」「本文」「ページ」とエディタの右に出すプレビュー","by":["docs/adr/0087-preview-in-a-tab.md"]},{"part":"プレビュー更新後のスクロール位置","by":["docs/adr/0097-restore-preview-scroll-on-refresh.md"],"kind":"supplement"}]
 
 ## 文脈
 
