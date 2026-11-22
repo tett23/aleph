@@ -58,6 +58,37 @@ const mdOut = (line: string): Segment[] => {
   return out;
 };
 
+const URL_DELIMITER = /[\s\p{Cc}\p{Pi}\p{Pf}<>"'\x60＜＞＂＇（）［］｛｝〈〉《》「」『』【】〔〕〖〗〘〙〚〛｟｠。、]/u;
+const URL_TRAILING_PUNCTUATION = /[.,!?;:]/;
+
+/** Complete HTTP(S) URLs in the original line, before subtracting the format's other exclusions (docs/adr/0094). */
+const urlOut = (line: string): Segment[] => {
+  const schemes = /https?:\/\//gi;
+  const out: Segment[] = [];
+  for (let scheme = schemes.exec(line); scheme; scheme = schemes.exec(line)) {
+    const authority = schemes.lastIndex;
+    let end = authority;
+    const closers: string[] = [];
+    for (; end < line.length; end++) {
+      const c = line[end];
+      if (URL_DELIMITER.test(c)) break;
+      if (c === "(" || c === "[") closers.push(c === "(" ? ")" : "]");
+      if ((c === ")" || c === "]") && closers.pop() !== c) break;
+    }
+    schemes.lastIndex = end;
+    while (end > authority && URL_TRAILING_PUNCTUATION.test(line[end - 1])) end--;
+    // A special-scheme URL parser can infer a host from a path preceded by extra slashes.
+    if (end === authority || /[/\\?#]/.test(line[authority])) continue;
+    try {
+      const url = new URL(line.slice(scheme.index, end));
+      if (url.hostname) out.push({ from: scheme.index, to: end });
+    } catch {
+      // A malformed candidate stays in the prose.
+    }
+  }
+  return out;
+};
+
 /** The ranges of a sheet that are checked, in the document's UTF-16 positions. */
 export const segments = (kind: string, text: string): Segment[] => {
   const out: Segment[] = [];
@@ -76,7 +107,7 @@ export const segments = (kind: string, text: string): Segment[] => {
         skip = [{ from: 0, to: line.length }];
       } else skip = fence ? [{ from: 0, to: line.length }] : mdOut(line);
     }
-    for (const g of gaps(line.length, skip)) if (g.to > g.from) out.push({ from: offset + g.from, to: offset + g.to });
+    for (const g of gaps(line.length, skip.concat(urlOut(line)))) if (g.to > g.from) out.push({ from: offset + g.from, to: offset + g.to });
     offset += line.length + 1;
   }
   return out;
