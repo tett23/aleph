@@ -19,7 +19,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0002](adr/0002-purpose-scope-and-name.md) | 目的、範囲、名前、扱う形式（gm、md、txt、emet、toml、csv、tsv、svg、Mermaid、pdf、画像）、シートと章の定義（実装済み） |
 | [ADR 0003](adr/0003-application-architecture.md) | Tauri 2、TypeScript と Rust の受け持ち、状態の持ち方、依存の方針、テストと CI（実装済み） |
 | [ADR 0004](adr/0004-workspaces-and-projects.md) | ワークスペース（登録したディレクトリ）とプロジェクト（`manifest.toml` のあるディレクトリ）、ツリー、アプリの設定、ウィンドウの位置と大きさの記録（実装済み） |
-| [ADR 0005](adr/0005-layout-and-appearance.md) | 画面の構成（リボン、サイドバー、エディタの領域、右サイドバー、ステータスバー）と見た目（実装済み。右の区画の名前は [ADR 0082](adr/0082-ui-names-and-glossary.md) で「右サイドバー」に変えた。プレビューは [ADR 0087](adr/0087-preview-in-a-tab.md) でタブに移した） |
+| [ADR 0005](adr/0005-layout-and-appearance.md) | 画面の構成（リボン、サイドバー、エディタの領域、右サイドバー、ステータスバー）と見た目（実装済み。右の区画の名前は [ADR 0082](adr/0082-ui-names-and-glossary.md) で「右サイドバー」に変えた。プレビューは [ADR 0087](adr/0087-preview-in-a-tab.md) でタブに移した。外観の三択の指定は [ADR 0099](adr/0099-explicit-light-and-dark-appearance.md) で認めた） |
 | [ADR 0006](adr/0006-horizontal-editor.md) | 横書きのエディタ：版面の字詰め、変更と診断の印、改ページの印、不可視文字、複数の章（実装済み。CodeMirror で作る部分と、複数の章を横書きとする部分は [ADR 0019](adr/0019-one-editor-for-both-writing-modes.md) で置き換えた） |
 | [ADR 0007](adr/0007-vertical-editor.md) | 縦書きのエディタ：テキストエリアと行番号の影の層（[ADR 0019](adr/0019-one-editor-for-both-writing-modes.md) で置き換えた） |
 | [ADR 0008](adr/0008-golem-and-shem-binaries.md) | golem と shem を探す順と同梱（実装済み） |
@@ -147,7 +147,15 @@ Rust の側は、画面（webview）からの呼び出しを信じきらない�
 - **進み具合の通知** は、文に加えて、進み具合の棒（0 から 1 の値）と件数の文を持つ（[ADR 0078](adr/0078-accept-drops-on-the-tree.md)）。同じ鍵で出しなおすと、トーストを増やさずに、その場で値を変える。閉じた後に値が変わっても、もう一度は出さない。通知のタブの履歴にも、未確認の数にも入れず、置き換えた結果の通知だけを残す。
 - ページのプレビューとプロットの別のウィンドウも、同じ通知を出す。それらの通知は、メインのウィンドウの履歴にも入る。別ウィンドウで利用者が消えない通知を閉じると、メインのウィンドウでも確認済みになる（[ADR 0106](adr/0106-acknowledge-dismissed-sticky-notifications.md)）。
 
-外観はライト、ダーク、OS に合わせる（既定）のどれかを設定で選ぶ。
+外観は、設定の「一般」の「外観」で「OS に合わせる」「ライト」「ダーク」のどれかを選ぶ（[ADR 0099](adr/0099-explicit-light-and-dark-appearance.md)）。
+
+- `config.json` の `theme` に `auto`、`light`、`dark` のどれかを保存する。既定は `auto` とし、欠けた値と不明な値は `auto` として読む。設定の画面は、保存してある値の選択肢を、選ばれた状態で出す。
+- `light` と `dark` は、OS の外観が変わっても保つ。`auto` のときだけ、OS の外観の変更を開いている全ウィンドウに反映する。
+- 選んだ値の保存に成功したら、メイン、本文のプレビュー、ページのプレビュー、プロットの各ウィンドウに知らせ、すべてを同じ外観にする。新しく開くウィンドウと再起動の後も、保存した値を使う。
+- 保存に失敗したら、エラーの通知を出し、全ウィンドウと設定の値を直前の保存値に保つ。
+- 外観の色を使う図（Mermaid の図）は、外観が変わると描き直す。プレビューのスクロールの位置は保つ。
+- 外観を変えても、変わるのはアプリの色だけで、原稿の文字列、組版の色の指定、PDF などの書き出しの色は変えない。ウィンドウごとの外観、カスタムのテーマ、時刻による切り替えは持たない。
+
 アクセントの色は彩度を落とした黄土色とし、選択の背景は無彩色とする。
 サイドバーと右サイドバーの表示の状態（どのパネルか、畳んだか）、縦と横、プレビュー、開いたフォルダ、ワークスペースと、ページとガントの拡大率は、アプリの設定の `config.json` の `ui` に置き、次に起動したときに戻す（[ADR 0004](adr/0004-workspaces-and-projects.md)）。画面の状態の鍵は、`sidebarPanel`、`showSidebar`、`rightSidebarPanel`、`showRightSidebar`、`vertical`、`previewMode`、`expanded`、`workspace` である。書くのはメインのウィンドウで、変わってから 0.5 秒後に、変わったときだけ書く。プレビューとプロットのウィンドウは、自分の拡大率の変更をメインのウィンドウに送る。
 
