@@ -87,3 +87,79 @@ test("a vertical sheet keeps the other checks", () => {
     ["punctuation", "halfwidthKana"],
   );
 });
+
+const urlKinds = ["gm", "md", "txt"];
+
+test("ADR 0094 I1: exclude naked URLs with mixed-case schemes, queries, fragments and Japanese paths", () => {
+  for (const kind of urlKinds) {
+    for (const src of [
+      "",
+      "https://mistkae.example/wrold",
+      "HtTpS://mistkae.example/見れる/ＡＢ/ｶﾅ?frist=wrnog#part",
+      "HTTP://mistkae.example",
+    ]) {
+      assert.deepEqual(segments(kind, src), [], `${kind}: ${src}`);
+      assert.deepEqual(checkText(kind, src, all), [], `${kind}: ${src}`);
+      assert.deepEqual(englishWords(segments(kind, src), src), [], `${kind}: ${src}`);
+    }
+  }
+});
+
+test("ADR 0094 I1, I2: delimit URLs and retain surrounding brackets, quotes and punctuation", () => {
+  for (const kind of urlKinds) {
+    for (const [src, expected] of [
+      ["<https://example.com>", ["<", ">"]],
+      ["(https://example.com/a)", ["(", ")"]],
+      ["「https://example.com/a」", ["「", "」"]],
+      ["“https://example.com/a”", ["“", "”"]],
+      ["https://example.com/a(b)[c].,! ?;:", [".,! ?;:"]],
+      ["https://[2001:db8::1]/(a[b]c)!?;:", ["!?;:"]],
+      ["https://example.com/a)wrold", [")wrold"]],
+      ["https://example.com/a]wrold", ["]wrold"]],
+      ["https://example.com/a\u0001wrold", ["\u0001wrold"]],
+      ["https://example.com/a\nwrold", ["wrold"]],
+    ] as const) {
+      assert.deepEqual(texts(kind, src), expected, `${kind}: ${src}`);
+    }
+  }
+});
+
+test("ADR 0094 I2: URL exclusion preserves original UTF-16 positions and checks malformed or ordinary text", () => {
+  for (const kind of urlKinds) {
+    const src = "𠮷https://example.com。見れる、HTTPS:// ふつうの英語 wrold";
+    const at = src.indexOf("見れる");
+    assert.deepEqual(checkText(kind, src, only("raNuki")).map(({ from, to }) => [from, to]), [[at, at + 3]]);
+    assert.deepEqual(
+      englishWords(segments(kind, src), src).map(({ from, to, word }) => [from, to, word]),
+      [[src.indexOf("HTTPS"), src.indexOf("HTTPS") + 5, "HTTPS"], [src.indexOf("wrold"), src.length, "wrold"]],
+    );
+    for (const invalid of ["https://", "https://:bad", "https:///mistkae", "www.mistkae.com", "ftp://mistkae.com"]) {
+      assert.deepEqual(texts(kind, invalid), [invalid]);
+    }
+  }
+});
+
+test("ADR 0094 I1, I2: the spelling checker receives only prose and Markdown link labels", () => {
+  const asked: string[][] = [];
+  const spellCheck = (words: string[]) => (asked.push(words), new Set(words));
+  for (const kind of urlKinds) {
+    const src = kind === "md"
+      ? "[wrold](https://mistkae.example/wrold) `skipword` https://qurey.example/path?q=frist"
+      : "wrold https://qurey.example/path?q=frist";
+    const words = englishWords(segments(kind, src), src);
+    const wrong = spellCheck(toAsk(words.map((w) => w.word), new Map()));
+    assert.deepEqual(spellDiags(words, wrong, []).map((d) => src.slice(d.from, d.to)), ["wrold"]);
+  }
+  assert.deepEqual(asked, [["wrold"], ["wrold"], ["wrold"]]);
+  assert.deepEqual(texts("md", "`https://example.com/a`wrold"), ["wrold"]);
+});
+
+test("ADR 0094 I3: the two ends of a rule do not meet across an excluded URL", () => {
+  for (const kind of urlKinds) {
+    const src = "見https://example.comれない";
+    assert.deepEqual(texts(kind, src), ["見"]);
+    assert.deepEqual(texts(kind, "、https://example.com、"), ["、", "、"]);
+    assert.deepEqual(found(kind, "、https://example.com、", "punctuation"), []);
+    assert.deepEqual(found(kind, "見https://example.com。れる", "raNuki"), []);
+  }
+});
