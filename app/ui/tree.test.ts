@@ -4,13 +4,15 @@ import { createServer } from "vite";
 import type { Ctx } from "../ctx.ts";
 import { normalize } from "../config.ts";
 
-test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tree handlers act on the clicked row", async () => {
+test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tree handlers act on the clicked row", async (t) => {
   const listeners = new Map<string, (event: unknown) => void>();
   let answer = "";
   let menuElement: FakeElement | null = null;
 
   type FakeElement = {
     dataset: Record<string, string>;
+    isConnected: boolean;
+    style: Record<string, string>;
     children: FakeElement[];
     handlers: Map<string, (event: unknown) => void>;
     content: { firstElementChild: FakeElement };
@@ -22,7 +24,7 @@ test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tr
     addEventListener: (name: string, handler: (event: unknown) => void) => void;
     append: (child: FakeElement) => void;
     querySelector: (selector: string) => FakeElement | null;
-    getBoundingClientRect: () => { bottom: number; left: number };
+    getBoundingClientRect: () => { bottom: number; left: number; top: number; width: number; height: number };
     focus: () => void;
     select: () => void;
     remove: () => void;
@@ -30,7 +32,7 @@ test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tr
   };
   const element = (): FakeElement => {
     const el = {
-      dataset: {}, children: [], handlers: new Map(), content: null, value: "", innerHTML: "",
+      dataset: {}, isConnected: true, style: {}, children: [], handlers: new Map(), content: null, value: "", innerHTML: "",
       addEventListener(name: string, handler: (event: unknown) => void) { el.handlers.set(name, handler); },
       append(child: FakeElement) {
         el.children.push(child);
@@ -40,22 +42,26 @@ test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tr
         }
       },
       querySelector(selector: string) { return selector === "input" ? Object.assign(element(), { value: answer }) : null; },
-      getBoundingClientRect() { return { bottom: 0, left: 0 }; },
+      getBoundingClientRect() { return { top: 0, bottom: 25, left: 0, width: 100, height: 25 }; },
       focus() {}, select() {}, remove() {}, contains() { return false; },
     } as unknown as FakeElement;
     el.content = { firstElementChild: el };
     return el;
   };
 
+  const redrawnRow = element();
   const fakeDocument = {
     body: element(),
     createElement: () => element(),
     addEventListener: (name: string, handler: (event: unknown) => void) => listeners.set(name, handler),
     removeEventListener: () => {},
-    querySelectorAll: () => [],
+    querySelector: (selector: string) => selector.includes("manifest.toml") ? redrawnRow : null,
   };
   const previousDocument = globalThis.document;
-  Object.assign(globalThis, { document: fakeDocument, innerWidth: 1000 });
+  const previousWindow = globalThis.window;
+  const previousCSS = globalThis.CSS;
+  const fakeWindow = Object.assign(new EventTarget(), { innerWidth: 1000, innerHeight: 800 });
+  Object.assign(globalThis, { document: fakeDocument, window: fakeWindow, CSS: { escape: (value: string) => value } });
   const server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false }, appType: "custom" });
   try {
     const { api } = await server.ssrLoadModule("/app/api.ts");
@@ -131,8 +137,20 @@ test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tr
     };
     listeners.get("contextmenu")?.({ target: { closest: () => Object.assign(element(), { dataset: { file: "/w/book/b.gm" } }) }, preventDefault: () => {} });
     assert.deepEqual((state as { selected: string[] }).selected, ["/w/book/b.gm", "/w/book/a.gm"]);
-    listeners.get("contextmenu")?.({ target: { closest: () => Object.assign(element(), { dataset: { file: "/w/book/manifest.toml" } }) }, preventDefault: () => {} });
-    assert.deepEqual((state as { selected: string[] }).selected, ["/w/book/manifest.toml"]);
+    await t.test("ADR 0095 I1: selecting an unselected file anchors its menu to the redrawn row", () => {
+      const file = "/w/book/manifest.toml";
+      const oldRow = Object.assign(element(), { dataset: { file } });
+      redrawnRow.getBoundingClientRect = () => ({ top: 120, bottom: 145, left: 50, width: 90, height: 25 });
+      const dispatch = ctx.store.dispatch;
+      ctx.store.dispatch = (action) => {
+        dispatch(action);
+        oldRow.isConnected = false;
+      };
+      listeners.get("contextmenu")?.({ target: { closest: () => oldRow }, preventDefault: () => {} });
+      assert.deepEqual((state as { selected: string[] }).selected, [file]);
+      assert.equal((menuElement as FakeElement | null)?.style.top, "149px");
+      ctx.store.dispatch = dispatch;
+    });
     const removeItem = menuFor("/w/book/a.gm").find((item: { label?: string }) => item.label === "chapters から削除");
     assert.ok(removeItem?.run, "ADR 0066 invariant 1: the clicked registered chapter can be removed");
     removeItem.run();
@@ -157,7 +175,7 @@ test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tr
     assert.deepEqual(ctx.config.projectOrder["/w"][""], ["second", "book"]);
   } finally {
     await server.close();
-    Object.assign(globalThis, { document: previousDocument });
+    Object.assign(globalThis, { document: previousDocument, window: previousWindow, CSS: previousCSS });
   }
 });
 

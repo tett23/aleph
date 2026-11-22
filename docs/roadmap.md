@@ -48,4 +48,6 @@
 
 - **アシスタントの手の確かめ（[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md) A2、A4、A5）**：[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md) の、ネットワークを切った Mac でダウンロードなしに答えが返ること（A2、A4）と、ログアウトした Claude Code でローカルに頼み直すこと（A5）を、`scripts/bundle-tools.sh` で同梱したデバッグ版で確かめる。同じ ADR の A3 と A6、[ADR 0088](adr/0088-diff-tab-and-commit-before-applying.md) の A1〜A4 は、2026-11-18 にデバッグ版で確かめ、結果をこの項目を短くしたプルリクエストに書いた。
 - **承認の取り消し（[ADR 0089](adr/0089-revoke-connector-approval.md) A1）**：[ADR 0089](adr/0089-revoke-connector-approval.md) の、Claude Code を承認した後に設定で取り消すと行が「承認していません」になり、次に頼むと承認のダイアログがもう一度出ることを、デバッグ版で確かめる。
+- **コンテキストメニューの配置（[ADR 0095](adr/0095-keep-context-menus-in-viewport.md) A1、A2）**：Tauri で、ツリーの上下左右の端から右クリックして項目を選べることを確かめる。最小のウィンドウで WebView を拡大し、メニューをスクロールして最後の項目を選ぶ。
+- **日本語入力の Esc（[ADR 0092](adr/0092-ime-escape-isolation.md) A1、A2）**：macOS 標準の日本語入力と利用環境の SKK で、新しいシートの名前を入力するダイアログと、縦書きと横書きのエディタで変換を Esc で取り消す。ダイアログとサジェストが残り、背面のショートカットが動かないことを確かめる。変換を取り消したときのイベント順を記録し、回帰テストに使う。
 - **新しいシートの形式（[ADR 0093](adr/0093-ask-sheet-extension.md) A1、A2）**：プロジェクトの内外で拡張子のない名前を入力し、Markdown と Golem をそれぞれ選んで作る。プロジェクト内では Golem のシートが章になることを確かめる。右クリックの「シートを追加」でも全形式を一つずつ作り、ツリーの表示と開くエディタを確かめる。

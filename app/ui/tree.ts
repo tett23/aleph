@@ -436,13 +436,20 @@ export const mountTree = (ctx: Ctx) => {
     const row = (e.target as HTMLElement).closest<HTMLElement>(".file-tree [data-file]:not([data-plot]), .file-tree [data-dir]");
     const path = row?.dataset.file ?? row?.dataset.dir;
     if (!row || !path) return;
+    let anchor = row;
     if (row.dataset.file && !ctx.store.get().selected.includes(path)) {
       ctx.store.dispatch({ type: "select", paths: [path], anchor: path });
+      // Selecting a file redraws its row.
+      if (!row.isConnected) {
+        const drawn = document.querySelector<HTMLElement>(`.file-tree [data-file="${CSS.escape(path)}"]:not([data-plot])`);
+        if (!drawn) return;
+        anchor = drawn;
+      }
     }
     const items = treeMenus.flatMap((f) => f(path, row.dataset.dir !== undefined, ctx));
     if (!items.length) return;
     e.preventDefault();
-    menu(row, items);
+    menu(anchor, items);
   });
 
   // after saving a manifest or a style, chapters and grids are read again

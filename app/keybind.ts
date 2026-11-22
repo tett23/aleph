@@ -242,7 +242,27 @@ export const cleanKeyBindings = (ctx: Ctx) => {
 export const mountKeybind = (ctx: Ctx) => {
   const focusIsEditor = (target: EventTarget | null) =>
     [...ctx.editors.values()].some((editor) => editor.edit?.view.content === target);
-  window.addEventListener("compositionstart", () => setPending(ctx, null));
+  let composing = new WeakSet<EventTarget>();
+  window.addEventListener("compositionstart", (e) => {
+    if (e.target) composing.add(e.target);
+    setPending(ctx, null);
+  }, true);
+  const clearComposition = (e: Event) => {
+    if (e.target === window) composing = new WeakSet();
+    else if (e.target) composing.delete(e.target);
+  };
+  window.addEventListener("compositionend", clearComposition, true);
+  window.addEventListener("blur", clearComposition, true);
+  // A focused element can be removed without a blur event. If it is mounted
+  // again, a new focus must start without the old composition.
+  window.addEventListener("focus", clearComposition, true);
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" && e.code !== "Escape") return;
+    if (!e.isComposing && e.keyCode !== 229 && !(e.target && composing.has(e.target))) return;
+    setPending(ctx, null);
+    // Block app handlers in every phase while leaving the IME default action.
+    e.stopImmediatePropagation();
+  }, true);
   window.addEventListener("focusin", (e) => keyContextChanged(ctx, focusIsEditor(e.target)));
   window.addEventListener("focusout", (e) => keyContextChanged(ctx, focusIsEditor(e.relatedTarget)));
   window.addEventListener("keydown", (e) => {
