@@ -173,12 +173,19 @@ const run = async (el: HTMLElement | null, ctx: Ctx, a: string, opener?: HTMLEle
             throw { kind: "targetChanged", message: "対象のリポジトリかブランチが変わりました" };
           }
           if (ctx.store.get().workspace !== ws) throw { kind: "targetChanged", message: "対象のワークスペースが変わりました" };
-          if (a === "pull" && allDocs(ctx.store.get()).some((d) =>
-            dirty(d) && (d.workspace === ws || d.path.startsWith(repo.root + "/")))) {
-            throw { kind: "dirty", message: "未保存のシートがあります。保存してから pull してください" };
-          }
           const operate = () => gitOperation(ws, a, { credentials });
-          return a === "pull" ? withPullInProgress(ctx, operate) : operate();
+          if (a === "push") return operate();
+          return withPullInProgress(ctx, async () => {
+            const edits = allDocs(ctx.store.get()).filter(dirty);
+            const workspaces = new Set(edits.flatMap((d) => d.workspace ? [d.workspace] : []));
+            const elsewhere = await Promise.all([...workspaces].filter((path) => path !== ws)
+              .map((path) => gitOperation(path, "repository", {}).catch(() => null)));
+            if (edits.some((d) => d.workspace === ws || d.path.startsWith(repo.root + "/")) ||
+                elsewhere.some((repository) => repository?.gitDir === repo.gitDir)) {
+              throw { kind: "dirty", message: "未保存のシートがあります。保存してから pull してください" };
+            }
+            return operate();
+          });
         }, () => askGitCredentials(ctx));
         if (a === "pull") {
           ctx.gitChanged.forEach((f) => f());

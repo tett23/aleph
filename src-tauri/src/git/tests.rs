@@ -363,6 +363,12 @@ fn adr0105_i2_i4_linked_worktree_shares_identity_and_dropped_paths_are_read_only
             ..
         })
     ));
+    let view = repository_info(&linked_repo).unwrap();
+    assert_eq!(view.root.as_os_str(), linked.as_os_str());
+    assert_eq!(
+        view.git_dir.as_os_str(),
+        linked_repo.path().canonicalize().unwrap().as_os_str()
+    );
     let info = serde_json::to_value(identity::local(&linked_repo).unwrap()).unwrap();
     assert_eq!(info["target"], target.to_str().unwrap());
     assert_eq!(info["effective"]["name"]["value"], "Worktree");

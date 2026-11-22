@@ -351,8 +351,8 @@ fn repository_info(repo: &Repository) -> Result<RepositoryInfo> {
         root: repo
             .workdir()
             .ok_or_else(|| Error::invalid("作業ツリーがありません"))?
-            .to_path_buf(),
-        git_dir: repo.path().to_path_buf(),
+            .canonicalize()?,
+        git_dir: repo.path().canonicalize()?,
         linked: repo.is_worktree(),
         branch,
         has_head: head.is_some(),
