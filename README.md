@@ -66,6 +66,8 @@ By default the assistant runs Qwen3.5-4B on your Mac with the bundled `llama-ser
 
 Select text in the editor to highlight up to 10,000 other exact, case-sensitive matches in the same sheet. Matches can occur inside words, and selections can include spaces and line breaks. The match outlines update without moving or rewrapping the text.
 
+Choose the app's appearance under “一般” (General) → “外観” (Appearance) in the settings: “OS に合わせる” (match the OS, the default), “ライト” (light), or “ダーク” (dark). Light and dark stay fixed when the OS appearance changes. The saved choice applies to the main window and to the separate text preview, page preview, and plot windows. Windows opened later use it too, and it is kept after a restart. It changes only the app's colors, not the manuscript, the typesetting colors, or exported PDFs.
+
 In the text editor, press Escape or Control-E to dismiss suggestions. With suggestions closed, Control-E moves to the end of the logical line. Each shortcut’s context can be changed in the key binding settings.
 
 When the Japanese input method uses Escape to cancel conversion, that press cancels only the conversion.
@@ -73,6 +75,8 @@ For example, you can continue typing the name of a new sheet in the same dialog.
 A separate press of Escape after conversion ends performs the usual action.
 
 The diff tab and Git panel mark changed characters inline, including in Japanese text. Removed text has a strikethrough, and added text is underlined.
+
+Hover over a change marker next to the editor's line numbers to see the before and after text. Click the marker or its “詳細” (details) button to open that sheet's diff, including unsaved edits at the moment of the click. The diff tab's “ワークスペース全体の差分” button returns to the saved workspace changes.
 
 Aleph bundles Git support through libgit2. Its Git panel initializes repositories, shows changes and history, and commits, pushes, and pulls without requiring a Git executable. The Git section of the app settings edits your global author name and email. Use a project's gear button or the Git panel to edit the identity of a particular repository.
 

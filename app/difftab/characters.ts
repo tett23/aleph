@@ -28,7 +28,7 @@ const crossing = (a: string[], b: string[], start: number, end: number, left: nu
   return columns[0];
 };
 
-export const characterSpans = (before: string, after: string): GitDiffSpan[] => {
+export const characterSpans = (before: string, after: string, maxCells = Infinity): GitDiffSpan[] => {
   const a = Array.from(before);
   const b = Array.from(after);
   const spans: GitDiffSpan[] = [];
@@ -72,7 +72,12 @@ export const characterSpans = (before: string, after: string): GitDiffSpan[] => 
     right--;
   }
   emit("same", a.slice(0, prefix).join(""));
-  compare(prefix, end, prefix, right);
+  if ((end - prefix) * (right - prefix) > maxCells) {
+    emit("removed", a.slice(prefix, end).join(""));
+    emit("added", b.slice(prefix, right).join(""));
+  } else {
+    compare(prefix, end, prefix, right);
+  }
   emit("same", a.slice(end).join(""));
   return spans;
 };

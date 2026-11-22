@@ -318,6 +318,10 @@ fn adr0105_i1_i3_i4_isolated_git_lifecycle() {
     assert!(
         matches!(run(Operation::Status).unwrap(), Response::Status(entries) if entries.is_empty())
     );
+    assert!(matches!(
+        run(Operation::Head { path: "a.gm".into() }).unwrap(),
+        Response::Head(HeadText::Text { text }) if text == "猫\n"
+    ));
     assert!(!marker.exists());
 }
 
@@ -440,6 +444,55 @@ fn adr0105_i2_staged_changes_outside_the_registered_workspace_are_refused() {
     ));
     assert_eq!(std::fs::read(repo.path().join("index")).unwrap(), before);
     assert!(repo.head().is_err());
+}
+
+#[test]
+fn adr0104_i1_head_text_has_the_same_meaning_from_the_root_and_a_subdirectory() {
+    let root = testdir::fresh("gutter-head").canonicalize().unwrap();
+    let subdirectory = root.join("sub");
+    std::fs::create_dir(&subdirectory).unwrap();
+    let reach = guard::Reach {
+        roots: vec![root.clone()],
+        ..Default::default()
+    };
+    let read_head = |cwd: &Path, path: &str| {
+        operate(&reach, cwd, Operation::Head { path: path.into() }).map(|response| {
+            let Response::Head(head) = response else {
+                panic!("expected a HEAD response");
+            };
+            head
+        })
+    };
+    assert_eq!(
+        read_head(&subdirectory, "章.md").unwrap(),
+        HeadText::NotRepository
+    );
+    let repo = initialize(&root).unwrap();
+    assert_eq!(read_head(&subdirectory, "章.md").unwrap(), HeadText::Unborn);
+    std::fs::write(subdirectory.join("章.md"), "𠮷の最初の版\n").unwrap();
+    std::fs::write(subdirectory.join("非UTF8.md"), [0xff, 0xfe]).unwrap();
+    let mut identity = git2::Config::open(&repo.path().join("test-identity")).unwrap();
+    identity.set_str("user.name", "Tester").unwrap();
+    identity
+        .set_str("user.email", "tester@example.test")
+        .unwrap();
+    assert!(commit(&repo, &root, &identity, "Baseline", false)
+        .unwrap()
+        .is_some());
+    std::fs::write(subdirectory.join("章.md"), "作業ツリーの版").unwrap();
+
+    let expected = HeadText::Text {
+        text: "𠮷の最初の版\n".into(),
+    };
+    assert_eq!(read_head(&root, "sub/章.md").unwrap(), expected);
+    assert_eq!(read_head(&subdirectory, "章.md").unwrap(), expected);
+    assert_eq!(
+        read_head(&subdirectory, "未追跡.md").unwrap(),
+        HeadText::Missing
+    );
+    let error = read_head(&subdirectory, "非UTF8.md").unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Read);
+    assert!(error.message.contains("UTF-8"));
 }
 
 #[test]

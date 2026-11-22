@@ -2,16 +2,17 @@
 import "./style.css";
 import { api } from "./api.ts";
 import { normalize, type Config } from "./config.ts";
-import { applyTheme } from "./theme.ts";
+import { applyTheme, mountAppearance } from "./theme.ts";
+import { chooseTheme, THEME_EVENT, themeChoicesHtml } from "./appearance.ts";
 import { createUiState, setUiState, uiState } from "./uistate.ts";
 import { mountPreview } from "./preview/mount.ts";
 import { startPreviewWindow } from "./preview/window.ts";
 import { mountPlotFeature, startPlotWindow } from "./plot/mount.ts";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import type { Ctx } from "./ctx.ts";
 import { createStore, initialState, readPreviewMode, type State } from "./store.ts";
 import { confirmDialog, toast } from "./ui/dom.ts";
-import { notify } from "./ui/notices.ts";
+import { notify, notifyError } from "./ui/notices.ts";
 import { finishWrite, mayWrite, mountWatch } from "./watchmount.ts";
 import { guardLinks } from "./links.ts";
 import { item } from "./ui/settings.ts";
@@ -21,7 +22,7 @@ import { openPaths, saveSheets } from "./docs.ts";
 import { mountTree, reloadTree, treeReloaded } from "./ui/tree.ts";
 import { readTitleOnSave } from "./savedtitles.ts";
 import { mountTools } from "./tools.ts";
-import { gitOperation } from "./git-ipc.ts";
+import { gitFailure, gitOperation } from "./git-ipc.ts";
 import { mountAssistantSettings } from "./assistant/models.ts";
 import { startRecorder } from "./ed/recorder.ts";
 import { mountEditors } from "./editor/host.ts";
@@ -61,6 +62,9 @@ const kept = (ui: Record<string, unknown>): Partial<State> => ({ ...Object.fromE
 const start = async () => {
   const config = normalize(JSON.parse(await api.configLoad().catch(() => "{}")));
   applyTheme(config);
+  // a drawing coloured by the theme (a Mermaid figure) is drawn again; the frame is drawn later
+  let redrawThemed = () => {};
+  const look = mountAppearance(config, () => redrawThemed());
   // the kept state is written a moment after it changes, and only when it changed
   let uiTimer = 0;
   let uiLast = JSON.stringify(config.ui);
@@ -124,10 +128,17 @@ const start = async () => {
       return true;
     }),
     baseText: async (d) => {
-      if (!d.workspace) return null;
-      const result = await gitOperation(d.workspace, "head", { path: rel(d.workspace, d.path) }).catch(() => undefined);
-      if (!result || result.kind === "notRepository") return false;
-      return result.kind === "text" ? result.text : null;
+      if (!d.workspace) return false;
+      const path = d.workspace === "/" ? d.path.slice(1) : rel(d.workspace, d.path);
+      try {
+        const result = await gitOperation(d.workspace, "head", { path });
+        if (result.kind === "notRepository") return false;
+        return result.kind === "text" ? result.text : null;
+      } catch (error) {
+        const reason = gitFailure(error).message;
+        notify({ level: "warning", key: `git-head:${d.path}:${reason}`, message: `${path} の比較元を読めません。 ${reason}` });
+        return false;
+      }
     },
     // before the frame is drawn there is nothing to redraw (the daily commit may finish first)
     refresh: (what = ["sidebar", "rightSidebar", "status", "previewTab"]) => void (shell && draw(store.get(), store.get(), what)),
@@ -141,20 +152,22 @@ const start = async () => {
       item(
         "外観",
         "OS に合わせるか、固定するか",
-        (["light", "dark", "auto"] as const)
-          .map((t) => `<span class="btn ${c.config.theme === t ? "pri" : ""}" data-theme="${t}">${{ light: "ライト", dark: "ダーク", auto: "自動" }[t]}</span>`)
-          .join(""),
+        themeChoicesHtml(c.config.theme),
       ),
     onClick: async (el, c) => {
       const t = el.closest<HTMLElement>("[data-theme]")?.dataset.theme;
       if (!t) return false;
-      c.config.theme = t as Config["theme"];
-      await c.saveConfig();
+      // every window is told only after the save; a failed save keeps the theme saved before (docs/adr/0099)
+      const r = await chooseTheme(c.config, t as Config["theme"], () => c.saveConfig(), async (theme) => {
+        look.receive({ theme });
+        await emit(THEME_EVENT, { theme });
+      });
+      if (!r.ok) notifyError(`外観を保存できませんでした: ${r.error instanceof Error ? r.error.message : String(r.error)}`);
       return true;
     },
   });
 
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(config));
+  redrawThemed = () => ctx.refresh(["previewTab"]);
 
   let cleanupEditorArea: (() => void) | void;
   const draw = (s: State, prev: State | null, what: string[] = []) => {

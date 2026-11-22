@@ -8,7 +8,7 @@ import { normalize } from "../config.ts";
 import type { Ctx } from "../ctx.ts";
 import { stubEditor } from "../editor/stub.ts";
 import { dirname } from "../path.ts";
-import { applyTheme } from "../theme.ts";
+import { applyTheme, mountAppearance } from "../theme.ts";
 import { treeReloaded } from "../ui/tree.ts";
 import { setUiState, windowUiState } from "../uistate.ts";
 import { createPlotGate, plotTarget } from "./availability.ts";
@@ -104,6 +104,7 @@ export const mountPlotFeature = (ctx: Ctx) => {
 export const startPlotWindow = async (project: string) => {
   const config = normalize(JSON.parse(await api.configLoad().catch(() => "{}")));
   applyTheme(config);
+  mountAppearance(config);
   setUiState(windowUiState(config.ui, (part) => void emit("aleph:ui", part)));
   const app = document.getElementById("app")!;
   app.innerHTML = `<div class="pwin plotwin"><div class="pbody"></div></div>`;

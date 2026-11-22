@@ -31,6 +31,10 @@ const editorFor = (el: HTMLElement, doc: Doc, ctx: Ctx, _index: number, scroller
     style: PROSE.includes(doc.kind) ? "prose" : "code",
     scroller,
     base: () => ctx.baseText(doc),
+    onOpenDiff: (snapshot) => {
+      const { path, workspace } = doc;
+      ctx.store.dispatch({ type: "showDiff", snapshot: { ...snapshot, path, workspace } });
+    },
     onChange: (text) => ctx.store.dispatch({ type: "edit", path: doc.path, text }),
     onSave: () => void ctx.save([doc.path], { explicit: true }),
     // an editor in another tab or pane takes the selection there
