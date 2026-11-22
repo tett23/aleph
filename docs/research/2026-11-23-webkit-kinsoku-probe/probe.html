@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><style>
+body{margin:0;font-family:"Hiragino Mincho ProN",serif;font-size:20px}
+.box{white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;line-height:1.5}
+.h{}.v{writing-mode:vertical-rl;block-size:300px}
+</style><div id=root></div><script>
+const classes={closing:"」）』】",opening:"「（『【",hyphen:"〜゠",dividing:"？！",middleDot:"・：；",fullStop:"。．",comma:"、，",iteration:"々ゝヽ",prolonged:"ー",smallKana:"ぁっゃァッャ"};
+const lbs=["auto","strict","normal","loose","anywhere"];
+const modes=["h","v"];
+const out={supports:{},breaks:[],hang:[]};
+for(const v of ["first","last","force-end","allow-end","first allow-end last","none"]) out.supports["hanging-punctuation:"+v]=CSS.supports("hanging-punctuation",v);
+for(const v of lbs) out.supports["line-break:"+v]=CSS.supports("line-break",v);
+const root=document.getElementById("root");
+const probeEl=document.createElement("span");probeEl.style.fontSize="20px";probeEl.textContent="あ";root.appendChild(probeEl);const pitch=probeEl.getBoundingClientRect().width;probeEl.remove();out.pitch=pitch;
+const size=el=>{el.style.inlineSize=(pitch*4+0.5)+"px"};
+// position of a char: inline offset of its rect
+const rectOf=(el,idx)=>{const r=document.createRange();const t=el.firstChild;r.setStart(t,idx);r.setEnd(t,idx+1);return r.getClientRects()[0]};
+const lineOf=(el,idx,mode)=>{const b=rectOf(el,idx);return mode==="h"?Math.round(b.top):Math.round(-b.right)};
+for(const mode of modes)for(const lb of lbs)for(const [cls,chars] of Object.entries(classes))for(const ch of chars){
+  const isOpen=cls==="opening";
+  // 4 chars per line; place ch at index 4 (would start line 2) for start-prohibited; for opening place at index 3 (would end line 1)
+  const text=isOpen?"あいう"+ch+"かきくけ":"あいうえ"+ch+"かきく";
+  const el=document.createElement("div");el.className="box "+mode;el.style.lineBreak=lb;el.textContent=text;size(el);root.appendChild(el);
+  const idx=isOpen?3:4;const lines=[...text].map((_,i)=>lineOf(el,i,mode));
+  const first=lines[0];const lineStart=i=>i===0||lines[i]!==lines[i-1];
+  const ok=isOpen?!(lines[idx+1]!==lines[idx]) /* opening must not end a line: next char same line */:!lineStart(idx);
+  out.breaks.push({mode,lb,cls,ch,ok,lines:lines.join(",")});el.remove();
+}
+for(const mode of modes)for(const hp of ["none","last","allow-end","force-end","first allow-end last"])for(const ch of "。、．，"){
+  const el=document.createElement("div");el.className="box "+mode;el.style.lineBreak="strict";el.style.hangingPunctuation=hp;el.textContent="あいうえ"+ch+"かきく";size(el);root.appendChild(el);
+  const lines=[..."あいうえ"+ch+"かきく"].map((_,i)=>lineOf(el,i,mode));
+  const box=el.getBoundingClientRect();const p=rectOf(el,4);const over=mode==="h"?Math.round(p.right-box.right):Math.round(p.bottom-box.bottom);out.hang.push({mode,hp,ch,sameLine:lines[4]===lines[3],overflow:over,lines:lines.join(",")});el.remove();
+}
+for(const mode of modes)for(const hp of ["allow-end","force-end"])for(const [txt,idx] of [["あいう。かきくけ",3],["あいうえ」かきく",4],["あいうえ）かきく",4]]){
+  const el=document.createElement("div");el.className="box "+mode;el.style.lineBreak="strict";el.style.hangingPunctuation=hp;el.textContent=txt;size(el);root.appendChild(el);
+  const box=el.getBoundingClientRect();const p=rectOf(el,idx);out.hang2=(out.hang2??[]);out.hang2.push({mode,hp,txt,overflow:mode==="h"?Math.round(p.right-box.right):Math.round(p.bottom-box.bottom)});el.remove();}
+window.webkit.messageHandlers.done.postMessage(JSON.stringify(out));
+</script>
