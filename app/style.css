@@ -821,3 +821,14 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 /* Tree drop destinations (ADR 0100). */
 :is(.file-tree, .file-tree .r).tree-move-target { outline: 1px solid var(--mod); outline-offset: -1px; cursor: move; }
 :is(.file-tree, .file-tree .r).tree-move-refuse { outline: 1px dashed var(--del); outline-offset: -1px; cursor: not-allowed; }
+
+.git-modal button.iconbtn, button.project-git, button.git-panel-settings { border: 0; background: transparent; padding: 0; }
+.git-modal button.iconbtn:hover, button.project-git:hover, button.git-panel-settings:hover { background: var(--hover); }
+.git-panel-settings { float: right; }
+.file-tree .project-git { margin-left: auto; flex: none; }
+.project-git:focus-visible, .git-modal button:focus-visible { outline: 2px solid var(--accent); }
+.git-modal a { text-decoration: underline; }
+.git-identity-actions { display: flex; gap: 8px; margin-top: 12px; }
+.git-modal [data-credentials] { display: grid; gap: 10px; }
+.git-modal [data-credentials] label { display: grid; gap: 4px; }
+.git-identity-actions button:disabled { opacity: .5; }

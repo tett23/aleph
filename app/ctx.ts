@@ -17,6 +17,7 @@ export type SettingsSection = {
   group: string;
   /** The HTML of the section's items. */
   render: (ctx: Ctx) => string | Promise<string>;
+  mount?: (el: HTMLElement, ctx: Ctx) => void;
   /** Clicks and changes inside the section; return true to draw it again. */
   onClick?: (el: HTMLElement, ctx: Ctx) => boolean | Promise<boolean>;
   onChange?: (el: HTMLInputElement, ctx: Ctx) => boolean | Promise<boolean>;
@@ -57,7 +58,7 @@ export type Ctx = {
   status: StatusItem[];
   /** What a click on a status item with `data-status="<key>"` does. */
   statusActions: Record<string, (ctx: Ctx) => void>;
-  /** Run after git was checked again (docs/adr/0060). */
+  /** Run after a repository change. */
   gitChanged: (() => void)[];
   settings: SettingsSection[];
   commands: Command[];

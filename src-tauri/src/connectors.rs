@@ -1078,7 +1078,6 @@ printf '%s' '{OK}' > "$out"
             home: Some(d.join("home")),
             resources: Some(d.join("res")),
             homebrew: d.join("brew"),
-            usr_bin: d.join("usr/bin"),
             path: Some(d.join("path").display().to_string()),
         }
     }

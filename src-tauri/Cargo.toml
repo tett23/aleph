@@ -18,6 +18,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ignore = "0.4.34"
 regex = "1.13.1"
+git2 = { version = "=0.21.0", features = ["https", "ssh", "vendored-libgit2", "vendored-openssl"] }
+libgit2-sys = "=0.18.8"
 
 # NSSpellChecker for English spelling (docs/adr/0030), and the pasteboard and the
 # drag session that hand files to other applications (docs/adr/0077); already in

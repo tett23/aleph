@@ -18,22 +18,6 @@ pub fn run(program: &Path, cwd: &Path, args: &[String]) -> Result<Out, String> {
     output(Command::new(program).args(args).current_dir(cwd), program)
 }
 
-/// Runs git with Aleph's fixed options. Both display patches use UTF-8 for
-/// matching characters and English for the ordinary patch's metadata.
-pub fn run_git(program: &Path, cwd: &Path, args: &[String]) -> Result<Out, String> {
-    let mut command = Command::new(program);
-    command.args(git_args(args)).current_dir(cwd);
-    if args.first().is_some_and(|sub| sub == "diff")
-        && args
-            .iter()
-            .take_while(|arg| *arg != "--")
-            .any(|arg| matches!(arg.as_str(), "--word-diff=porcelain" | "--word-diff=none"))
-    {
-        command.env("LC_ALL", "C.UTF-8").env("LANGUAGE", "C");
-    }
-    output(&mut command, program)
-}
-
 fn output(command: &mut Command, program: &Path) -> Result<Out, String> {
     let o = command
         .output()
@@ -45,50 +29,12 @@ fn output(command: &mut Command, program: &Path) -> Result<Out, String> {
     })
 }
 
-/// Whether `git --version` showed a git that works (docs/adr/0060): its version line, or why not
-/// (the first line of the error, as from the /usr/bin/git of a Mac without the command line tools).
-pub fn git_version(r: Result<Out, String>) -> Result<String, String> {
-    let o = r?;
-    let first = |t: &str| t.lines().next().unwrap_or("").trim().to_string();
-    match (o.code, first(&o.stdout)) {
-        (0, v) if v.starts_with("git version") => Ok(v),
-        (0, v) => Err(format!("git の版を読めません：{v}")),
-        (code, _) => Some(first(&o.stderr))
-            .filter(|e| !e.is_empty())
-            .ok_or_else(|| format!("終了コード {code}"))
-            .and_then(Err),
-    }
-}
-
-/// The arguments Aleph gives git (docs/adr/0046): before the repository's own
-/// settings, the fsmonitor and the hooks are turned off; reading takes no
-/// optional locks, and diff uses no external diff program.
-pub fn git_args(args: &[String]) -> Vec<String> {
-    let sub = args.first().map(String::as_str).unwrap_or("");
-    let read = matches!(sub, "status" | "diff" | "log" | "show" | "rev-parse");
-    [
-        "-c",
-        "core.fsmonitor=false",
-        "-c",
-        "core.hooksPath=/dev/null",
-    ]
-    .into_iter()
-    .map(String::from)
-    .chain(read.then(|| "--no-optional-locks".to_string()))
-    .chain(args.first().cloned())
-    .chain((sub == "diff").then(|| "--no-ext-diff".to_string()))
-    .chain(args.iter().skip(1).cloned())
-    .collect()
-}
-
 /// The roots the search uses; tests point them at temporary directories.
 #[derive(Clone, Debug)]
 pub struct Roots {
     pub home: Option<PathBuf>,
     pub resources: Option<PathBuf>,
     pub homebrew: PathBuf,
-    /// /usr/bin, where macOS keeps git.
-    pub usr_bin: PathBuf,
     pub path: Option<String>,
 }
 
@@ -98,7 +44,6 @@ impl Roots {
             home: std::env::var_os("HOME").map(PathBuf::from),
             resources,
             homebrew: PathBuf::from("/opt/homebrew"),
-            usr_bin: PathBuf::from("/usr/bin"),
             path: std::env::var("PATH").ok(),
         }
     }
@@ -113,8 +58,6 @@ pub enum Place {
     LocalBin,
     /// /opt/homebrew/bin
     Homebrew,
-    /// /usr/bin
-    UsrBin,
     /// Each directory of PATH.
     Path,
 }
@@ -126,9 +69,6 @@ pub const TOOL_ORDER: [Place; 4] = [
     Place::Homebrew,
     Place::Path,
 ];
-/// git: the setting, /usr/bin, Homebrew, PATH (docs/adr/0003).
-pub const GIT_ORDER: [Place; 3] = [Place::UsrBin, Place::Homebrew, Place::Path];
-
 fn is_executable(p: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     std::fs::metadata(p)
@@ -145,7 +85,6 @@ fn candidates(name: &str, place: Place, roots: &Roots) -> Vec<PathBuf> {
             .map(|h| h.join(".local/bin").join(name))
             .collect(),
         Place::Homebrew => vec![roots.homebrew.join("bin").join(name)],
-        Place::UsrBin => vec![roots.usr_bin.join(name)],
         Place::Path => roots
             .path
             .as_deref()
@@ -186,78 +125,6 @@ mod tests {
     use super::*;
     use crate::fsops::testdir;
 
-    #[test]
-    fn adr0096_i1_display_diff_forces_utf8() {
-        let dir = testdir::fresh("word-diff-locale");
-        let git = dir.join("git");
-        std::fs::write(
-            &git,
-            "#!/bin/sh\nprintf '%s/%s' \"$LC_ALL\" \"$LANGUAGE\"\n",
-        )
-        .unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).unwrap();
-        for flag in ["--word-diff=porcelain", "--word-diff=none"] {
-            let args = ["diff".to_string(), flag.to_string()];
-            assert_eq!(run_git(&git, &dir, &args).unwrap().stdout, "C.UTF-8/C");
-        }
-    }
-
-    fn out(code: i32, stdout: &str, stderr: &str) -> Out {
-        Out {
-            code,
-            stdout: stdout.into(),
-            stderr: stderr.into(),
-        }
-    }
-
-    #[test]
-    fn git_works_when_its_version_says_so() {
-        // docs/adr/0060
-        assert_eq!(
-            git_version(Ok(out(0, "git version 2.39.5 (Apple Git-154)\n", ""))),
-            Ok("git version 2.39.5 (Apple Git-154)".to_string())
-        );
-    }
-
-    #[test]
-    fn a_failing_git_gives_the_first_line_of_its_error() {
-        // the /usr/bin/git of a Mac without the command line tools
-        let r = git_version(Ok(out(
-            1,
-            "",
-            "xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun\nmore\n",
-        )));
-        assert_eq!(
-            r,
-            Err("xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun".to_string())
-        );
-        assert_eq!(
-            git_version(Ok(out(1, "", ""))),
-            Err("終了コード 1".to_string())
-        );
-    }
-
-    #[test]
-    fn a_program_that_does_not_say_git_version_is_not_git() {
-        assert_eq!(
-            git_version(Ok(out(0, "hello\n", ""))),
-            Err("git の版を読めません：hello".to_string())
-        );
-        assert_eq!(
-            git_version(Ok(out(0, "", ""))),
-            Err("git の版を読めません：".to_string())
-        );
-    }
-
-    #[test]
-    fn a_git_that_cannot_start_gives_why() {
-        assert_eq!(
-            git_version(Err("/x/git: No such file".into())),
-            Err("/x/git: No such file".to_string())
-        );
-    }
-
     fn fake(path: &Path, version: &str) {
         use std::os::unix::fs::PermissionsExt;
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -270,7 +137,6 @@ mod tests {
             home: Some(d.join("home")),
             resources: Some(d.join("res")),
             homebrew: d.join("brew"),
-            usr_bin: d.join("usr/bin"),
             path: Some(format!(
                 "{}:{}",
                 d.join("p1").display(),
@@ -338,46 +204,6 @@ mod tests {
     }
 
     #[test]
-    fn git_does_not_look_in_the_bundle_or_localbin() {
-        let d = testdir::fresh("git");
-        let r = Roots {
-            path: Some(String::new()),
-            ..roots(&d)
-        };
-        fake(&d.join("res/git"), "bundled");
-        fake(&d.join("home/.local/bin/git"), "local");
-        let found = find("git", None, &GIT_ORDER, &r);
-        assert_ne!(found, Some(d.join("res/git")));
-        assert_ne!(found, Some(d.join("home/.local/bin/git")));
-    }
-
-    #[test]
-    fn with_an_empty_path_git_and_golem_are_found_in_the_fixed_places() {
-        // a GUI app on macOS gets no login PATH (docs/adr/0003)
-        let d = testdir::fresh("nopath");
-        let r = Roots {
-            path: Some(String::new()),
-            ..roots(&d)
-        };
-        fake(&d.join("usr/bin/git"), "system");
-        fake(&d.join("brew/bin/git"), "brew");
-        fake(&d.join("brew/bin/golem"), "brew");
-        assert_eq!(
-            find("git", None, &GIT_ORDER, &r),
-            Some(d.join("usr/bin/git"))
-        );
-        assert_eq!(
-            find("golem", None, &TOOL_ORDER, &r),
-            Some(d.join("brew/bin/golem"))
-        );
-        std::fs::remove_file(d.join("usr/bin/git")).unwrap();
-        assert_eq!(
-            find("git", None, &GIT_ORDER, &r),
-            Some(d.join("brew/bin/git"))
-        );
-    }
-
-    #[test]
     fn with_an_empty_path_the_fixed_places_are_still_searched() {
         let d = testdir::fresh("emptypath");
         let r = Roots {
@@ -417,113 +243,5 @@ mod tests {
     fn run_reports_a_program_that_cannot_start() {
         let d = testdir::fresh("nostart");
         assert!(run(&d.join("none"), &d, &[]).is_err());
-    }
-
-    #[test]
-    fn git_commits_and_head_follows() {
-        // the change marks compare with HEAD; after a commit, HEAD gives the new text (docs/adr/0011)
-        let d = testdir::fresh("git");
-        let git = Path::new("/usr/bin/git");
-        let g = |args: &[&str]| {
-            let mut a = vec!["-c", "user.name=t", "-c", "user.email=t@example.com"];
-            a.extend_from_slice(args);
-            run(
-                git,
-                &d,
-                &a.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
-            )
-            .unwrap()
-        };
-        assert_eq!(g(&["init", "-q"]).code, 0);
-        std::fs::write(d.join("章.gm"), "一\n").unwrap();
-        assert_ne!(g(&["show", "HEAD:章.gm"]).code, 0, "not in HEAD yet");
-        g(&["add", "-A"]);
-        assert_eq!(g(&["commit", "-q", "-m", "Autosave 2026-11-07"]).code, 0);
-        assert_eq!(g(&["show", "HEAD:章.gm"]).stdout, "一\n");
-        std::fs::write(d.join("章.gm"), "一\n二\n").unwrap();
-        assert!(!g(&["status", "--porcelain=v1", "-z"]).stdout.is_empty());
-        g(&["add", "-A"]);
-        g(&["commit", "-q", "-m", "second"]);
-        assert_eq!(g(&["show", "HEAD:章.gm"]).stdout, "一\n二\n");
-        assert!(g(&["status", "--porcelain=v1", "-z"]).stdout.is_empty());
-    }
-}
-
-#[cfg(test)]
-mod safe_git_tests {
-    // git run by Aleph ignores the repository's fsmonitor and hooks (docs/adr/0046)
-    use super::*;
-    use crate::fsops::testdir;
-
-    fn s(a: &[&str]) -> Vec<String> {
-        a.iter().map(|x| x.to_string()).collect()
-    }
-
-    #[test]
-    fn every_git_gets_the_overrides_and_reads_take_no_locks() {
-        let pre = [
-            "-c",
-            "core.fsmonitor=false",
-            "-c",
-            "core.hooksPath=/dev/null",
-        ];
-        assert_eq!(
-            git_args(&s(&["commit", "-m", "x"])),
-            s(&[&pre[..], &["commit", "-m", "x"]].concat())
-        );
-        assert_eq!(git_args(&s(&["push"])), s(&[&pre[..], &["push"]].concat()));
-        for read in ["status", "log", "show", "rev-parse"] {
-            assert_eq!(
-                git_args(&s(&[read, "a"])),
-                s(&[&pre[..], &["--no-optional-locks", read, "a"]].concat())
-            );
-        }
-        assert_eq!(
-            git_args(&s(&["diff", "HEAD", "--", "a"])),
-            s(&[
-                &pre[..],
-                &[
-                    "--no-optional-locks",
-                    "diff",
-                    "--no-ext-diff",
-                    "HEAD",
-                    "--",
-                    "a"
-                ]
-            ]
-            .concat())
-        );
-    }
-
-    #[test]
-    fn a_hostile_repository_runs_nothing_on_status_and_commit() {
-        use std::os::unix::fs::PermissionsExt;
-        let d = testdir::fresh("hostile");
-        let git = Path::new("/usr/bin/git");
-        let raw = |a: &[&str]| run(git, &d, &s(a)).unwrap();
-        raw(&["init", "-q"]);
-        let marker = d.join("pwned");
-        let evil = d.join("evil.sh");
-        std::fs::write(&evil, format!("#!/bin/sh\ntouch '{}'\n", marker.display())).unwrap();
-        std::fs::set_permissions(&evil, std::fs::Permissions::from_mode(0o755)).unwrap();
-        raw(&["config", "core.fsmonitor", evil.to_str().unwrap()]);
-        let hook = d.join(".git/hooks/pre-commit");
-        std::fs::copy(&evil, &hook).unwrap();
-        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
-        std::fs::write(d.join("a.gm"), "x").unwrap();
-        let safe = |a: &[&str]| run(git, &d, &git_args(&s(a))).unwrap();
-        safe(&["status", "--porcelain=v1"]);
-        safe(&["add", "-A"]);
-        let c = safe(&[
-            "-c",
-            "user.name=t",
-            "-c",
-            "user.email=t@example.com",
-            "commit",
-            "-q",
-            "-m",
-            "x",
-        ]);
-        assert!(!marker.exists(), "{}", c.stderr);
     }
 }

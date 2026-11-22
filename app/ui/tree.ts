@@ -13,6 +13,7 @@ import { basename, dirname, ext, rel, stem } from "../path.ts";
 import { allDocs, focused } from "../store.ts";
 import { flatten, IMAGE_KINDS, kindOf, opensOnClick, projectOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
 import { handedOver, zipNames } from "../handover.ts";
+import { openRepositorySettings } from "../git-settings.ts";
 import { golem } from "../tools.ts";
 import { ask, choiceDialog, menu, toast, type MenuItem } from "./dom.ts";
 import { keepScroll } from "./scroll.ts";
@@ -87,7 +88,7 @@ const row = (r: Row, ctx: Ctx) => {
     const open = s.expanded.includes(r.entry.path);
     return `<div class="r ${r.project ? "proj" : ""}" style="${pad}" data-dir="${esc(r.entry.path)}">${icon(open ? "chevron-down" : "chevron-right", 13)}${
       r.project ? `<span class="ic book">${icon("book-open", 15)}</span>` : icon("folder", 14)
-    }<span class="ttl">${esc(r.entry.name)}</span></div>`;
+    }<span class="ttl">${esc(r.entry.name)}</span>${r.project ? `<button type="button" class="iconbtn project-git" data-project-git="${esc(r.entry.path)}" title="Git 設定を開く" aria-label="${esc(r.entry.name)}の Git 設定を開く">${icon("settings", 14)}</button>` : ""}</div>`;
   }
   const p = r.entry.path;
   const k = kindOf(p);
@@ -411,6 +412,8 @@ export const mountTree = (ctx: Ctx) => {
       if (!entries.length) await reloadTree(ctx);
       draw(el, ctx);
       el.onclick = async (e) => {
+        const settings = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-project-git]");
+        if (settings?.dataset.projectGit) return openRepositorySettings(ctx, settings.dataset.projectGit, settings.dataset.projectGit, settings);
         const t = (e.target as HTMLElement).closest<HTMLElement>("[data-file],[data-dir],[data-act]");
         if (!t) return;
         const d = t.dataset;
@@ -495,6 +498,7 @@ export const mountTree = (ctx: Ctx) => {
 
   // a row's right-click: the items the other parts add
   document.addEventListener("contextmenu", (e) => {
+    if ((e.target as Element).closest<HTMLButtonElement>("[data-project-git]")?.dataset.projectGit) return;
     const row = (e.target as HTMLElement).closest<HTMLElement>(".file-tree [data-file]:not([data-plot]), .file-tree [data-dir]");
     const path = row?.dataset.file ?? row?.dataset.dir;
     if (!row || !path) return;
