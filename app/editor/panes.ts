@@ -37,7 +37,7 @@ export const tabTitle = (ctx: Ctx, t: Tab) => {
 };
 
 /** A tab's DOM: its editors by sheet path (in the tab's order), kept while the tab lives. */
-type View = { el: HTMLElement; host: HTMLElement | null; editors: Map<string, Editor>; docs: ReturnType<typeof bindEditorDoc>[]; vertical: boolean };
+type View = { el: HTMLElement; host: HTMLElement | null; editors: Map<string, Editor>; docs: ReturnType<typeof bindEditorDoc>[]; vertical: boolean; snapshot?: Tab["snapshot"] };
 
 const SPLIT_KEY = "splitRatio";
 
@@ -164,6 +164,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
             for (const doc of t.open) {
               const editor = v.editors.get(doc.path);
               editor?.setGrid(doc.grid);
+              editor?.refreshMarks(true, true);
               if (canVertical(doc.kind)) editor?.setWidth(ctx.config.charsOverride ?? doc.grid.chars);
             }
           }
@@ -182,7 +183,8 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
           if (t.preview && !v.el.hidden && (fresh || was)) shownPreviews.push(v.el);
           if (t.preview && v.el.hidden && !was) ctx.view.pausePreviewTab?.(v.el.querySelector<HTMLElement>(".pbody")!);
           // the diff tab is read when it is made or selected in its pane, and not while it is not (docs/adr/0088)
-          if (t.diff && !v.el.hidden && (fresh || was)) shownDiffs.push(v.el);
+          if (t.diff && !v.el.hidden && (fresh || was || v.snapshot !== t.snapshot)) shownDiffs.push(v.el);
+          v.snapshot = t.snapshot;
           // the vertical switch changes the writing mode of the editors in place
           const vert = tabVertical(s, t);
           if (vert !== v.vertical) {
@@ -204,6 +206,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       const ed = d && ctx.editors.get(d.path);
       const activeId = (x: State) => x.panes[x.pane]?.tabs[x.panes[x.pane].active]?.id;
       const switched = !prev || activeId(prev) !== activeId(s);
+      if (switched) ctx.editors.forEach((editor) => editor.closeDiffHover?.());
       if (at) ed?.goto(at.line, at.col);
       else if (switched) ed?.focus();
     };

@@ -1,63 +1,77 @@
-// Line changes against a base text, for the gutter marks.
+// Keep the ranges and the text from the same comparison that supplies the gutter marks.
 
 export type LineMark = "add" | "mod" | "del";
+export type LineChange = { beforeStart: number; afterStart: number; before: string[]; after: string[] };
+export type LineComparison = { marks: Map<number, LineMark>; runs: LineChange[]; byLine: Map<number, LineChange[]> };
 
-/**
- * Marks for each 0-based line of `now`: added, modified, or a deletion before it. A null base (not in HEAD)
- * makes every line added; false (no git to compare with, docs/adr/0060) makes no marks.
- */
-export const lineMarks = (base: string | null | false, now: string): Map<number, LineMark> => {
-  if (base === false) return new Map();
-  const b = base === null ? [] : base.split("\n");
-  const a = now.split("\n");
-  const marks = new Map<number, LineMark>();
-  if (base === null) {
-    a.forEach((_, i) => marks.set(i, "add"));
-    return marks;
+export const splitLines = (text: string) => text === "" ? [] : text.split("\n");
+
+const changeRuns = (before: string[], after: string[]): LineChange[] => {
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) start++;
+  let beforeEnd = before.length;
+  let afterEnd = after.length;
+  while (beforeEnd > start && afterEnd > start && before[beforeEnd - 1] === after[afterEnd - 1]) {
+    beforeEnd--;
+    afterEnd--;
   }
-  // trim the common head and tail, then LCS on the middle
-  let s = 0;
-  while (s < a.length && s < b.length && a[s] === b[s]) s++;
-  let ea = a.length;
-  let eb = b.length;
-  while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) {
-    ea--;
-    eb--;
-  }
-  const A = a.slice(s, ea);
-  const B = b.slice(s, eb);
-  if (A.length * B.length > 4_000_000) {
-    A.forEach((_, i) => marks.set(s + i, "mod"));
-    return marks;
-  }
-  const dp: Uint32Array[] = Array.from({ length: A.length + 1 }, () => new Uint32Array(B.length + 1));
-  for (let i = A.length - 1; i >= 0; i--)
-    for (let j = B.length - 1; j >= 0; j--)
-      dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-  let i = 0;
-  let j = 0;
-  // collect runs of changes
-  let addRun: number[] = [];
-  let delCount = 0;
+  const bn = beforeEnd - start;
+  const an = afterEnd - start;
+  const range = (b: number, a: number, be: number, ae: number): LineChange => ({
+    beforeStart: start + b, afterStart: start + a,
+    before: before.slice(start + b, start + be), after: after.slice(start + a, start + ae),
+  });
+  if (!an || !bn || an * bn > 4_000_000) return an || bn ? [range(0, 0, bn, an)] : [];
+
+  const same = (b: number, a: number) => before[start + b] === after[start + a];
+  const stride = bn + 1;
+  const dp = new Uint32Array((an + 1) * stride);
+  for (let a = an - 1; a >= 0; a--)
+    for (let b = bn - 1; b >= 0; b--) {
+      const cell = a * stride + b;
+      dp[cell] = same(b, a) ? dp[cell + stride + 1] + 1 : Math.max(dp[cell + stride], dp[cell + 1]);
+    }
+
+  const runs: LineChange[] = [];
+  let a = 0;
+  let b = 0;
+  let runA = 0;
+  let runB = 0;
   const flush = () => {
-    addRun.forEach((k, n) => marks.set(s + k, n < delCount ? "mod" : "add"));
-    if (addRun.length === 0 && delCount > 0) marks.set(s + i, "del");
-    addRun = [];
-    delCount = 0;
+    if (runA !== a || runB !== b) runs.push(range(runB, runA, b, a));
   };
-  while (i < A.length || j < B.length) {
-    if (i < A.length && j < B.length && A[i] === B[j]) {
+  while (a < an || b < bn) {
+    if (a < an && b < bn && same(b, a)) {
       flush();
-      i++;
-      j++;
-    } else if (j < B.length && (i >= A.length || dp[i][j + 1] >= dp[i + 1][j])) {
-      delCount++;
-      j++;
+      runA = ++a;
+      runB = ++b;
+    } else if (b < bn && (a >= an || dp[a * stride + b + 1] >= dp[(a + 1) * stride + b])) {
+      b++;
     } else {
-      addRun.push(i);
-      i++;
+      a++;
     }
   }
   flush();
-  return marks;
+  return runs;
 };
+
+export const compareLines = (base: string | null | false, now: string): LineComparison => {
+  const marks = new Map<number, LineMark>();
+  const byLine = new Map<number, LineChange[]>();
+  const after = splitLines(now);
+  const runs = base === false ? [] : changeRuns(splitLines(base ?? ""), after);
+  const mark = (i: number, kind: LineMark, run: LineChange) => {
+    if (!marks.has(i)) marks.set(i, kind);
+    const existing = byLine.get(i);
+    if (existing) existing.push(run);
+    else byLine.set(i, [run]);
+  };
+  for (const run of runs) {
+    if (!run.after.length) mark(Math.min(run.afterStart, Math.max(0, after.length - 1)), "del", run);
+    else run.after.forEach((_, n) => mark(run.afterStart + n, n < run.before.length ? "mod" : "add", run));
+  }
+  return { marks, runs, byLine };
+};
+
+export const markAtLine = (comparison: LineComparison, line: number) => comparison.byLine.get(line) ?? [];
+export const lineMarks = (base: string | null | false, now: string) => compareLines(base, now).marks;

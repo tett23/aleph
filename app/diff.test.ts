@@ -30,7 +30,7 @@ test("a deletion marks the line after it", () => {
 });
 
 test("deleting everything", () => {
-  assert.deepEqual(marks("a\nb", ""), { 0: "mod" });
+  assert.deepEqual(marks("a\nb", ""), { 0: "del" });
 });
 
 test("common head and tail are not marked", () => {
@@ -47,8 +47,8 @@ test("a huge change gives up and marks the changed middle as modified", () => {
   assert.equal(m.get(0), "mod");
 });
 
-test("an empty base: the first line is modified, the rest added", () => {
-  assert.deepEqual(marks("", "a\nb"), { 0: "mod", 1: "add" });
+test("an empty base makes all lines added", () => {
+  assert.deepEqual(marks("", "a\nb"), { 0: "add", 1: "add" });
 });
 
 test("with no git to compare with (docs/adr/0060), no marks rather than all added", () => {
