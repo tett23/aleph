@@ -36,7 +36,7 @@ export const api = {
   /** The English words spelled wrong, by macOS (docs/adr/0030). */
   spellCheck: (words: string[]) => invoke<string[]>("spell_check", { words }),
   readBytes: (path: string) => invoke<ArrayBuffer>("read_bytes", { path }),
-  writeText: (path: string, content: string) => invoke<void>("write_text", { path, content }),
+  writeText: (path: string, content: string, createNew = false) => invoke<void>("write_text", { path, content, createNew }),
   exists: (path: string) => invoke<boolean>("exists", { path }),
   createEntry: (path: string, dir: boolean) => invoke<void>("create_entry", { path, dir }),
   makeDir: (path: string) => invoke<void>("make_dir", { path }),

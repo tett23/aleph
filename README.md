@@ -29,13 +29,21 @@ It edits these formats:
 Right-click a sheet, folder, or project in the file tree to rename it. Open sheets follow the new path.
 When Golem LSP supports file operations, Aleph updates local references before renaming; if reference updates are unavailable, you can cancel or rename without updating them.
 Right-click a project or folder to add a folder or an empty sheet of a chosen type. Right-click a Markdown sheet to convert that sheet to gm.
+
+With New Sheet, a name without an extension prompts you to choose Markdown (.md) or Golem (.gm).
+Inside a project, New Sheet registers Golem documents as chapters.
+
 To reorder projects in the same folder, right-click a project and choose “一つ上へ” (move up) or “一つ下へ” (move down). Aleph remembers the order for each workspace.
 The file tree shows chapters in their actual folders. The settings can show hidden files or hide files matched by `.gitignore`.
 Right-click a Golem document to add it to or remove it from the project chapters. Selected Golem documents can be exported as one file in tree order.
 
+Right-click menus stay within the window, including when you open them near an edge. If the items do not all fit, scroll within the menu to reach the rest.
+
 With page refresh on save enabled, ⌘S refreshes the PDF preview immediately when the saved content changes. Autosave waits for five seconds of idle time and skips rendering if the pages already match.
 
 The text and page previews keep your scroll position when the same content target refreshes, both in the tab and in a separate window. The position is measured in pixels from the reading start.
+
+The writing checks for `.gm`, `.md`, and `.txt` skip absolute HTTP and HTTPS URLs with a host, including URLs enclosed in angle brackets.
 
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
 The file tree shows each project’s `build/` folder with every file in it, so outputs such as PDFs can be handed to other applications: drag rows out of the window, choose “コピー” (copy) from the right-click menu and paste in Finder, or choose “zip で書き出す…” (export as zip) on a folder or a project. The zip writes its file names in UTF-8, normalized to NFC and flagged as UTF-8, and leaves out `.DS_Store` and `.git`.
@@ -44,6 +52,10 @@ The assistant in the bottom panel takes a request in plain words, such as "widen
 By default the assistant runs Qwen3.5-4B on your Mac with the bundled `llama-server`, and sends nothing outside. The other three models of the list can be downloaded from the settings. Claude Code and Codex can also be chosen when they are installed; they send the request, the target text and the manual excerpts to Anthropic or OpenAI with your own account, so Aleph asks once before using each. If they fail, Aleph asks the local model instead and says so.
 
 In the text editor, press Escape or Control-E to dismiss suggestions. With suggestions closed, Control-E moves to the end of the logical line. Each shortcut’s context can be changed in the key binding settings.
+
+When the Japanese input method uses Escape to cancel conversion, that press cancels only the conversion.
+For example, you can continue typing the name of a new sheet in the same dialog.
+A separate press of Escape after conversion ends performs the usual action.
 
 ## Status
 

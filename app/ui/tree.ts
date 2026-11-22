@@ -8,7 +8,7 @@ import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { addChapter, manifestChapters, removeChapters } from "../manifest.ts";
 import { selectedGmInTreeOrder } from "../chapter-export.ts";
-import { basename, dirname, rel, stem } from "../path.ts";
+import { basename, dirname, ext, rel, stem } from "../path.ts";
 import { allDocs, focused } from "../store.ts";
 import { flatten, IMAGE_KINDS, kindOf, opensOnClick, projectOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
 import { handedOver, zipNames } from "../handover.ts";
@@ -231,19 +231,20 @@ export const addWorkspace = async (ctx: Ctx) => {
   if (p) ctx.store.dispatch({ type: "workspace", path: p });
 };
 
-/** Adds a new chapter to a project's manifest. */
-export const newChapter = async (ctx: Ctx, project: string) => {
-  const list = chapters.get(project) ?? [];
-  const name = await ask("新しい章のファイル名", `chapters/${String(list.length + 1).padStart(2, "0")}.gm`);
-  if (!name) return null;
-  const path = `${project}/${name}`;
-  if (await api.exists(path)) return toast(`${name} はもうあります`), null;
-  await api.writeText(path, "# \n");
-  if (name.endsWith(".gm")) {
-    const mp = `${project}/manifest.toml`;
-    await api.writeText(mp, addChapter(await api.readText(mp), name));
-  }
-  return path;
+/** Resolves the ordinary New Sheet name before any file is created (docs/adr/0093). */
+const newSheetName = async (input: string): Promise<string | null> => {
+  const leaf = basename(input);
+  if (ext(leaf)) return input;
+  const name = input.replace(/\.+$/, "");
+  if (!basename(name)) return toast("シートの名前を指定してください"), null;
+  const formats = [
+    { label: "やめる", extension: "" },
+    { label: "Markdown (.md)", extension: ".md" },
+    { label: "Golem (.gm)", extension: ".gm" },
+  ];
+  const choice = await choiceDialog("シートの形式", "", formats.map(({ label }) => label));
+  const extension = choice === null ? "" : formats[choice].extension;
+  return extension ? name + extension : null;
 };
 
 /** The tree's actions (the buttons above it), also run as commands (docs/adr/0023). */
@@ -282,17 +283,21 @@ export const runTreeAct = async (ctx: Ctx, act: string) => {
     }
     case "new-file": {
       const project = focused(s)?.project ?? null;
-      let path: string | null = null;
-      if (project) path = await newChapter(ctx, project);
-      else {
-        const dir = targetDir(ctx);
-        const name = dir && (await ask("新しいシートの名前", "untitled.md"));
-        if (!dir || !name) return;
-        path = `${dir}/${name}`;
-        if (await api.exists(path)) return toast(`${name} はもうあります`);
-        await api.writeText(path, "");
+      const dir = project ?? targetDir(ctx);
+      if (!dir) return;
+      const proposed = project
+        ? await ask("新しい章のファイル名", `chapters/${String((chapters.get(project)?.length ?? 0) + 1).padStart(2, "0")}.gm`)
+        : await ask("新しいシートの名前", "untitled.md");
+      if (proposed === null) return;
+      const name = await newSheetName(proposed);
+      if (name === null) return;
+      const path = `${dir}/${name}`;
+      if (await api.exists(path)) return toast(`${name} はもうあります`);
+      await api.writeText(path, project ? "# \n" : "", true);
+      if (project && ext(name) === "gm") {
+        const mp = `${project}/manifest.toml`;
+        await api.writeText(mp, addChapter(await api.readText(mp), name));
       }
-      if (!path) return;
       await reloadTree(ctx);
       return ctx.open([path], { line: 1, col: 2 });
     }
@@ -431,13 +436,20 @@ export const mountTree = (ctx: Ctx) => {
     const row = (e.target as HTMLElement).closest<HTMLElement>(".file-tree [data-file]:not([data-plot]), .file-tree [data-dir]");
     const path = row?.dataset.file ?? row?.dataset.dir;
     if (!row || !path) return;
+    let anchor = row;
     if (row.dataset.file && !ctx.store.get().selected.includes(path)) {
       ctx.store.dispatch({ type: "select", paths: [path], anchor: path });
+      // Selecting a file redraws its row.
+      if (!row.isConnected) {
+        const drawn = document.querySelector<HTMLElement>(`.file-tree [data-file="${CSS.escape(path)}"]:not([data-plot])`);
+        if (!drawn) return;
+        anchor = drawn;
+      }
     }
     const items = treeMenus.flatMap((f) => f(path, row.dataset.dir !== undefined, ctx));
     if (!items.length) return;
     e.preventDefault();
-    menu(row, items);
+    menu(anchor, items);
   });
 
   // after saving a manifest or a style, chapters and grids are read again
