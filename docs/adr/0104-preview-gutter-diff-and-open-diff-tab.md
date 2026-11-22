@@ -1,6 +1,6 @@
 # ADR 0104: 行番号横で差分を確認して差分タブを開く
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

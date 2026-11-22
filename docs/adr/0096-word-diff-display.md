@@ -1,6 +1,6 @@
 # ADR 0096: 差分を文字単位で表示する
 
-Status: accepted
+Status: superseded [{"part":"CLI による取得方法と I1 の比較元","by":["docs/adr/0105-use-libgit2-without-git-executable.md"],"kind":"replace"}]
 
 ## 文脈
 

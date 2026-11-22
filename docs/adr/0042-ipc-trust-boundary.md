@@ -1,6 +1,6 @@
 # ADR 0042: IPC の信頼の境界と CSP
 
-Status: accepted
+Status: superseded [{"part":"実行ファイルの Git サブコマンド許可","by":["docs/adr/0105-use-libgit2-without-git-executable.md"],"kind":"replace"}]
 
 ## 文脈
 
