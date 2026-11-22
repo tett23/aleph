@@ -11,7 +11,7 @@ import { prepareApply } from "../difftab/mount.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { allDocs, focused, type Doc } from "../store.ts";
-import { git, gitNow } from "../tools.ts";
+import { gitOperation } from "../git-ipc.ts";
 import { applyAnswer, assistantChange } from "./applyflow.ts";
 import type { Scope } from "./edits.ts";
 import { chapterFor, splitSections, type Section } from "./material.ts";
@@ -195,9 +195,7 @@ const send = async (ctx: Ctx) => {
 /** Whether the diff tab can show the edit: Git can be used and the workspace is a repository (docs/adr/0088). */
 const repoNow = async (ctx: Ctx) => {
   const ws = ctx.store.get().workspace;
-  if (!ws || !(await gitNow()).ok) return false;
-  const r = await git(ctx, ws, ["rev-parse", "--is-inside-work-tree"]).catch(() => null);
-  return !!r && r.code === 0 && r.stdout.trim() === "true";
+  return !!ws && !!(await gitOperation(ws, "repository", {}).catch(() => null));
 };
 
 const apply = async (ctx: Ctx, e: Entry) => {

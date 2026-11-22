@@ -1,6 +1,6 @@
 # ADR 0105: Git コマンドに依存せず libgit2 を使う
 
-Status: accepted-pending
+Status: accepted
 
 ## 文脈
 

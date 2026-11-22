@@ -12,7 +12,6 @@ export type Config = {
   projectOrder: ProjectOrder;
   golemPath: string;
   shemPath: string;
-  gitPath: string;
   libraryDir: string;
   charsOverride: number | null;
   manuscript: { cols: number; rows: number };
@@ -48,7 +47,6 @@ export const defaults = (): Config => ({
   projectOrder: {},
   golemPath: "",
   shemPath: "",
-  gitPath: "",
   libraryDir: "",
   charsOverride: null,
   manuscript: { cols: 20, rows: 20 },
@@ -102,7 +100,6 @@ export const normalize = (raw: unknown): Config => {
     projectOrder: projectOrderOf(r.projectOrder),
     golemPath: str(r.golemPath, d.golemPath),
     shemPath: str(r.shemPath, d.shemPath),
-    gitPath: str(r.gitPath, d.gitPath),
     libraryDir: str(r.libraryDir, d.libraryDir),
     charsOverride: r.charsOverride === null || r.charsOverride === undefined ? null : clamp(r.charsOverride, 5, 200, 40),
     manuscript: { cols: clamp(ms.cols, 5, 100, 20), rows: clamp(ms.rows, 5, 100, 20) },
@@ -143,7 +140,7 @@ export const normalize = (raw: unknown): Config => {
 export const isDark = (theme: Theme, systemDark: boolean) => theme === "dark" || (theme === "auto" && systemDark);
 
 /** The settings only Rust changes (docs/adr/0050): adding a workspace, the library, the programs. */
-const OWNED = ["workspaces", "libraryDir", "gitPath", "golemPath", "shemPath"] as const;
+const OWNED = ["workspaces", "libraryDir", "golemPath", "shemPath"] as const;
 
 /** Takes the paths Rust kept from the settings it wrote, leaving the rest as it is. */
 export const adopt = (config: Config, written: string) => {

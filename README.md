@@ -71,6 +71,10 @@ A separate press of Escape after conversion ends performs the usual action.
 
 The diff tab and Git panel mark changed characters inline, including in Japanese text. Removed text has a strikethrough, and added text is underlined.
 
+Aleph bundles Git support through libgit2. Its Git panel initializes repositories, shows changes and history, and commits, pushes, and pulls without requiring a Git executable. The Git section of the app settings edits your global author name and email. Use a project's gear button or the Git panel to edit the identity of a particular repository.
+
+For push and pull, configure a tracking branch on an SSH or HTTPS remote. SSH uses your agent and verifies the server against your known hosts. HTTPS verifies the server certificate and asks for a username and password or token when the server requires them.
+
 ## Status
 
 The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, the conversion from Markdown, and plugins.

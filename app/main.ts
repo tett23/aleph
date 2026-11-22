@@ -20,7 +20,8 @@ import { mountShell, renderRibbon, renderRightSidebarHead, renderStatus, renderT
 import { openPaths, saveSheets } from "./docs.ts";
 import { mountTree, reloadTree, treeReloaded } from "./ui/tree.ts";
 import { readTitleOnSave } from "./savedtitles.ts";
-import { git, gitOk, mountTools } from "./tools.ts";
+import { mountTools } from "./tools.ts";
+import { gitOperation } from "./git-ipc.ts";
 import { mountAssistantSettings } from "./assistant/models.ts";
 import { startRecorder } from "./ed/recorder.ts";
 import { mountEditors } from "./editor/host.ts";
@@ -123,11 +124,10 @@ const start = async () => {
       return true;
     }),
     baseText: async (d) => {
-      // no git: nothing to compare with, so no marks (docs/adr/0060)
-      if (!(await gitOk())) return false;
       if (!d.workspace) return null;
-      const out = await git(ctx, d.workspace, ["show", `HEAD:${rel(d.workspace, d.path)}`]).catch(() => null);
-      return out && out.code === 0 ? out.stdout : null;
+      const result = await gitOperation(d.workspace, "head", { path: rel(d.workspace, d.path) }).catch(() => undefined);
+      if (!result || result.kind === "notRepository") return false;
+      return result.kind === "text" ? result.text : null;
     },
     // before the frame is drawn there is nothing to redraw (the daily commit may finish first)
     refresh: (what = ["sidebar", "rightSidebar", "status", "previewTab"]) => void (shell && draw(store.get(), store.get(), what)),

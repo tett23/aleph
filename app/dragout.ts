@@ -18,6 +18,7 @@ export const mountDragOut = (ctx: Ctx) => {
   const start = (down: MouseEvent) => {
     if (down.button !== 0 || running) return;
     suppressClick = false;
+    if ((down.target as Element).closest(".file-tree button")?.tagName === "BUTTON") return;
     const row = (down.target as Element).closest<HTMLElement>(".file-tree [data-file], .file-tree [data-dir]");
     const pressed = row?.dataset.file ?? row?.dataset.dir;
     const workspace = ctx.store.get().workspace;

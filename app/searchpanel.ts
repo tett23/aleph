@@ -13,7 +13,7 @@ import { allDocs, focused } from "./store.ts";
 import { diffText } from "./ed/ime.ts";
 import { afterHtml, confirmText, projectsTouched, spotsOf } from "./replace.ts";
 import { diagHooks } from "./diag/mount.ts";
-import { git, gitOk } from "./tools.ts";
+import { gitOperation } from "./git-ipc.ts";
 import { confirmDialog } from "./ui/dom.ts";
 import { reloadTree } from "./ui/tree.ts";
 import { TEXT_KINDS, workspaceOf } from "./workspace.ts";
@@ -97,11 +97,7 @@ const drawResults = async (box: HTMLElement, ctx: Ctx, found: Found | string | n
   };
 };
 
-const isGit = async (ctx: Ctx, root: string) => {
-  if (!(await gitOk())) return false;
-  const r = await git(ctx, root, ["rev-parse", "--is-inside-work-tree"]).catch(() => null);
-  return !!r && r.code === 0;
-};
+const isGit = async (root: string) => !!(await gitOperation(root, "repository", {}).catch(() => null));
 
 /** Replaces the chosen matches (or all of them) across the scope, after saving the open sheets and asking. */
 const replaceRun = async (ctx: Ctx, all: boolean, rerun: () => Promise<Found | string | null>) => {
@@ -123,7 +119,7 @@ const replaceRun = async (ctx: Ctx, all: boolean, rerun: () => Promise<Found | s
   const files = all ? new Set(hits.map((h) => h.path)).size : Object.keys(only!).length;
   const count = all ? hits.length : chosen.size;
   if (!count) return ctx.toast("置換する一致がありません");
-  const git = (await Promise.all(roots.map((r) => isGit(ctx, r)))).every(Boolean);
+  const git = (await Promise.all(roots.map((r) => isGit(r)))).every(Boolean);
   if (!(await confirmDialog(confirmText(files, count, git, all && found.truncated), "置換する"))) return;
   const args = { pattern: opts.query, regex: opts.regex, caseSensitive: opts.caseSensitive, with: opts.with };
   let replaced = 0;
