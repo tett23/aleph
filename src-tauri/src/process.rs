@@ -15,9 +15,27 @@ pub struct Out {
 
 /// Runs a program with its arguments as an array, without a shell.
 pub fn run(program: &Path, cwd: &Path, args: &[String]) -> Result<Out, String> {
-    let o = Command::new(program)
-        .args(args)
-        .current_dir(cwd)
+    output(Command::new(program).args(args).current_dir(cwd), program)
+}
+
+/// Runs git with Aleph's fixed options. Both display patches use UTF-8 for
+/// matching characters and English for the ordinary patch's metadata.
+pub fn run_git(program: &Path, cwd: &Path, args: &[String]) -> Result<Out, String> {
+    let mut command = Command::new(program);
+    command.args(git_args(args)).current_dir(cwd);
+    if args.first().is_some_and(|sub| sub == "diff")
+        && args
+            .iter()
+            .take_while(|arg| *arg != "--")
+            .any(|arg| matches!(arg.as_str(), "--word-diff=porcelain" | "--word-diff=none"))
+    {
+        command.env("LC_ALL", "C.UTF-8").env("LANGUAGE", "C");
+    }
+    output(&mut command, program)
+}
+
+fn output(command: &mut Command, program: &Path) -> Result<Out, String> {
+    let o = command
         .output()
         .map_err(|e| format!("{}: {e}", program.display()))?;
     Ok(Out {
@@ -167,6 +185,23 @@ pub fn searched(name: &str, order: &[Place], roots: &Roots) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::fsops::testdir;
+
+    #[test]
+    fn adr0096_i1_display_diff_forces_utf8() {
+        let dir = testdir::fresh("word-diff-locale");
+        let git = dir.join("git");
+        std::fs::write(
+            &git,
+            "#!/bin/sh\nprintf '%s/%s' \"$LC_ALL\" \"$LANGUAGE\"\n",
+        )
+        .unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).unwrap();
+        for flag in ["--word-diff=porcelain", "--word-diff=none"] {
+            let args = ["diff".to_string(), flag.to_string()];
+            assert_eq!(run_git(&git, &dir, &args).unwrap().stdout, "C.UTF-8/C");
+        }
+    }
 
     fn out(code: i32, stdout: &str, stderr: &str) -> Out {
         Out {

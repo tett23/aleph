@@ -51,6 +51,8 @@ When the Japanese input method uses Escape to cancel conversion, that press canc
 For example, you can continue typing the name of a new sheet in the same dialog.
 A separate press of Escape after conversion ends performs the usual action.
 
+The diff tab and Git panel mark changed characters inline, including in Japanese text. Removed text has a strikethrough, and added text is underlined.
+
 ## Status
 
 The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, the conversion from Markdown, and plugins.

@@ -764,7 +764,7 @@ fn git_now(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
             process::searched("git", &process::GIT_ORDER, &r).join("、")
         )
     })?;
-    process::run(&git, Path::new(&cwd), &process::git_args(&args))
+    process::run_git(&git, Path::new(&cwd), &args)
 }
 
 #[derive(serde::Serialize)]
