@@ -36,11 +36,48 @@ impl Drop for Staging {
     }
 }
 
-/// Checks the existing root before running Golem. The generated directory never enters the workspace by rename.
+/// Runs the generator and asks Golem to validate its manifest and chapters
+/// before the generated files can become visible in the registered root.
 pub fn initialize(
     root: &Path,
     cache: &Path,
+    run: impl Fn(&Path, &[String]) -> Result<crate::process::Out>,
+) -> Result<()> {
+    let checked = |cwd: &Path, args: &[String]| {
+        let output = run(cwd, args)?;
+        if output.code == 0 {
+            return Ok(());
+        }
+        let log = if output.stderr.trim().is_empty() {
+            output.stdout.trim()
+        } else {
+            output.stderr.trim()
+        };
+        Err(format!("golem {} に失敗しました: {log}", args[0]))
+    };
+    initialize_with(
+        root,
+        cache,
+        |stage, name| {
+            checked(
+                stage,
+                &["new".into(), format!("./{name}"), "--no-fonts".into()],
+            )
+        },
+        |staged_project| {
+            checked(
+                staged_project,
+                &["lint".into(), "--format".into(), "json".into()],
+            )
+        },
+    )
+}
+
+fn initialize_with(
+    root: &Path,
+    cache: &Path,
     generate: impl FnOnce(&Path, &str) -> Result<()>,
+    validate: impl FnOnce(&Path) -> Result<()>,
 ) -> Result<()> {
     let name = root
         .file_name()
@@ -79,7 +116,10 @@ pub fn initialize(
         })
         .unwrap()?;
     generate(&stage.0, name)?;
-    install(&root, &stage.0.join(name), |_| Ok(()))
+    let project = stage.0.join(name);
+    let found = generated(&project)?;
+    validate(&project)?;
+    install_generated(&root, found, |_| Ok(()))
 }
 
 fn check_projects(root: &Path) -> Result<()> {
@@ -157,45 +197,21 @@ fn generated(stage: &Path) -> Result<Vec<Generated>> {
             });
         }
     }
-    let manifest = found
-        .iter()
-        .find(|e| e.path == Path::new(MANIFEST))
-        .and_then(|e| e.data.as_deref());
-    let manifest = manifest
-        .and_then(|raw| std::str::from_utf8(raw).ok())
-        .ok_or_else(|| at(stage, "生成された manifest.toml がありません"))?;
-    if !found.iter().any(|e| {
-        e.path == Path::new("style.toml") && e.data.as_ref().is_some_and(|v| !v.is_empty())
-    }) {
-        return Err(at(stage, "生成された style.toml がありません"));
-    }
-    // The result of `golem new` has a top-level chapters array of relative
-    // strings. Reject a shape we cannot verify before exposing its manifest.
-    let header = regex::Regex::new(r"(?m)^\s*chapters\s*=\s*\[([^\]]*)\]").unwrap();
-    let chapters = header
-        .captures(manifest)
-        .map(|c| c[1].to_owned())
-        .ok_or_else(|| at(stage, "生成された章一覧を読めません"))?;
-    let paths = chapters
-        .split(',')
-        .map(str::trim)
-        .filter(|p| !p.is_empty())
-        .map(|p| {
-            p.strip_prefix('"')
-                .and_then(|p| p.strip_suffix('"'))
-                .ok_or_else(|| at(stage, "生成された章一覧を読めません"))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    if paths.is_empty() {
-        return Err(at(stage, "生成された章がありません"));
-    }
-    for path in paths {
-        if !found
-            .iter()
-            .any(|e| e.path == Path::new(path) && e.data.is_some())
-        {
-            return Err(at(&stage.join(path), "manifest.toml が指す章がありません"));
+    for required in [MANIFEST, "style.toml"] {
+        if !found.iter().any(|e| {
+            e.path == Path::new(required) && e.data.as_ref().is_some_and(|v| !v.is_empty())
+        }) {
+            return Err(at(
+                &stage.join(required),
+                "生成結果に必要なファイルがありません",
+            ));
         }
+    }
+    if !found
+        .iter()
+        .any(|e| e.path.extension().is_some_and(|ext| ext == "gm") && e.data.is_some())
+    {
+        return Err(at(stage, "生成された章がありません"));
     }
     found.sort_by(|a, b| {
         (a.path == Path::new(MANIFEST), &a.path).cmp(&(b.path == Path::new(MANIFEST), &b.path))
@@ -248,6 +264,7 @@ struct Created {
     parent: File,
     identity: Metadata,
     directory: bool,
+    externally_changed: bool,
 }
 
 fn same_file(a: &Metadata, b: &Metadata) -> bool {
@@ -270,16 +287,26 @@ fn temp_name() -> String {
     )
 }
 
+fn same_times(a: &Metadata, b: &Metadata, check_change_time: bool) -> bool {
+    (a.mtime(), a.mtime_nsec()) == (b.mtime(), b.mtime_nsec())
+        && (!check_change_time || (a.ctime(), a.ctime_nsec()) == (b.ctime(), b.ctime_nsec()))
+}
+
+fn current_directory(current: &Metadata, entry: &Created, check_change_time: bool) -> bool {
+    !entry.externally_changed
+        && current.is_dir()
+        && same_file(current, &entry.identity)
+        && current.mode() == entry.identity.mode()
+        && same_times(current, &entry.identity, check_change_time)
+}
+
 fn matches(file: &mut File, entry: &Created, check_change_time: bool) -> io::Result<bool> {
     let current = file.metadata()?;
     let old = &entry.identity;
     if entry.directory {
-        return Ok(current.is_dir() && same_file(&current, old) && current.mode() == old.mode());
+        return Ok(current_directory(&current, entry, check_change_time));
     }
-    if !unchanged(&current, old)
-        || (check_change_time
-            && (current.ctime(), current.ctime_nsec()) != (old.ctime(), old.ctime_nsec()))
-    {
+    if !unchanged(&current, old) || !same_times(&current, old, check_change_time) {
         return Ok(false);
     }
     let mut bytes = Vec::new();
@@ -287,47 +314,87 @@ fn matches(file: &mut File, entry: &Created, check_change_time: bool) -> io::Res
     Ok(entry.expected.as_ref() == Some(&bytes) && unchanged(&file.metadata()?, old))
 }
 
-fn rollback(created: Vec<Created>) -> Vec<String> {
-    created
-        .into_iter()
-        .rev()
-        .filter_map(|entry| {
-            let name = entry.path.file_name().unwrap();
-            let parent = &entry.parent;
-            let changed = || io::Error::other("作成後に変更されたため保持しました");
-            let remove = || -> io::Result<()> {
-                if !matches(&mut relative::open_entry(parent, name)?, &entry, true)? {
+/// Before changing a child, check whether another operation has already
+/// changed its parent. Only our own child operations advance the baseline.
+fn observe_parent(
+    created: &mut [Created],
+    path: &Path,
+    parent: &File,
+) -> io::Result<Option<usize>> {
+    let Some(index) = created
+        .iter()
+        .position(|entry| entry.directory && Some(entry.path.as_path()) == path.parent())
+    else {
+        return Ok(None);
+    };
+    let entry = &mut created[index];
+    if !current_directory(&parent.metadata()?, entry, true) {
+        entry.externally_changed = true;
+        return Err(io::Error::other("作成後に親フォルダが変更されました"));
+    }
+    Ok(Some(index))
+}
+
+fn record_parent(created: &mut [Created], index: usize, parent: &File) {
+    let entry = &mut created[index];
+    match parent.metadata() {
+        Ok(metadata)
+            if same_file(&metadata, &entry.identity)
+                && metadata.mode() == entry.identity.mode() =>
+        {
+            entry.identity = metadata
+        }
+        _ => entry.externally_changed = true,
+    }
+}
+
+fn rollback(mut created: Vec<Created>) -> Vec<String> {
+    let mut leftovers = Vec::new();
+    while let Some(entry) = created.pop() {
+        let name = entry.path.file_name().unwrap();
+        let parent = &entry.parent;
+        let observed = observe_parent(&mut created, &entry.path, parent)
+            .ok()
+            .flatten();
+        let changed = || io::Error::other("作成後に変更されたため保持しました");
+        let mut moved = false;
+        let remove = (|| -> io::Result<()> {
+            if !matches(&mut relative::open_entry(parent, name)?, &entry, true)? {
+                return Err(changed());
+            }
+            // Recheck the occupant after moving it. A replacement racing the
+            // first check is restored instead of being unlinked.
+            let quarantine = temp_name();
+            let held = std::ffi::OsStr::new(&quarantine);
+            relative::rename_new(parent, name, held)?;
+            moved = true;
+            let removed = (|| {
+                if !matches(&mut relative::open_entry(parent, held)?, &entry, false)? {
                     return Err(changed());
                 }
-                // Recheck the item taken from the name after moving it aside.
-                // An external replacement racing the first check is restored,
-                // never unlinked based on the metadata of the earlier occupant.
-                let quarantine = temp_name();
-                let held = std::ffi::OsStr::new(&quarantine);
-                relative::rename_new(parent, name, held)?;
-                let removed = (|| {
-                    if !matches(&mut relative::open_entry(parent, held)?, &entry, false)? {
-                        return Err(changed());
-                    }
-                    relative::remove(parent, held, entry.directory)
-                })();
-                if let Err(error) = removed {
-                    relative::rename_new(parent, held, name).map_err(|restore| {
-                        io::Error::other(format!(
-                            "{error}。{} に保持しました（元の名前に戻せません: {restore}）",
-                            entry.path.with_file_name(held).display()
-                        ))
-                    })?;
-                    return Err(error);
-                }
-                Ok(())
-            };
-            remove()
-                .err()
-                .filter(|e| e.kind() != io::ErrorKind::NotFound)
-                .map(|e| at(&entry.path, e))
-        })
-        .collect()
+                relative::remove(parent, held, entry.directory)
+            })();
+            if let Err(error) = removed {
+                relative::rename_new(parent, held, name).map_err(|restore| {
+                    io::Error::other(format!(
+                        "{error}。{} に保持しました（元の名前に戻せません: {restore}）",
+                        entry.path.with_file_name(held).display()
+                    ))
+                })?;
+                return Err(error);
+            }
+            Ok(())
+        })();
+        if let Some(index) = observed.filter(|_| moved) {
+            record_parent(&mut created, index, parent);
+        }
+        if let Err(error) = remove {
+            if moved || error.kind() != io::ErrorKind::NotFound {
+                leftovers.push(at(&entry.path, error));
+            }
+        }
+    }
+    leftovers
 }
 
 fn write_file(
@@ -367,6 +434,7 @@ fn write_file(
         parent,
         identity: file.metadata().map_err(|e| at(&provisional_path, e))?,
         directory: false,
+        externally_changed: false,
     });
     wrote.map_err(|e| at(&provisional_path, e))?;
     if private.is_some() {
@@ -431,19 +499,20 @@ fn ensure_directory(
     let temporary = std::ffi::OsStr::new(&private);
     let temporary_path = path.with_file_name(temporary);
     relative::new_dir(&parent, temporary, mode).map_err(|e| at(&temporary_path, e))?;
-    let identity = relative::open_dir(&parent, temporary)
-        .and_then(|dir| dir.metadata())
-        .map_err(|e| at(&temporary_path, e))?;
+    let directory = relative::open_dir(&parent, temporary).map_err(|e| at(&temporary_path, e))?;
+    let identity = directory.metadata().map_err(|e| at(&temporary_path, e))?;
     let mut entry = Created {
         expected: None,
         path: temporary_path,
         parent,
         identity,
         directory: true,
+        externally_changed: false,
     };
     match relative::rename_new(&entry.parent, temporary, name) {
         Ok(()) => {
             entry.path = path.to_owned();
+            entry.identity = directory.metadata().map_err(|e| at(path, e))?;
             created.push(entry);
             Ok(())
         }
@@ -487,9 +556,17 @@ fn validate_placed(root: &Path, anchor: &File, created: &[Created]) -> Result<()
     Ok(())
 }
 
-fn install(root: &Path, stage: &Path, mut before: impl FnMut(&Path) -> Result<()>) -> Result<()> {
+#[cfg(test)]
+fn install(root: &Path, stage: &Path, before: impl FnMut(&Path) -> Result<()>) -> Result<()> {
+    install_generated(root, generated(stage)?, before)
+}
+
+fn install_generated(
+    root: &Path,
+    found: Vec<Generated>,
+    mut before: impl FnMut(&Path) -> Result<()>,
+) -> Result<()> {
     check_projects(root)?;
-    let found = generated(stage)?;
     preflight(root, &found)?;
     let anchor = relative::directory(root).map_err(|e| at(root, e))?;
     let mut created = Vec::new();
@@ -503,11 +580,23 @@ fn install(root: &Path, stage: &Path, mut before: impl FnMut(&Path) -> Result<()
             }
             let path = root.join(&e.path);
             let parent = relative::parent(&anchor, &e.path).map_err(|err| at(&path, err))?;
-            if let Some(bytes) = e.data {
-                write_file(parent, &path, bytes, e.mode, &mut created)?;
+            let watch = observe_parent(&mut created, &path, &parent).map_err(|e| at(&path, e))?;
+            let before = created.len();
+            let held_parent = watch
+                .map(|_| parent.try_clone())
+                .transpose()
+                .map_err(|e| at(&path, e))?;
+            let result = if let Some(bytes) = e.data {
+                write_file(parent, &path, bytes, e.mode, &mut created)
             } else {
-                ensure_directory(parent, &path, e.mode, &mut created)?;
+                ensure_directory(parent, &path, e.mode, &mut created)
+            };
+            if let (Some(index), Some(held)) = (watch, held_parent) {
+                if result.is_ok() || created.len() > before {
+                    record_parent(&mut created, index, &held);
+                }
             }
+            result?;
         }
         Ok(())
     })();

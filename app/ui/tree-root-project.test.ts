@@ -62,6 +62,8 @@ test("ADR 0101 I3, I5: the current root uses one initialization and the existing
     assert.equal(store.get().panes[0].tabs[0].id, tab);
     assert.deepEqual(store.get().open[0], { ...doc, text: "unwritten edit", project: root, grid: { chars: 24, lines: 16, vertical: true } });
     assert.ok(notifications.some((s) => s.includes("初期化しました")));
+    assert.equal(workspaceProjectItem(ctx, root)?.disabled, true);
+    assert.equal(command.when(store.get()), false);
     await runTreeAct(ctx, "init-project");
     assert.deepEqual(calls, [root]);
     assert.ok(notifications.some((s) => s.includes("すでに")));

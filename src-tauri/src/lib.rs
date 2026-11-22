@@ -1337,22 +1337,8 @@ async fn initialize_workspace_project(app: AppHandle, root: String) -> R<()> {
         }
         may(&app, &root, WR)?;
         let golem = tool_path(&app, "golem")?;
-        project_init::initialize(Path::new(&root), &cache_dir(&app)?, |stage, name| {
-            let output = process::run(
-                &golem,
-                stage,
-                &["new".into(), format!("./{name}"), "--no-fonts".into()],
-            )?;
-            if output.code == 0 {
-                Ok(())
-            } else {
-                let log = if output.stderr.trim().is_empty() {
-                    output.stdout.trim()
-                } else {
-                    output.stderr.trim()
-                };
-                Err(format!("golem new に失敗しました: {log}"))
-            }
+        project_init::initialize(Path::new(&root), &cache_dir(&app)?, |cwd, args| {
+            process::run(&golem, cwd, args)
         })
     })
     .await

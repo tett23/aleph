@@ -2,6 +2,14 @@ use super::*;
 use crate::fsops::testdir::fresh;
 use std::os::unix::fs::{symlink, PermissionsExt};
 
+fn generate_fake(
+    root: &Path,
+    cache: &Path,
+    generate: impl FnOnce(&Path, &str) -> Result<()>,
+) -> Result<()> {
+    initialize_with(root, cache, generate, |_| Ok(()))
+}
+
 fn template(root: &Path) {
     fs::create_dir_all(root.join("chapters")).unwrap();
     fs::write(root.join("chapters/01.gm"), "new text").unwrap();
@@ -121,11 +129,11 @@ fn adr0101_i3_failed_golem_and_incomplete_generation_never_start_placement() {
     let root = fresh("initialize-generator");
     let cache = fresh("initialize-cache");
     assert!(
-        initialize(&root, &cache, |_, _| Err("golem unavailable".into()))
+        generate_fake(&root, &cache, |_, _| Err("golem unavailable".into()))
             .unwrap_err()
             .contains("unavailable")
     );
-    assert!(initialize(&root, &cache, |stage, name| {
+    assert!(generate_fake(&root, &cache, |stage, name| {
         fs::create_dir(stage.join(name)).unwrap();
         fs::write(
             stage.join(name).join("manifest.toml"),
@@ -175,8 +183,8 @@ fn adr0101_i1_i4_failure_removes_pristine_items_and_retains_outside_changes() {
 fn adr0101_i3_i4_second_initialization_and_existing_font_are_preserved() {
     let root = fresh("initialize-twice");
     let cache = fresh("initialize-cache");
-    initialize(&root, &cache, |stage, name| {
-        let error = initialize(&root, &cache, |_, _| {
+    generate_fake(&root, &cache, |stage, name| {
+        let error = generate_fake(&root, &cache, |_, _| {
             panic!("the second operation ran Golem")
         })
         .unwrap_err();
@@ -204,24 +212,20 @@ fn adr0101_i1_bundled_golem_generates_the_manifest_for_the_registered_directory_
     fs::create_dir(&cache).unwrap();
     fs::write(root.join("notes.md"), "my note").unwrap();
     let golem = std::env::var_os("ALEPH_TEST_GOLEM").unwrap();
-    let mut original = Vec::new();
-    initialize(&root, &cache, |stage, name| {
-        assert_eq!(name, "作品の原稿");
-        let output = std::process::Command::new(&golem)
-            .current_dir(stage)
-            .args(["new", &format!("./{name}"), "--no-fonts"])
-            .output()
-            .map_err(|e| e.to_string())?;
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        original = fs::read(stage.join(name).join("manifest.toml")).unwrap();
-        Ok(())
+    let original = std::cell::RefCell::new(Vec::new());
+    initialize(&root, &cache, |cwd, args| {
+        let result = crate::process::run(Path::new(&golem), cwd, args)?;
+        if args[0] == "new" {
+            assert_eq!(args[1], "./作品の原稿");
+            *original.borrow_mut() = fs::read(cwd.join(&args[1]).join(MANIFEST)).unwrap();
+        }
+        Ok(result)
     })
     .unwrap();
-    assert_eq!(fs::read(root.join("manifest.toml")).unwrap(), original);
+    assert_eq!(
+        fs::read(root.join("manifest.toml")).unwrap(),
+        original.into_inner()
+    );
     assert!(root.join("chapters/01.gm").is_file());
     assert_eq!(
         fs::read_to_string(root.join("notes.md")).unwrap(),
@@ -229,4 +233,49 @@ fn adr0101_i1_bundled_golem_generates_the_manifest_for_the_registered_directory_
     );
     assert_eq!(fs::read_dir(cache).unwrap().count(), 0);
     fs::remove_dir_all(folder).unwrap();
+}
+
+#[test]
+fn adr0101_i4_rollback_preserves_an_externally_touched_empty_directory() {
+    let root = fresh("initialize-touch-directory");
+    let stage = fresh("initialize-stage");
+    template(&stage);
+    let old = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000);
+    let error = install(&root, &stage, |path| {
+        if path == Path::new("manifest.toml") {
+            File::open(root.join("chapters"))
+                .unwrap()
+                .set_times(fs::FileTimes::new().set_modified(old))
+                .unwrap();
+            return Err("injected failure".into());
+        }
+        Ok(())
+    })
+    .unwrap_err();
+    assert!(error.contains("chapters"), "{error}");
+    assert!(root.join("chapters").is_dir());
+    assert_eq!(fs::read_dir(root.join("chapters")).unwrap().count(), 0);
+    assert!(!root.join("manifest.toml").exists());
+}
+
+#[test]
+#[ignore = "ALEPH_TEST_GOLEM must name the bundled Golem executable"]
+fn adr0101_i3_malformed_generated_manifest_never_reaches_the_root() {
+    let root = fresh("initialize-malformed-manifest");
+    let cache = fresh("initialize-cache");
+    let golem = std::env::var_os("ALEPH_TEST_GOLEM").unwrap();
+    let error = initialize(&root, &cache, |cwd, args| {
+        let result = crate::process::run(Path::new(&golem), cwd, args)?;
+        if args[0] == "new" {
+            let mut manifest = fs::OpenOptions::new()
+                .append(true)
+                .open(cwd.join(&args[1]).join(MANIFEST))
+                .unwrap();
+            writeln!(manifest, "[broken").unwrap();
+        }
+        Ok(result)
+    })
+    .unwrap_err();
+    assert!(error.contains("manifest.toml"));
+    assert_eq!(fs::read_dir(root).unwrap().count(), 0);
 }

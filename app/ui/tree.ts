@@ -298,6 +298,7 @@ export const workspaceProjectItem = (ctx: Ctx, root: string | null): MenuItem | 
     ? {
         label: ctx.projects.includes(root) ? "Golem プロジェクトに初期化（初期化済み）" : "Golem プロジェクトに初期化",
         icon: icon("book-plus", 14),
+        disabled: ctx.projects.includes(root) || initializing.has(root),
         run: () => { if (root === ctx.store.get().workspace) void runTreeAct(ctx, "init-project"); },
       }
     : null;
