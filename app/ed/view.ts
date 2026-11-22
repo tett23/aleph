@@ -115,7 +115,7 @@ export const createView = (o: ViewOptions) => {
 
   const layersOf = (): Map<string, Map<number, Range[]>> => {
     if (layerCache) return layerCache;
-    layerCache = new Map(LAYERS.map((k) => [k, linesOfRanges(core.doc(), core.layer(k))]));
+    layerCache = new Map(LAYERS.map((k) => [k, linesOfRanges(core.doc(), core.layer(k), k === "selmatch")]));
     return layerCache;
   };
 
@@ -127,7 +127,7 @@ export const createView = (o: ViewOptions) => {
     return g;
   };
 
-  const buildLine = (n: number, text: string, spans: ReturnType<typeof lineSpans>) => {
+  const buildLine = (n: number, text: string, spans: ReturnType<typeof lineSpans>, matchedEol: boolean) => {
     const line = el("div", "ed-line");
     line.dataset.line = String(n);
     line.append(gutterOf(n));
@@ -146,6 +146,7 @@ export const createView = (o: ViewOptions) => {
     // the end-of-line mark is drawn by CSS, not as an element: an element at the end of the line would
     // give the DOM a caret position after it, which WebKit draws at the far edge of the line
     if (invisibles && n < core.doc().lines) line.dataset.eol = "";
+    if (matchedEol) line.dataset.selmatchEol = "";
     if (!text) line.classList.add("empty");
     return line;
   };
@@ -157,12 +158,13 @@ export const createView = (o: ViewOptions) => {
     const layers: Range[][] = [highlighter.tokens(doc, n).map((t) => ({ ...t })), ...LAYERS.map((k) => ls.get(k)!.get(n) ?? []), specialRanges(text)];
     if (invisibles) layers.push(invisibleRanges(text));
     const spans = lineSpans(text, layers);
+    const matchedEol = ls.get("selmatch")?.get(n)?.some((r) => r.to > text.length) ?? false;
     const page = breaks.get(n - 1);
-    const key = `${text}\u0000${spans.map((s) => `${s.from}-${s.to}:${s.cls.join(".")}`).join(",")}\u0000${marks.get(n - 1) ?? ""}${diagLines.get(n) ?? ""}${page ?? ""}${invisibles ? "i" : ""}${n === doc.lines ? "l" : ""}`;
+    const key = `${text}\u0000${spans.map((s) => `${s.from}-${s.to}:${s.cls.join(".")}`).join(",")}\u0000${marks.get(n - 1) ?? ""}${diagLines.get(n) ?? ""}${page ?? ""}${invisibles ? "i" : ""}${n === doc.lines ? "l" : ""}${matchedEol ? "m" : ""}`;
     const have = units.get(n);
     if (have && have.key === key) return have;
     const brk = page ? Object.assign(el("div", "page-break", false), { textContent: `改ページ（見積もり）　${page - 1} → ${page}` }) : null;
-    const u = { line: n, el: buildLine(n, text, spans), brk, key };
+    const u = { line: n, el: buildLine(n, text, spans, matchedEol), brk, key };
     units.set(n, u);
     return u;
   };
@@ -449,6 +451,7 @@ export const createView = (o: ViewOptions) => {
     if (core.doc() === before) {
       for (let n = c[0]; n <= c[1]; n++) units.delete(n);
       draw();
+      o.onUpdate?.(null);
     }
     revealCaret();
   };

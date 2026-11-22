@@ -56,12 +56,33 @@ test("a regexp replacement fills in groups; a plain one is taken as it is", () =
   assert.equal(replacementOf("abc", { search: "abc" }, "$1"), "$1");
 });
 
-test("other occurrences of a short selection are marked; long, multi-line or blank selections are not", () => {
-  assert.deepEqual(selectionMatches("霧笛と霧笛と霧", { from: 0, to: 2 }), [{ from: 3, to: 5 }]);
-  assert.deepEqual(selectionMatches("abcabc", { from: 0, to: 0 }), []);
-  assert.deepEqual(selectionMatches("a\nba\nb", { from: 0, to: 3 }), []);
-  assert.deepEqual(selectionMatches("  x  ", { from: 0, to: 2 }), []);
-  assert.deepEqual(selectionMatches("x".repeat(402), { from: 0, to: 201 }), []);
-  // case matters
-  assert.deepEqual(selectionMatches("Ab ab", { from: 3, to: 5 }), []);
+test("ADR 0091 I1, I2: an empty selection or a unique match has no highlights", () => {
+  assert.deepEqual(selectionMatches("猫", { from: 0, to: 1 }), []);
+  assert.deepEqual(selectionMatches("猫 猫", { from: 0, to: 0 }), []);
+});
+
+test("ADR 0091 I1: literal, case-sensitive matches inside longer words", () => {
+  assert.deepEqual(selectionMatches("猫 猫又", { from: 0, to: 1 }), [{ from: 2, to: 3 }]);
+  assert.deepEqual(selectionMatches("a.b axb A.b a.b", { from: 0, to: 3 }), [{ from: 12, to: 15 }]);
+});
+
+test("ADR 0091 I1: long, multiline, whitespace-only and newline-only selections match", () => {
+  for (const selected of ["𠮷".repeat(100), "𠮷".repeat(100) + "a", "a\nb", "  ", "\n"]) {
+    const from = selected.length + 1;
+    assert.deepEqual(selectionMatches(selected + "x" + selected, { from: 0, to: selected.length }), [
+      { from, to: from + selected.length },
+    ]);
+  }
+});
+
+test("ADR 0091 I1: matches are nonoverlapping and are enumerated from the start", () => {
+  assert.deepEqual(selectionMatches("aaaa", { from: 0, to: 2 }), [{ from: 2, to: 4 }]);
+  assert.deepEqual(selectionMatches("aaaa", { from: 1, to: 3 }), [{ from: 0, to: 2 }, { from: 2, to: 4 }]);
+});
+
+test("ADR 0091 I1: the 10000-match cap counts only the other occurrences", () => {
+  const expected = Array.from({ length: 10000 }, (_, i) => ({ from: i + 1, to: i + 2 }));
+  for (const count of [10000, 10001]) {
+    assert.deepEqual(selectionMatches("x".repeat(count + 1), { from: 0, to: 1 }), expected);
+  }
 });

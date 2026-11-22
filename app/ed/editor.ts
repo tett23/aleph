@@ -117,7 +117,7 @@ export const createEditor = (o: EditorOptions): Editor => {
   let completeTimer = 0;
   let completeSeq = 0;
   let diagSources = new Map<string, Diag[]>();
-  let selMatchKey = "";
+  let lastSelMatch: { doc: ReturnType<Core["doc"]>; from: number; to: number } | undefined;
 
   const view: View = createView({
     parent: o.parent,
@@ -152,12 +152,13 @@ export const createEditor = (o: EditorOptions): Editor => {
     o.onCaret?.();
   };
 
-  /** Other occurrences of a short selection, as CodeMirror's highlightSelectionMatches did. */
+  /** Refresh the derived layer for the current document and selection (docs/adr/0091). */
   const updateSelMatches = () => {
-    const key = `${core.selectedText()}@${core.range().from}`;
-    if (key === selMatchKey) return;
-    selMatchKey = key;
-    const ranges = selectionMatches(core.text(), core.range()).map((m) => ({ ...m, cls: "ed-selmatch" }));
+    const doc = core.doc();
+    const range = core.range();
+    if (lastSelMatch?.doc === doc && lastSelMatch.from === range.from && lastSelMatch.to === range.to) return;
+    lastSelMatch = { doc, ...range };
+    const ranges = selectionMatches(doc.toString(), range).map((m) => ({ ...m, cls: "ed-selmatch" }));
     if (!ranges.length && !core.layer("selmatch").length) return;
     core.setLayer("selmatch", ranges);
     view.layersChanged();
@@ -167,6 +168,7 @@ export const createEditor = (o: EditorOptions): Editor => {
 
   const selectAll = () => {
     core.select({ anchor: 0, head: core.doc().length });
+    updateSelMatches();
     view.syncSelection();
     o.onCaret?.();
   };
@@ -175,6 +177,7 @@ export const createEditor = (o: EditorOptions): Editor => {
     if (view.composing()) return false;
     const pos = core.doc().lineAt(core.sel().head).to;
     core.select({ anchor: pos, head: pos }, true);
+    updateSelMatches();
     view.syncSelection();
     view.revealCaret();
     o.onCaret?.();
@@ -367,6 +370,7 @@ export const createEditor = (o: EditorOptions): Editor => {
     const m = nearest(search.matches, from, dir);
     if (!m) return findMatches(false);
     core.select({ anchor: m.from, head: m.to }, true);
+    updateSelMatches();
     view.scrollToPos(m.from, true);
     view.syncSelection();
     findMatches(false);
@@ -481,6 +485,7 @@ export const createEditor = (o: EditorOptions): Editor => {
       const l = core.doc().line(Math.max(1, Math.min(core.doc().lines, line)));
       const pos = Math.min(l.to, l.from + col);
       core.select({ anchor: pos, head: pos }, true);
+      updateSelMatches();
       view.scrollToPos(pos, true);
       view.focus();
       o.onCaret?.();

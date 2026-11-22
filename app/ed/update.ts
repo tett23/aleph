@@ -36,7 +36,7 @@ export const mapRanges = (ranges: Range[], c: ChangeSet): Range[] =>
   });
 
 /** Ranges of the document given to the lines they touch, in each line's own offsets. */
-export const linesOfRanges = (doc: Text, ranges: Range[]): Map<number, Range[]> => {
+export const linesOfRanges = (doc: Text, ranges: Range[], includeNewline = false): Map<number, Range[]> => {
   const out = new Map<number, Range[]>();
   for (const r of ranges) {
     const first = doc.lineAt(r.from).number;
@@ -44,7 +44,8 @@ export const linesOfRanges = (doc: Text, ranges: Range[]): Map<number, Range[]> 
     for (let n = first; n <= last; n++) {
       const l = doc.line(n);
       const from = Math.max(r.from, l.from) - l.from;
-      const to = Math.min(r.to, l.to) - l.from;
+      const end = includeNewline && n < doc.lines ? l.to + 1 : l.to;
+      const to = Math.min(r.to, end) - l.from;
       if (to < from || (to === from && r.from !== r.to)) continue;
       const list = out.get(n) ?? [];
       list.push({ ...r, from, to });
