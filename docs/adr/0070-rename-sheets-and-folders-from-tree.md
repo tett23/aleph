@@ -1,6 +1,6 @@
 # ADR 0070: ファイルツリーの右クリックからシートとフォルダの名前を変える
 
-Status: accepted
+Status: superseded [{"part":"シートとフォルダの改名に加える移動","by":["docs/adr/0100-move-tree-files-and-folders.md"],"kind":"supplement"}]
 
 ## 文脈
 

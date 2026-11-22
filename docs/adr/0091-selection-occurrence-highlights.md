@@ -1,6 +1,6 @@
 # ADR 0091: 選択した文字列と同じ箇所をハイライトする
 
-Status: accepted-pending
+Status: superseded-pending [{"part":"ハイライトによって本文の配置を変えない条件","by":["docs/adr/0102-stable-editor-geometry-for-selection-highlights.md"],"kind":"supplement"}]
 
 ## 文脈
 
