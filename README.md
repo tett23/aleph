@@ -54,7 +54,7 @@ The file tree shows each project’s `build/` folder with every file in it, so o
 The assistant in the bottom panel takes a request in plain words, such as "widen the line pitch a little", and proposes edits to the focused sheet (or the selection) with an explanation and a diff. Nothing changes until you press “適用” (apply). If the workspace has uncommitted changes, Aleph first offers to commit them, then applies, saves, and opens the diff tab. The ribbon's “差分” (diff) button shows the workspace's changes against the last commit at any time.
 By default the assistant runs Qwen3.5-4B on your Mac with the bundled `llama-server`, and sends nothing outside. The other three models of the list can be downloaded from the settings. Claude Code and Codex can also be chosen when they are installed; they send the request, the target text and the manual excerpts to Anthropic or OpenAI with your own account, so Aleph asks once before using each. If they fail, Aleph asks the local model instead and says so.
 
-Select text in the editor to highlight up to 10,000 other exact, case-sensitive matches in the same sheet. Matches can occur inside words, and selections can include spaces and line breaks.
+Select text in the editor to highlight up to 10,000 other exact, case-sensitive matches in the same sheet. Matches can occur inside words, and selections can include spaces and line breaks. The match outlines update without moving or rewrapping the text.
 
 In the text editor, press Escape or Control-E to dismiss suggestions. With suggestions closed, Control-E moves to the end of the logical line. Each shortcut’s context can be changed in the key binding settings.
 
