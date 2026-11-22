@@ -3,6 +3,7 @@
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use ignore::Match;
 use serde::Serialize;
+use std::io::Write;
 use std::path::Path;
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -256,6 +257,18 @@ pub fn write_text(path: &Path, content: &str) -> std::io::Result<()> {
     std::fs::write(path, content)
 }
 
+/// Creates a text file and its parent directories without replacing any existing file.
+pub fn write_new_text(path: &Path, content: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?
+        .write_all(content.as_bytes())
+}
+
 /// Writes bytes (a pasted image, docs/adr/0031), making the parent directories.
 pub fn write_bytes(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     not_link(path)?;
@@ -372,6 +385,17 @@ pub mod testdir {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn adr0093_i1_i2_new_sheet_preserves_existing_content_on_collision() {
+        let root = testdir::fresh("new-sheet");
+        let sheet = root.join("chapters/01.gm");
+        write_new_text(&sheet, "# manuscript\n").unwrap();
+        let collision = write_new_text(&sheet, "# replacement\n").unwrap_err();
+        assert_eq!(collision.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(std::fs::read_to_string(&sheet).unwrap(), "# manuscript\n");
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn adr_0065_1_and_2_creates_one_entry_and_preserves_existing() {
