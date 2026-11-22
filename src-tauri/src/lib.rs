@@ -250,9 +250,15 @@ fn read_bytes(app: AppHandle, path: String) -> R<tauri::ipc::Response> {
 }
 
 #[tauri::command]
-fn write_text(app: AppHandle, path: String, content: String) -> R<()> {
+fn write_text(app: AppHandle, path: String, content: String, create_new: Option<bool>) -> R<()> {
     may(&app, &path, WR)?;
-    fsops::write_text(Path::new(&path), &content).map_err(err)
+    let path = Path::new(&path);
+    if create_new.unwrap_or(false) {
+        fsops::write_new_text(path, &content)
+    } else {
+        fsops::write_text(path, &content)
+    }
+    .map_err(err)
 }
 
 #[tauri::command]
