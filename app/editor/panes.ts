@@ -162,6 +162,15 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
             eds.forEach(([old, ed]) => ctx.editors.get(old) === ed && ctx.editors.delete(old));
             v.editors.forEach((ed, path) => ctx.editors.set(path, ed));
           }
+          // A workspace can become a project while its sheets stay open.
+          if (!t.plot) t.open.forEach((doc, i) => {
+            const current = v.docs[i];
+            if (current.doc.project === doc.project && current.doc.grid === doc.grid) return;
+            current.update(doc);
+            const editor = v.editors.get(doc.path);
+            editor?.setGrid(doc.grid);
+            if (canVertical(doc.kind)) editor?.setWidth(ctx.config.charsOverride ?? doc.grid.chars);
+          });
           const was = v.el.hidden;
           v.el.hidden = k !== p.active;
           // the preview tab is drawn while shown only: when it is made or selected, with the sheet followed now (docs/adr/0087)

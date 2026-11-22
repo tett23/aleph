@@ -76,7 +76,7 @@ const clientFor = (ctx: Ctx, project: string): Client | null => {
     : undefined;
   const n = startClient(project, {
     onDiagnostics: (uri, list) => {
-      const path = [...synced.keys()].find((p) => uriOf(p) === uri);
+      const path = [...synced].find(([p, sheet]) => sheet.project === project && uriOf(p) === uri)?.[0];
       if (!path) return;
       diagnostics.set(path, list);
       paint(path);
@@ -110,7 +110,7 @@ const requestTokens = async (c: Client, path: string) => {
   if (!legend || !s) return;
   const version = s.version;
   const r = await c.request<{ data: number[] } | null>("textDocument/semanticTokens/full", { textDocument: { uri: uriOf(path) } }).catch(() => null);
-  if (!r || synced.get(path)?.version !== version) return;
+  if (!r || synced.get(path) !== s || s.version !== version || clients.get(s.project) !== c) return;
   tokens.set(path, { version, ranges: tokenRanges(s.text, decodeSemanticTokens(r.data, legend), path.endsWith(".emet") ? "emet" : "gm") });
   paint(path);
 };
@@ -142,11 +142,15 @@ const flushLatest = (ctx: Ctx, path: string) => {
 const sync = (ctx: Ctx, s: State, prev: State | null) => {
   const now = new Map(allDocs(s).filter((d) => lspDoc(d) || renameDoc(d)).map((d) => [d.path, d]));
   for (const [path, st] of synced) {
-    if (now.has(path)) continue;
+    if (now.get(path)?.project === st.project) continue;
     clearTimeout(st.timer);
     synced.delete(path);
     diagnostics.delete(path);
     tokens.delete(path);
+    const view = views.get(path);
+    view?.setLayer("st", []);
+    view?.setFallbackColors(true);
+    view?.setDiagnostics([]);
     clients.get(st.project)?.notify("textDocument/didClose", { textDocument: { uri: uriOf(path) } });
     if (![...synced.values()].some((x) => x.project === st.project))
       idle.set(st.project, window.setTimeout(() => (clients.get(st.project)?.stop(), clients.delete(st.project)), IDLE_STOP));
@@ -259,9 +263,22 @@ const positionAt = (t: TextEditor, pos: number) => {
 type Item = { label: string; detail?: string; insertText?: string };
 
 const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
-  if (!lspDoc(doc)) return null;
+  // Bind the view for the lifetime of the sheet; the store may give a
+  // standalone sheet a project while its editor is still open (ADR 0101).
+  if (!LSP_KINDS.includes(doc.kind)) return null;
   let editor: TextEditor | null = null;
   const current = () => allDocs(ctx.store.get()).find((d) => d.path === doc.path) ?? doc;
+  const forProject = (run: (doc: Doc) => Promise<unknown>) => () => {
+    const d = current();
+    if (!d.project) return false;
+    void run(d);
+    return true;
+  };
+  const keys = [
+    { id: "file.save", key: "Mod-s", run: forProject((d) => formatAndSave(ctx, d)) },
+    // ⌥⇧F matches by the key's place too: on macOS the option key turns F into "Ï"
+    { id: "editor.format", key: "Shift-Alt-f", run: forProject((d) => formatNow(ctx, d)) },
+  ];
   return {
     attach: (t) => {
       editor = t;
@@ -271,11 +288,7 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
         if (views.get(doc.path) === t) views.delete(doc.path);
       };
     },
-    keys: [
-      { id: "file.save", key: "Mod-s", run: () => (void formatAndSave(ctx, current()), true) },
-      // ⌥⇧F matches by the key's place too: on macOS the option key turns F into "Ï"
-      { id: "editor.format", key: "Shift-Alt-f", run: () => (void formatNow(ctx, current()), true) },
-    ],
+    get keys() { return current().project ? keys : []; },
     hover: async (pos) => {
       const path = doc.path;
       const c = readyClient(path);
