@@ -253,6 +253,6 @@ const start = async () => {
 guardLinks(api.openUrl, confirmDialog);
 const view = new URLSearchParams(location.search).get("view");
 if (view === "plot") void startPlotWindow(new URLSearchParams(location.search).get("project") ?? "");
-else if (view === "pages" || view === "plain") void startPreviewWindow(view, new URLSearchParams(location.search).get("project") ?? "");
+else if (view === "pages" || view === "plain") void startPreviewWindow(view, new URLSearchParams(location.search).get("project") ?? "", new URLSearchParams(location.search).get("workspace") ?? "");
 else if (view === "imelog") startRecorder(document.getElementById("app")!);
 else void start();

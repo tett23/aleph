@@ -9,6 +9,7 @@ import { markdownHtml } from "../md.ts";
 import { ext } from "../path.ts";
 import { uiState } from "../uistate.ts";
 import { stripRemoteImages } from "./svgimages.ts";
+import { createPreviewUpdates, limitPosition, positionOf, type PreviewTarget } from "./update.ts";
 
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
 
@@ -37,24 +38,14 @@ export const plainHtml = (src: string) =>
     )
     .join("");
 
-export const loadImages = (el: HTMLElement) =>
-  Promise.all(
-    [...el.querySelectorAll<HTMLImageElement>("img[data-src]")].map(async (img) => {
-      img.src = await fileUrl(img.dataset.src!).catch(() => "");
-      img.removeAttribute("data-src");
-    }),
-  );
-
 export type PlainSection = { title: string; html: string };
 
-export const renderPlain = (pane: HTMLElement, sections: PlainSection[], vertical: boolean, note = "") => {
-  const el = surface(pane);
-  el.className = `pview plain-stack ${vertical ? "vertical" : ""}`;
-  el.innerHTML =
-    (note ? `<div class="pnote">${esc(note)}</div>` : "") +
-    sections.map((s) => `<div class="plain evaluated ${vertical ? "vertical" : ""}" title="${esc(s.title)}">${s.html}</div>`).join("");
-  void loadImages(el);
-};
+export const preparePlain = (pane: HTMLElement, sections: PlainSection[], vertical: boolean) =>
+  prepare(pane, (staging) => {
+    const el = surface(staging);
+    el.className = `pview plain-stack ${vertical ? "vertical" : ""}`;
+    el.innerHTML = sections.map((s) => `<div class="plain evaluated ${vertical ? "vertical" : ""}" title="${esc(s.title)}">${s.html}</div>`).join("");
+  }, vertical);
 
 /**
  * How a Markdown sheet becomes HTML with its embeds drawn (docs/adr/0029); set
@@ -62,13 +53,13 @@ export const renderPlain = (pane: HTMLElement, sections: PlainSection[], vertica
  */
 export const markdownHook: { expand: ((src: string, path: string) => Promise<string>) | null; version: number } = { expand: null, version: 0 };
 
-export const renderMarkdown = async (pane: HTMLElement, src: string, vertical: boolean, path = "") => {
-  const html = markdownHook.expand ? await markdownHook.expand(src, path) : markdownHtml(src);
-  const el = surface(pane);
-  el.className = `pview plain md ${vertical ? "vertical" : ""}`;
-  el.innerHTML = html;
-  void loadImages(el);
-};
+export const prepareMarkdown = (pane: HTMLElement, src: string, vertical: boolean, path: string) =>
+  prepare(pane, async (staging) => {
+    const html = markdownHook.expand ? await markdownHook.expand(src, path) : markdownHtml(src);
+    const el = surface(staging);
+    el.className = `pview plain md ${vertical ? "vertical" : ""}`;
+    el.innerHTML = html;
+  }, vertical);
 
 /** SVG as an image: its scripts do not run. */
 export const renderSvg = (pane: HTMLElement, src: string) => {
@@ -112,6 +103,86 @@ export const renderHint = (pane: HTMLElement, text: string, error = false) => {
   const el = surface(pane);
   el.className = "pview";
   el.innerHTML = error ? `<pre class="error">${esc(text)}</pre>` : `<div class="hint">${esc(text)}</div>`;
+};
+
+// Prepare images in the actual nodes that will be inserted. All tasks settle
+// before revoking their URLs, including when one of several images fails.
+const prepare = async (pane: HTMLElement, draw: (staging: HTMLElement) => void | Promise<void>, fromRight = false) => {
+  const staging = document.createElement("div");
+  const urls: string[] = [];
+  const dispose = () => urls.splice(0).forEach((url) => URL.revokeObjectURL(url));
+  try {
+    await draw(staging);
+    const results = await Promise.allSettled([...staging.querySelectorAll<HTMLImageElement>("img")].map(async (img) => {
+      const source = img.dataset.src;
+      if (source) {
+        const url = await fileUrl(source);
+        urls.push(url);
+        img.src = url;
+        img.removeAttribute("data-src");
+      }
+      if (img.getAttribute("src")?.trim()) await img.decode();
+    }));
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure) throw failure.reason;
+    return {
+      dispose,
+      mount: () => {
+        pane.classList.toggle("from-right", fromRight);
+        pane.replaceChildren(...staging.childNodes);
+        // Trigger layout so that fonts used by newly mounted content are discovered.
+        void pane.scrollWidth;
+        return document.fonts.ready;
+      },
+    };
+  } catch (error) {
+    dispose();
+    throw error;
+  }
+};
+
+export const preparePages = (pane: HTMLElement, paths: string[], zoom: () => number) =>
+  prepare(pane, (staging) => {
+    renderPageImages(staging, [], zoom());
+    surface(staging).innerHTML = paths.map((path, i) =>
+      `<figure class="page"><img data-src="${esc(path)}" alt=""><figcaption>${i + 1}</figcaption></figure>`,
+    ).join("");
+  }).then((content) => ({
+    ...content,
+    mount: () => {
+      const ready = content.mount();
+      surface(pane).style.setProperty("--zoom", String(zoom()));
+      return ready;
+    },
+  }));
+
+/** Tracks the scroll frame independently of the content being loaded for it. */
+export const previewPane = (pane: HTMLElement, failed: (error: unknown, empty: boolean) => void) => {
+  const max = () => ({ x: Math.max(0, pane.scrollWidth - pane.clientWidth), y: Math.max(0, pane.scrollHeight - pane.clientHeight) });
+  const fromRight = (target: PreviewTarget) => target.mode === "plain" && target.vertical;
+  const read = (target: PreviewTarget) => limitPosition(positionOf(pane.scrollLeft, pane.scrollTop, fromRight(target)), max());
+  const updates = createPreviewUpdates({
+    read, max, failed,
+    write: (desired, target) => {
+      const at = limitPosition(desired, max());
+      pane.scrollLeft = fromRight(target) ? -at.x : at.x;
+      pane.scrollTop = at.y;
+      return read(target);
+    },
+  });
+  const wheel = (e: WheelEvent) => { if (!e.ctrlKey && !e.metaKey && (e.deltaX || e.deltaY)) updates.moved(); };
+  pane.addEventListener("scroll", updates.scrolled);
+  pane.addEventListener("wheel", wheel, { passive: true });
+  pane.addEventListener("touchmove", updates.moved, { passive: true });
+  return {
+    ...updates,
+    close: () => {
+      updates.close();
+      pane.removeEventListener("scroll", updates.scrolled);
+      pane.removeEventListener("wheel", wheel);
+      pane.removeEventListener("touchmove", updates.moved);
+    },
+  };
 };
 
 // ---- zoom, kept in the settings' screen state ----
