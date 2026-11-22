@@ -486,3 +486,42 @@ fn adr0105_i2_two_workspaces_of_one_repository_serialize_commits() {
     ));
     assert_eq!(history(&repo).unwrap().len(), 1);
 }
+
+#[test]
+fn adr0105_a4_i5_file_modified_after_commit_yields_typed_lines() {
+    let root = testdir::fresh("embedded-git-tracked-diff")
+        .canonicalize()
+        .unwrap();
+    let repo = initialize(&root).unwrap();
+    let mut config = repo.config().unwrap();
+    config.set_str("user.name", "Fixture").unwrap();
+    config
+        .set_str("user.email", "fixture@example.test")
+        .unwrap();
+    std::fs::write(root.join("chapter.gm"), "初稿\n").unwrap();
+    commit(&repo, &root, &config, "Base", false).unwrap();
+    std::fs::write(root.join("chapter.gm"), "アシスタントの改稿\n").unwrap();
+    let reach = guard::Reach {
+        roots: vec![root.clone()],
+        ..Default::default()
+    };
+    assert!(
+        matches!(operate(&reach, &root, Operation::Status).unwrap(), Response::Status(files) if files.len() == 1 && files[0].path == "chapter.gm")
+    );
+    let response = operate(
+        &reach,
+        &root,
+        Operation::Diff {
+            path: "chapter.gm".into(),
+            from: None,
+        },
+    )
+    .unwrap();
+    let response = serde_json::to_value(response).unwrap();
+    assert_eq!(response["body"], "lines");
+    assert_eq!(response["hunks"][0]["lines"][0]["text"], "初稿\n");
+    assert_eq!(
+        response["hunks"][0]["lines"][1]["text"],
+        "アシスタントの改稿\n"
+    );
+}
