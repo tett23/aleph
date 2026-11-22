@@ -20,12 +20,21 @@ const swallowNextClick = () => {
 };
 
 export const mountDragOut = (ctx: Ctx) => {
-  document.addEventListener("mousedown", (down) => {
-    if (down.button !== 0) return;
+  let running = false;
+  let seenPointer = false;
+  const start = (down: MouseEvent) => {
+    if (down.button !== 0 || running) return;
     const row = (down.target as HTMLElement).closest<HTMLElement>(".file-tree [data-file], .file-tree [data-dir]");
     const pressed = row?.dataset.file ?? row?.dataset.dir;
     const workspace = ctx.store.get().workspace;
     if (!pressed || !workspace) return;
+    // Prefer the pointer sequence when WebKit provides it. Its compatibility
+    // mousedown may arrive later, and belongs to the same press.
+    const pointer = "pointerId" in down ? (down as PointerEvent).pointerId : null;
+    const motion = pointer === null ? "mousemove" : "pointermove";
+    const release = pointer === null ? "mouseup" : "pointerup";
+    const own = (e: MouseEvent) => pointer === null || (e as PointerEvent).pointerId === pointer;
+    running = true;
     let dragging = false;
     let mark: HTMLElement | null = null;
     const markOff = () => {
@@ -43,14 +52,19 @@ export const mountDragOut = (ctx: Ctx) => {
       return { dir, target: target ?? tree, result, collision };
     };
     const end = () => {
-      document.removeEventListener("mousemove", move, true);
-      document.removeEventListener("mouseup", up, true);
+      running = false;
+      document.removeEventListener(motion, move, true);
+      document.removeEventListener(release, up, true);
+      document.removeEventListener("pointercancel", cancel, true);
       document.removeEventListener("keydown", key, true);
       window.removeEventListener("blur", end);
       markOff();
     };
     const move = (e: MouseEvent) => {
-      if ((e.buttons & 1) === 0) return end();
+      if (!own(e)) return;
+      // A delivered pointerdown owns the sequence until pointerup,
+      // pointercancel or blur. The drag's buttons bit is not its lifetime.
+      if (pointer === null && (e.buttons & 1) === 0) return end();
       if (!dragging && Math.hypot(e.clientX - down.clientX, e.clientY - down.clientY) < 4) return;
       dragging = true;
       if (outsideWindow(e.clientX, e.clientY, innerWidth, innerHeight)) {
@@ -67,6 +81,7 @@ export const mountDragOut = (ctx: Ctx) => {
       mark.classList.add(hit.result.kind === "move" && !hit.collision ? "tree-move-target" : "tree-move-refuse");
     };
     const up = (e: MouseEvent) => {
+      if (!own(e)) return;
       end();
       if (!dragging) return;
       swallowNextClick();
@@ -76,15 +91,23 @@ export const mountDragOut = (ctx: Ctx) => {
       if (hit.collision) return ctx.notify({ message: "同じ名前の項目があります", level: "warning" });
       return void moveTreeItem(ctx, pressed, hit.dir, reloadTree);
     };
+    const cancel = (e: PointerEvent) => { if (own(e)) end(); };
     const key = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || !dragging) return;
       e.preventDefault();
       end();
       swallowNextClick();
     };
-    document.addEventListener("mousemove", move, true);
-    document.addEventListener("mouseup", up, true);
+    document.addEventListener(motion, move, true);
+    document.addEventListener(release, up, true);
+    if (pointer !== null) document.addEventListener("pointercancel", cancel, true);
     document.addEventListener("keydown", key, true);
     window.addEventListener("blur", end);
+  };
+  document.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary && e.pointerType !== "mouse") return;
+    seenPointer = true;
+    start(e);
   }, true);
+  document.addEventListener("mousedown", (e) => { if (!seenPointer) start(e); }, true);
 };

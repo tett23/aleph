@@ -807,5 +807,5 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .assistant .as-target { font-size: 11.5px; }
 
 /* Tree drop destinations (ADR 0100). */
-.tree-move-target { outline: 1px solid var(--mod); outline-offset: -1px; cursor: move; }
-.tree-move-refuse { outline: 1px dashed var(--del); outline-offset: -1px; cursor: not-allowed; }
+:is(.file-tree, .file-tree .r).tree-move-target { outline: 1px solid var(--mod); outline-offset: -1px; cursor: move; }
+:is(.file-tree, .file-tree .r).tree-move-refuse { outline: 1px dashed var(--del); outline-offset: -1px; cursor: not-allowed; }

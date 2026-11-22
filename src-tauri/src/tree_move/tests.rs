@@ -172,3 +172,54 @@ fn adr0100_i3_i7_rollback_keeps_external_text_that_happens_to_equal_the_planned_
     assert!(!outcome.moved && outcome.error.is_some());
     assert_eq!(fs::read_to_string(chapter).unwrap(), "同じ文");
 }
+
+#[test]
+fn adr0100_i4_i7_replaced_destination_is_not_reported_as_the_moved_item() {
+    let mut plan = fixture();
+    let elsewhere = plan.workspace.join("b/elsewhere");
+    plan.writes.push(DiskWrite {
+        path: plan.workspace.join("b/.aleph/notes.json"),
+        before: None,
+        after: "{}".into(),
+    });
+    let outcome = stages(&plan, std::slice::from_ref(&plan.workspace), |path| {
+        fs::rename(&plan.to, &elsewhere).unwrap();
+        fs::create_dir(&plan.to).unwrap();
+        Err(at(path, "後続の編集に失敗しました"))
+    })
+    .unwrap();
+    assert!(!outcome.moved);
+    assert!(outcome.error.unwrap().contains(plan.to.to_str().unwrap()));
+    assert!(elsewhere.join("children/page.gm").is_file());
+    assert!(!plan.to.join("children/page.gm").exists());
+}
+
+#[test]
+fn adr0100_i2_i5_new_reference_in_read_only_dependency_aborts_before_commit() {
+    let mut plan = fixture();
+    let dependency = plan.workspace.join("index.md");
+    fs::write(&dependency, "no links").unwrap();
+    plan.documents.push(Document {
+        path: dependency.clone(),
+        text: "no links".into(),
+    });
+    let notes = plan.workspace.join("b/.aleph/notes.json");
+    plan.writes.push(DiskWrite {
+        path: notes.clone(),
+        before: None,
+        after: "{}".into(),
+    });
+    let outcome = stages(&plan, std::slice::from_ref(&plan.workspace), |_| {
+        fs::write(&dependency, "[[a/draft/children/page.gm]]").unwrap();
+        Ok(())
+    })
+    .unwrap();
+    assert!(!outcome.moved);
+    assert!(outcome
+        .error
+        .unwrap()
+        .contains(dependency.to_str().unwrap()));
+    assert!(!notes.exists());
+    assert!(plan.from.exists());
+    assert!(!plan.to.exists());
+}

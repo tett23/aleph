@@ -118,7 +118,7 @@ pub fn inventory(root: &Path) -> Result<Inventory> {
                 && level < MAX_DEPTH
                 && e.kind != "symlink"
                 && crate::fsops::shown(name, is_dir, false, project && !in_project);
-            let below = if is_dir && name != ".git" {
+            let below = if is_dir {
                 walk(&e.path, level + 1, in_project || project, include, projects)?
             } else {
                 Vec::new()
@@ -426,6 +426,81 @@ impl Drop for Active {
     }
 }
 
+fn item_matches(path: &Path, identity: &fs::Metadata) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|current| {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            current.ino() == identity.ino() && current.dev() == identity.dev()
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (current, identity);
+            false
+        }
+    })
+}
+
+fn check_after_relocation(plan: &Plan, identity: &fs::Metadata, dirs: &[PathBuf]) -> Result<()> {
+    for doc in &plan.documents {
+        let path = moved(&doc.path, &plan.from, &plan.to);
+        let expected = plan
+            .writes
+            .iter()
+            .find(|w| w.path == doc.path)
+            .map_or(doc.text.as_str(), |w| w.after.as_str());
+        if inspect_text(&plan.workspace, &path)?.as_deref() != Some(expected) {
+            return Err(at(&path, "移動処理中に検査対象の本文が変わりました"));
+        }
+    }
+    for dir in &plan.directories {
+        let path = moved(&dir.path, &plan.from, &plan.to);
+        inside(&plan.workspace, &path, false)?;
+        let mut expected: Vec<DirectoryEntry> = dir
+            .entries
+            .iter()
+            .filter(|entry| entry.path != plan.from)
+            .map(|entry| DirectoryEntry {
+                path: moved(&entry.path, &plan.from, &plan.to),
+                kind: entry.kind.clone(),
+            })
+            .collect();
+        let mut add = |entry: PathBuf, kind: &str| {
+            if entry.parent() == Some(path.as_path()) {
+                expected.push(DirectoryEntry {
+                    path: entry,
+                    kind: kind.into(),
+                });
+            }
+        };
+        add(
+            plan.to.clone(),
+            if identity.is_dir() {
+                "directory"
+            } else {
+                "file"
+            },
+        );
+        for dir in dirs {
+            add(dir.clone(), "directory");
+        }
+        for write in plan.writes.iter().filter(|w| w.before.is_none()) {
+            add(moved(&write.path, &plan.from, &plan.to), "file");
+        }
+        expected.sort();
+        if children(&path)? != expected {
+            return Err(at(
+                &path,
+                "移動処理中に検査対象のフォルダの項目が変わりました",
+            ));
+        }
+    }
+    if !item_matches(&plan.to, identity) {
+        return Err(at(&plan.to, "移動した項目を確認できません"));
+    }
+    Ok(())
+}
+
 fn stages(
     plan: &Plan,
     registered: &[PathBuf],
@@ -462,6 +537,9 @@ fn stages(
         for edit in &plan.writes {
             let path = moved(&edit.path, &plan.from, &plan.to);
             before_write(&path)?;
+            if !item_matches(&plan.to, &identity) {
+                return Err(at(&plan.to, "移動した項目を確認できません"));
+            }
             inside(&plan.workspace, &path, true)?;
             let parent = path.parent().unwrap();
             if !parent.is_dir()
@@ -481,7 +559,7 @@ fn stages(
             }
             result?;
         }
-        Ok(())
+        check_after_relocation(plan, &identity, &dirs)
     })();
     let Err(error) = edit else {
         return Ok(Outcome {
@@ -493,6 +571,11 @@ fn stages(
     let mut errors = vec![error];
     let mut remaining_writes = Vec::new();
     for (path, edit) in applied.into_iter().rev() {
+        if path.starts_with(&plan.to) && !item_matches(&plan.to, &identity) {
+            errors.push(at(&path, "移動した項目を確認できないため戻せません"));
+            remaining_writes.push(edit.path.clone());
+            continue;
+        }
         let r = inside(&plan.workspace, &path, false).and_then(|()| match &edit.before {
             Some(text) => write_checked(&path, Some(&edit.after), text, &mut false),
             None => cleanup(&path, Some(&edit.after)),
@@ -507,25 +590,22 @@ fn stages(
             errors.push(at(&dir, e));
         }
     }
-    let moved = match inside(&plan.workspace, &plan.to, false)
-        .and_then(|()| inside(&plan.workspace, &plan.from, true))
-        .and_then(|()| {
-            let current = fs::symlink_metadata(&plan.to).map_err(|e| at(&plan.to, e))?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::MetadataExt;
-                if current.ino() != identity.ino() || current.dev() != identity.dev() {
-                    return Err(at(&plan.to, "移動後に項目が置き換わったため保持しました"));
-                }
-            }
-            relocate(&plan.to, &plan.from)
-        }) {
-        Ok(()) => false,
-        Err(e) => {
+    if item_matches(&plan.to, &identity) {
+        if let Err(e) = inside(&plan.workspace, &plan.to, false)
+            .and_then(|()| inside(&plan.workspace, &plan.from, true))
+            .and_then(|()| relocate(&plan.to, &plan.from))
+        {
             errors.push(e);
-            true
         }
-    };
+    }
+    let moved = item_matches(&plan.to, &identity);
+    if !moved && !item_matches(&plan.from, &identity) {
+        errors.push(format!(
+            "移動した項目の所在を確認できません：{} / {}",
+            plan.from.display(),
+            plan.to.display()
+        ));
+    }
     Ok(Outcome {
         moved,
         error: Some(errors.join("\n")),

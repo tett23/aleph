@@ -4,7 +4,7 @@ import { createServer } from "vite";
 import type { Ctx } from "./ctx.ts";
 import type { TreeMoveDiskPlan } from "./api.ts";
 import type { MoveRequest, MoveResponse } from "./lsp/file-move.ts";
-import type { Doc } from "./store.ts";
+import type { Doc, Store } from "./store.ts";
 
 test("ADR 0100 I2, I4, I5, I7: complete cross-project move, cancellation and failed-plan rollback", async () => {
   const server = await createServer({
@@ -43,15 +43,20 @@ test("ADR 0100 I2, I4, I5, I7: complete cross-project move, cancellation and fai
       [source, "old chapter"], [index, "[[a/draft/one.gm]]"],
       ["/w/a/.aleph/notes.json", '{"draft/one.gm":{"note":"keep","goal":12}}'],
     ]);
-    api.treeMoveInventory = async () => ({
-      projects: ["/w/a", "/w/b"],
-      entries: [{ path: index, name: "index.md", children: [], dir: false }],
-    });
+    let beforeInventory = () => {};
+    api.treeMoveInventory = async () => {
+      beforeInventory();
+      return {
+        projects: ["/w/a", "/w/b"],
+        entries: [{ path: index, name: "index.md", children: [], dir: false }],
+      };
+    };
     api.readText = async (path: string) => disk.get(path) ?? "";
     api.treeMoveRead = async (_root: string, path: string) => disk.get(path) ?? null;
     api.exists = async (path: string) => disk.has(path);
     const errors: string[] = [];
     let expected = "ok";
+    let chapterText = "saved chapter";
     let plans: TreeMoveDiskPlan[] = [];
     api.treeMoveApply = async (plan: TreeMoveDiskPlan) => {
       plans.push(plan);
@@ -64,7 +69,7 @@ test("ADR 0100 I2, I4, I5, I7: complete cross-project move, cancellation and fai
       ready: Promise.resolve(true), supportsFileMove: () => true, stop() {},
       request: async (_method: string, req: MoveRequest): Promise<MoveResponse> => {
         assert.deepEqual([req.oldUri, req.newUri], [uriOf(from), uriOf(to)]);
-        assert.equal(req.documents.find((d) => d.uri === uriOf(source))?.text, "saved chapter");
+        assert.equal(req.documents.find((d) => d.uri === uriOf(source))?.text, chapterText);
         if (expected === "server") throw { message: "Reference refused", data: { issues: [{ uri: uriOf(source), targetUri: uriOf(index), reason: "outside project" }] } };
         const documents = [...req.documents, ...[a, b].map((path) => ({ uri: uriOf(path), text: disk.get(path)!, version: null }))];
         const edit = (path: string, newText: string) => {
@@ -90,9 +95,11 @@ test("ADR 0100 I2, I4, I5, I7: complete cross-project move, cancellation and fai
 
     const run = async (scenario: string) => {
       expected = scenario;
+      chapterText = "saved chapter";
+      disk.set(source, "old chapter");
       globals.moveFlowConfirmed = scenario !== "cancel";
       plans = [];
-      const store = createStore({ ...initialState(), workspace: root, workspaces: workspace });
+      const store: Store = createStore({ ...initialState(), workspace: root, workspaces: workspace });
       const grid = { chars: 40, lines: 16, vertical: false };
       const chapter: Doc = { path: source, text: "saved chapter", saved: "old chapter", project: "/w/a", workspace: root, kind: "gm", grid };
       const wiki: Doc = { path: index, text: "[[a/draft/one.gm]]\nunsaved text", saved: "[[a/draft/one.gm]]", project: null, workspace: root, kind: "md", grid };
@@ -105,6 +112,13 @@ test("ADR 0100 I2, I4, I5, I7: complete cross-project move, cancellation and fai
           },
         }, text: core.text }] as const;
       }));
+      let inventories = 0;
+      beforeInventory = () => {
+        if (++inventories !== 2 || scenario !== "late") return;
+        const ed = editors.get(source)!;
+        ed.edit.apply([{ from: 0, to: ed.text().length, insert: "late chapter edit" }]);
+        chapterText = ed.text();
+      };
       const original = store.get().panes[0].tabs[0].id;
       store.subscribe((state) => {
         if (state.open.some((d) => d.path === destination) && editors.has(source)) {
@@ -119,18 +133,18 @@ test("ADR 0100 I2, I4, I5, I7: complete cross-project move, cancellation and fai
         save: async (paths: string[]) => {
           if (scenario === "save") return new Set();
           assert.deepEqual(paths, [source]);
-          store.dispatch({ type: "saved", path: source, text: "saved chapter" });
-          disk.set(source, "saved chapter");
+          store.dispatch({ type: "saved", path: source, text: chapterText });
+          disk.set(source, chapterText);
           return new Set(paths);
         },
       } as unknown as Ctx;
       await moveTreeItem(ctx, from, "/w/b", async () => {});
       assert.equal(store.get().panes[0].tabs[0].id, original);
-      if (scenario === "ok" || scenario === "leftover") {
+      if (scenario === "ok" || scenario === "late" || scenario === "leftover") {
         const updated = store.get().open.find((d) => d.path === destination);
         assert.equal(updated?.project, "/w/b");
-        assert.equal(updated?.text, "saved chapter");
-        assert.equal(editors.get(index)?.text(), scenario === "ok" ? changedIndex : wiki.text);
+        assert.equal(updated?.text, chapterText);
+        assert.equal(editors.get(index)?.text(), scenario === "leftover" ? wiki.text : changedIndex);
         assert.deepEqual(plans[0].writes.map(({ path }) => path), [a, b, "/w/a/.aleph/notes.json", "/w/b/.aleph/notes.json"]);
         assert.match(plans[0].writes[3].after, /draft\/one\.gm/);
       } else {
@@ -139,7 +153,7 @@ test("ADR 0100 I2, I4, I5, I7: complete cross-project move, cancellation and fai
         assert.equal(plans.length, scenario === "rollback" ? 1 : 0);
       }
     };
-    for (const scenario of ["save", "cancel", "server", "rollback", "leftover", "ok"]) await run(scenario);
+    for (const scenario of ["save", "cancel", "server", "rollback", "leftover", "ok", "late"]) await run(scenario);
     assert.ok(errors.some((e) => e.includes("outside project")));
     assert.ok(errors.some((e) => e.includes("metadata commit failed")));
     assert.ok(errors.some((e) => e.includes("path rollback failed")));
