@@ -558,8 +558,20 @@ table.grid tr.dragged td { opacity: 0.45; }
 /* Aleph's plugins (docs/adr/0017) */
 .warn-note { font-size: 12px; color: var(--text-2); background: var(--bg-2); border-radius: 6px; padding: 8px 10px; margin: 6px 0 10px; line-height: 1.6; }
 /* dragging an image from the tree onto a chapter (docs/adr/0018) */
-body.dragging-image, body.dragging-image * { user-select: none; cursor: copy !important; }
-.drag-ghost { position: fixed; top: 0; left: 0; z-index: 50; pointer-events: none; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; font: 12px var(--ui); color: var(--text); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+/* The preview is independent of tree layout and hit testing (ADR 0103). */
+.tree-drag-preview {
+  position: fixed; top: 0; left: 0; z-index: 50; width: max-content;
+  overflow: hidden; pointer-events: none; opacity: 0.65;
+  background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--border);
+  border-radius: 5px; color: var(--text); font: 12px/1.5 var(--ui);
+}
+.tree-drag-preview * { pointer-events: none; }
+body.tree-dragging, body.tree-dragging * { user-select: none; -webkit-user-select: none; }
+.tree-drag-label { display: flex; align-items: center; gap: 5px; padding: 3px 8px; white-space: nowrap; }
+.tree-drag-label > span:not(.ic, .tree-drag-refuse) { overflow: hidden; text-overflow: ellipsis; }
+.tree-drag-label > :is(.ic, svg) { flex: none; }
+.tree-drag-label .fn { color: var(--text-2); font-size: 11px; max-width: 45%; }
+.tree-drag-refuse { flex: none; color: var(--del); }
 .drop-line { position: fixed; height: 2px; margin-top: -1px; background: var(--text-2); z-index: 49; pointer-events: none; }
 
 /* the screen recording input events (docs/adr/0019) */

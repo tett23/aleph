@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tree drag tests</title>
+<link rel="stylesheet" href="../style.css">
+<style>
+  .file-tree { position: absolute; left: 12px; top: 12px; width: 300px; height: 320px; }
+  .ed { position: absolute; left: 340px; top: 12px; width: 170px; height: 90px; }
+  #markdown { top: 112px; }
+  #loose-gm { top: 212px; }
+  #result { position: absolute; top: 340px; }
+</style>
+<div class="file-tree"></div>
+<div class="ed" id="chapter"><span contenteditable>Chapter</span></div>
+<div class="ed" id="markdown"><span contenteditable>Markdown</span></div>
+<div class="ed" id="loose-gm"><span contenteditable>Unregistered chapter</span></div>
+<pre id="result"></pre>
+<script>
+  window.addEventListener("error", (event) => {
+    window.webkit?.messageHandlers.report.postMessage(JSON.stringify({ ok: false, error: event.message, line: event.lineno, column: event.colno }));
+  });
+</script>
+<script type="module" src="./tree-drag.ts"></script>

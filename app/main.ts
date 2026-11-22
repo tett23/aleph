@@ -39,7 +39,6 @@ import { keepTabs, restoreTabs } from "./tabsui.ts";
 import { mountLsp } from "./lsp/mount.ts";
 import { mountAttach } from "./attach.ts";
 import { mountLibrary } from "./libpanel.ts";
-import { mountImageDrag } from "./imagedrag.ts";
 import { mountDragOut } from "./dragout.ts";
 import { mountDiagnostics } from "./diag/mount.ts";
 import { mountSearch } from "./searchpanel.ts";
@@ -202,8 +201,7 @@ const start = async () => {
   mountPlotFeature(ctx);
   mountAttach(ctx);
   mountLibrary(ctx);
-  mountImageDrag(ctx);
-  mountDragOut(ctx); // after the image drag: a drag that leaves the window ends that one first (docs/adr/0077)
+  mountDragOut(ctx);
   mountSearch(ctx);
   mountMdConvert(ctx);
   mountBookmarks(ctx);
