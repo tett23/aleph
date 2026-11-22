@@ -1,10 +1,12 @@
+import type { GitDiff, GitDiffSpan, GitStatus } from "./git-ipc.ts";
+import { readStructuredDiff } from "./difftab/text.ts";
 // The diff tab and the commit before applying the assistant's edits (docs/adr/0088): the tab in the
 // panes, reading `git status` and `git diff` into the list of files, the decision before applying,
 // the commit message, and showing the diff tab after applying.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { diffAvailable, diffSelected, initialState, readTabs, reduce, writeTabs, type Action, type Doc, type State } from "./store.ts";
-import { MAX_FILES, MAX_LINES, changeKind, diffArgs, diffFiles, readDiff, readStatus } from "./difftab/read.ts";
+import { MAX_FILES, MAX_LINES, changeKind, diffFiles } from "./difftab/read.ts";
 import { diffTextHtml } from "./difftab/text.ts";
 import { applyDecision, commitMessage, hasChanges } from "./difftab/apply.ts";
 import { holdModal, modalKey } from "./difftab/modal.ts";
@@ -190,32 +192,50 @@ test("ADR 0088 I5: no git, or git status failed: say it cannot be undone with Gi
 // ---- reading the diff (I6, I7)
 
 const hunk = (body: string[]) => ["diff --git a/x b/x", "index 1111111..2222222 100644", "--- a/x", "+++ b/x", "@@ -1,2 +1,2 @@", ...body].join("\n") + "\n";
-const patchFixture = (ordinary: string) => {
-  let inHunk = false;
-  const porcelain = ordinary.split("\n").map((line) => {
-    if (line.startsWith("@@ ")) inHunk = true;
-    return inHunk && /^[ +\-]/.test(line) ? line + "\n~" : line;
-  }).join("\n");
-  return { ordinary, porcelain };
+const patchFixture = (ordinary: string): GitDiff => {
+  const hunks: { heading: string; lines: GitDiffSpan[] }[] = [];
+  let added = 0;
+  let removed = 0;
+  for (const line of ordinary.split("\n")) {
+    if (line.startsWith("@@ ")) hunks.push({ heading: line, lines: [] });
+    else if (hunks.length && /^[ +\-]/.test(line)) {
+      const kind = line[0] === " " ? "same" : line[0] === "+" ? "added" : "removed";
+      hunks.at(-1)!.lines.push({ kind, text: line.slice(1) + "\n" });
+      if (kind === "added") added++;
+      if (kind === "removed") removed++;
+    }
+  }
+  return { body: hunks.length ? "lines" : ordinary.includes("Binary files ") ? "binary" : "empty", hunks, added, removed };
 };
-const fixtureRead = (ordinary: string) => readDiff(ordinary, patchFixture(ordinary).porcelain);
-const one = (z: string, diff: string, prefix = "") => {
-  const entry = readStatus(z, prefix)[0];
-  return diffFiles(z, prefix, new Map([[entry.path, patchFixture(diff)]])).files[0];
+const fixtureRead = (ordinary: string) => readStructuredDiff(patchFixture(ordinary), MAX_LINES);
+const statusFixture = (z: string): GitStatus[] => {
+  const parts = z.split("\0");
+  const entries: GitStatus[] = [];
+  for (let i = 0; i < parts.length && parts[i]; i++) {
+    const xy = parts[i].slice(0, 2);
+    const path = parts[i].slice(3);
+    entries.push(xy.startsWith("R") ? { xy, path, from: parts[++i] } : { xy, path });
+  }
+  return entries;
+};
+const diffFixture = (z: string, diffs: ReadonlyMap<string, GitDiff>) => diffFiles(statusFixture(z), diffs);
+const one = (z: string, diff: string) => {
+  const [entry] = statusFixture(z);
+  return diffFiles([entry], new Map([[entry.path, patchFixture(diff)]])).files[0];
 };
 
 test("ADR 0088 I6: an empty git status: no file", () => {
-  assert.deepEqual(diffFiles("", "", new Map()), { files: [], moreFiles: 0 });
+  assert.deepEqual(diffFixture("", new Map()), { files: [], moreFiles: 0 });
 });
 
-test("ADR 0096 I1, I3: one file ` M`: a change, with the + and - after @@ counted", () => {
+test("ADR 0105 I5: one file ` M`: a change, with the + and - after @@ counted", () => {
   const f = one(" M a.txt\0", hunk(["-old", "+new", "+more", " same"]));
   assert.equal(f.path, "a.txt");
   assert.equal(f.kind, "変更");
   assert.equal(f.added, 2);
   assert.equal(f.removed, 1);
   assert.equal(f.body, "lines");
-  assert.equal(diffTextHtml(f.lines), '<span class="d-hunk">@@ -1,2 +1,2 @@</span>\n<del class="d-word-del">old</del>\n<ins class="d-word-add">new</ins>\n<ins class="d-word-add">more</ins>\nsame\n');
+  assert.equal(diffTextHtml(f.lines), '<span class="d-hunk">@@ -1,2 +1,2 @@</span>\n<del class="d-word-del">old</del><ins class="d-word-add">new</ins>\n<ins class="d-word-add">more</ins>\nsame\n');
   assert.equal(f.moreLines, 0);
   assert.equal(f.openable, true);
 });
@@ -226,7 +246,6 @@ test("ADR 0088 I6: one file `??`: added, every line of it added", () => {
   assert.equal(f.kind, "追加");
   assert.equal(f.added, 3);
   assert.equal(f.removed, 0);
-  assert.deepEqual(diffArgs(readStatus("?? n.txt\0", "")[0], true), ["diff", "--no-index", "--", "/dev/null", "n.txt"]);
 });
 
 test("ADR 0088 I6: `AM`: added", () => {
@@ -245,14 +264,13 @@ test("ADR 0088 I6: ` D`: deleted, removed lines only, and its name cannot be pre
 
 test("ADR 0088 I6: `R ` with the path before: renamed, with the new path and the path before", () => {
   const z = "R  s.txt\0r.txt\0";
-  const [e] = readStatus(z, "");
+  const [e] = statusFixture(z);
   assert.deepEqual([e.path, e.from], ["s.txt", "r.txt"]);
-  const f = diffFiles(z, "", new Map([["s.txt", patchFixture(hunk(["+l4"]))]])).files[0];
+  const f = diffFixture(z, new Map([["s.txt", patchFixture(hunk(["+l4"]))]])).files[0];
   assert.equal(f.kind, "名前の変更");
   assert.equal(f.path, "s.txt");
   assert.equal(f.from, "r.txt");
   assert.equal(f.added, 1);
-  assert.deepEqual(diffArgs(e, true), ["diff", "HEAD", "-M", "--", ":(literal)r.txt", ":(literal)s.txt"]);
   assert.equal(changeKind("RM"), "名前の変更");
 });
 
@@ -268,25 +286,21 @@ test("ADR 0088 I6: the rest of the XY table: a tracked file changed is a change"
   assert.equal(changeKind("MD"), "削除");
 });
 
-test("ADR 0088 I6: the workspace at ws/ in the repository: ws/a.txt is a.txt, and its diff is read by a literal path", () => {
-  const z = " M ws/a.txt\0R  ws/s.txt\0ws/r.txt\0";
-  const es = readStatus(z, "ws/");
-  assert.deepEqual(es.map((e) => [e.path, e.from]), [["a.txt", undefined], ["s.txt", "r.txt"]]);
-  assert.deepEqual(diffArgs(es[0], true), ["diff", "HEAD", "--", ":(literal)a.txt"]);
-  assert.equal(diffFiles(z, "ws/", new Map([["a.txt", patchFixture(hunk(["+x"]))]])).files[0].path, "a.txt");
-  assert.deepEqual(diffArgs(readStatus(" M ws/a[1].txt\0", "ws/")[0], true), ["diff", "HEAD", "--", ":(literal)a[1].txt"]);
+test("ADR 0088 I6: literal workspace-relative paths are shown as received", () => {
+  const { files } = diffFiles([{ xy: " M", path: "a[1].txt" }], new Map([["a[1].txt", patchFixture(hunk(["+x"]))]]));
+  assert.equal(files[0].path, "a[1].txt");
 });
 
-test("ADR 0096 I1, I3: a removed line whose content starts with -- (----) is counted as removed", () => {
+test("ADR 0105 I5: a removed line whose content starts with -- (----) is counted as removed", () => {
   const f = one(" M a.txt\0", hunk(["----", "++++", " ---"]));
   assert.equal(f.removed, 1);
   assert.equal(f.added, 1);
-  assert.equal(diffTextHtml(f.lines), '<span class="d-hunk">@@ -1,2 +1,2 @@</span>\n<del class="d-word-del">---</del>\n<ins class="d-word-add">+++</ins>\n---\n');
+  assert.equal(diffTextHtml(f.lines), '<span class="d-hunk">@@ -1,2 +1,2 @@</span>\n<del class="d-word-del">---</del><ins class="d-word-add">+++</ins>\n---\n');
 });
 
-test("ADR 0096 I3: the lines before the first @@ are not shown nor counted", () => {
+test("ADR 0105 I5: hunk headings and the full line counts are retained", () => {
   const r = fixtureRead("diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n@@ -9 +9 @@\n+c\n");
-  assert.equal(r.lines.length, 5);
+  assert.equal(r.lines.length, 4);
   assert.deepEqual(r.lines.flatMap((line) => line.kind === "hunk" ? [line.text] : []), ["@@ -1 +1 @@", "@@ -9 +9 @@"]);
   assert.equal(r.added, 2);
   assert.equal(r.removed, 1);
@@ -300,9 +314,7 @@ test("ADR 0088 I6: `Binary files … differ`: binary, with no line shown", () =>
 });
 
 test("ADR 0088 I6: `?? dir/` (a nested repository): a folder, with no line shown and no diff read", () => {
-  const [e] = readStatus("?? dir/\0", "");
-  assert.equal(diffArgs(e, true), null);
-  const f = diffFiles("?? dir/\0", "", new Map()).files[0];
+  const f = diffFixture("?? dir/\0", new Map()).files[0];
   assert.equal(f.kind, "追加");
   assert.equal(f.body, "folder");
   assert.deepEqual(f.lines, []);
@@ -315,16 +327,15 @@ test("ADR 0088 I6: an empty diff: no difference", () => {
 
 test("ADR 0088 I6: no commit yet: every file is read as added lines", () => {
   const z = "A  a.txt\0?? b.txt\0";
-  const es = readStatus(z, "");
-  for (const e of es) assert.deepEqual(diffArgs(e, false), ["diff", "--no-index", "--", "/dev/null", e.path]);
+  const es = statusFixture(z);
   const added = (p: string) => `diff --git a/${p} b/${p}\nnew file mode 100644\n--- /dev/null\n+++ b/${p}\n@@ -0,0 +1,2 @@\n+1\n+2\n`;
-  const r = diffFiles(z, "", new Map(es.map((e) => [e.path, patchFixture(added(e.path))])));
+  const r = diffFixture(z, new Map(es.map((e) => [e.path, patchFixture(added(e.path))])));
   assert.deepEqual(r.files.map((f) => [f.path, f.kind, f.added, f.removed]), [["a.txt", "追加", 2, 0], ["b.txt", "追加", 2, 0]]);
 });
 
 test("ADR 0088 I6: the files are in the order of git status", () => {
   const z = " M c.txt\0?? a.txt\0 D b.txt\0";
-  assert.deepEqual(diffFiles(z, "", new Map()).files.map((f) => f.path), ["c.txt", "a.txt", "b.txt"]);
+  assert.deepEqual(diffFixture(z, new Map()).files.map((f) => f.path), ["c.txt", "a.txt", "b.txt"]);
 });
 
 const long = (n: number) => ["@@ -0,0 +1 @@", ...Array.from({ length: n - 1 }, (_, k) => `+${k}`)].join("\n") + "\n";
@@ -348,13 +359,13 @@ const many = (n: number) => Array.from({ length: n }, (_, k) => `?? f${k}.txt\0`
 
 test("ADR 0088 I7: exactly 200 files: all listed, none more", () => {
   assert.equal(MAX_FILES, 200);
-  const r = diffFiles(many(200), "", new Map());
+  const r = diffFixture(many(200), new Map());
   assert.equal(r.files.length, 200);
   assert.equal(r.moreFiles, 0);
 });
 
 test("ADR 0088 I7: 201 files: 200 and 1 more", () => {
-  const r = diffFiles(many(201), "", new Map());
+  const r = diffFixture(many(201), new Map());
   assert.equal(r.files.length, 200);
   assert.equal(r.moreFiles, 1);
 });

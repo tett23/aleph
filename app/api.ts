@@ -67,8 +67,6 @@ export const api = {
   // the programs come from the settings Rust keeps (docs/adr/0042)
   tool: (name: Tool, cwd: string, args: string[]) => invoke<Out>("tool", { name, cwd, args }),
   toolInfo: (name: Tool) => invoke<ToolInfo>("tool_info", { name }),
-  /** The git in use and its version; rejected with the reason when it cannot be used (docs/adr/0060). */
-  gitInfo: () => invoke<{ path: string; version: string }>("git_info"),
   /** Watches the workspaces and the shared library with FSEvents again (docs/adr/0063); false when it could not. */
   watchRoots: () => invoke<boolean>("watch_roots"),
   lspStart: (id: string, cwd: string) => invoke<void>("lsp_start", { id, cwd }),
@@ -91,8 +89,8 @@ export const api = {
   /** Paths the writer picks in native dialogs (docs/adr/0050): the settings written, or null. */
   addWorkspace: () => invoke<string | null>("add_workspace"),
   chooseLibrary: (make: boolean) => invoke<string | null>("choose_library", { make }),
-  chooseBinary: (name: "git" | Tool) => invoke<string | null>("choose_binary", { name }),
-  setBinary: (name: "git" | Tool, path: string) => invoke<string | null>("set_binary", { name, path }),
+  chooseBinary: (name: Tool) => invoke<string | null>("choose_binary", { name }),
+  setBinary: (name: Tool, path: string) => invoke<string | null>("set_binary", { name, path }),
   search: (args: SearchArgs) => invoke<Found>("search_files", { args }),
   /** Replacing across files (docs/adr/0032); the open sheets in `leave` are replaced in their editors. */
   replaceFiles: (args: Omit<SearchArgs, "limit"> & { with: string; only: Record<string, Spot[]> | null; leave: string[] }) =>
@@ -100,7 +98,6 @@ export const api = {
   replaceText: (a: { text: string; pattern: string; regex: boolean; caseSensitive: boolean; with: string; only: Spot[] | null }) =>
     invoke<{ text: string; replaced: number; skipped: number }>("replace_text", a),
   replacePreview: (a: { matched: string[]; pattern: string; regex: boolean; caseSensitive: boolean; with: string }) => invoke<string[]>("replace_preview", a),
-  git: (cwd: string, args: string[]) => invoke<Out>("git", { cwd, args }),
   // the assistant's local models and inference (docs/adr/0081); Rust keeps the list, the files and the choice
   assistantModels: () => invoke<ModelInfo[]>("assistant_models"),
   assistantDownloadModel: (id: string) => invoke<void>("assistant_download_model", { id }),

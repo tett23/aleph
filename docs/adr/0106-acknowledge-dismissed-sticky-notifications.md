@@ -1,6 +1,6 @@
 # ADR 0106: 消えない通知を閉じたら未確認件数を減らす
 
-Status: accepted-pending
+Status: accepted
 
 ## 文脈
 

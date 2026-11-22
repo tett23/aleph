@@ -7,6 +7,7 @@ mod connectors;
 mod dropcopy;
 mod fsevents;
 mod fsops;
+mod git;
 mod guard;
 mod handout;
 mod llama;
@@ -762,7 +763,7 @@ async fn choose_library(app: AppHandle, make: bool) -> R<Option<String>> {
     .map(Some)
 }
 
-/// Picks the program to use for git, golem or shem.
+/// Picks the program to use for golem or shem.
 #[tauri::command]
 async fn choose_binary(app: AppHandle, name: String) -> R<Option<String>> {
     let key = guard::binary_key(&name).ok_or_else(|| format!("unknown program {name}"))?;
@@ -814,57 +815,43 @@ fn configured(app: &AppHandle, name: &str) -> Option<String> {
     })
 }
 
-/// Runs git, found by the setting, /usr/bin, Homebrew, then PATH; off the main thread (docs/adr/0062).
-#[tauri::command]
-async fn git(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
-    blocking(move || git_now(app, cwd, args)).await
+// Git work runs on the blocking pool, and checks the registered paths in Rust.
+async fn git_blocking<T: Send + 'static>(
+    run: impl FnOnce() -> Result<T, git::Error> + Send + 'static,
+) -> Result<T, git::Error> {
+    tauri::async_runtime::spawn_blocking(run)
+        .await
+        .map_err(|error| git::Error::new(git::ErrorKind::Read, error.to_string()))?
 }
 
-fn git_now(app: AppHandle, cwd: String, args: Vec<String>) -> R<process::Out> {
-    guard::allowed("git", &args)?;
-    may(&app, &cwd, RD)?;
-    let r = roots(&app);
-    let bin = configured(&app, "git");
-    let git = process::find("git", bin.as_deref(), &process::GIT_ORDER, &r).ok_or_else(|| {
-        format!(
-            "git が見つかりません（{}）",
-            process::searched("git", &process::GIT_ORDER, &r).join("、")
+#[tauri::command]
+async fn git_operation(
+    app: AppHandle,
+    cwd: PathBuf,
+    operation: git::Operation,
+) -> Result<git::Response, git::Error> {
+    git_blocking(move || {
+        git::operate_with_reach(
+            || reach(&app).map_err(|error| git::Error::new(git::ErrorKind::Invalid, error)),
+            &cwd,
+            operation,
         )
-    })?;
-    process::run_git(&git, Path::new(&cwd), &args)
-}
-
-#[derive(serde::Serialize)]
-struct GitInfo {
-    path: String,
-    version: String,
-}
-
-/// The git in use and its version, or why it cannot be used (docs/adr/0060).
-#[tauri::command]
-async fn git_info(app: AppHandle) -> R<GitInfo> {
-    blocking(move || git_info_now(app)).await
-}
-
-fn git_info_now(app: AppHandle) -> R<GitInfo> {
-    let r = roots(&app);
-    let bin = configured(&app, "git");
-    let git =
-        process::find("git", bin.as_deref(), &process::GIT_ORDER, &r).ok_or_else(|| {
-            match bin.filter(|b| !b.is_empty()) {
-                Some(b) => format!("git が見つかりません（設定の {b}）"),
-                None => format!(
-                    "git が見つかりません（探した場所：{}）",
-                    process::searched("git", &process::GIT_ORDER, &r).join("、")
-                ),
-            }
-        })?;
-    let version = process::git_version(process::run(&git, Path::new("/"), &["--version".into()]))
-        .map_err(|e| format!("{e}（{}）", git.display()))?;
-    Ok(GitInfo {
-        path: git.display().to_string(),
-        version,
     })
+    .await
+}
+
+#[tauri::command]
+async fn git_global_identity() -> Result<git::Identity, git::Error> {
+    git_blocking(git::global_identity).await
+}
+
+#[tauri::command]
+async fn git_save_global_identity(
+    target: PathBuf,
+    name: String,
+    email: String,
+) -> Result<git::Identity, git::Error> {
+    git_blocking(move || git::save_global_identity(target, name, email)).await
 }
 
 // ---- the assistant's local inference and models (docs/adr/0081, docs/adr/0086) ----
@@ -1758,10 +1745,11 @@ pub fn run_app() {
             copy_dropped,
             list_dir,
             temp_dir,
-            git,
+            git_operation,
+            git_global_identity,
+            git_save_global_identity,
             tool,
             tool_info,
-            git_info,
             lsp_start,
             lsp_send,
             lsp_stop,

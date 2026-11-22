@@ -6,7 +6,7 @@ export type LineComparison = { marks: Map<number, LineMark>; runs: LineChange[];
 
 export const splitLines = (text: string) => text === "" ? [] : text.split("\n");
 
-export const changeRuns = (before: string[], after: string[]): LineChange[] => {
+const changeRuns = (before: string[], after: string[]): LineChange[] => {
   let start = 0;
   while (start < before.length && start < after.length && before[start] === after[start]) start++;
   let beforeEnd = before.length;

@@ -1,4 +1,4 @@
-import { characterSpans, type GutterSnapshot } from "../difftab/snapshot.ts";
+import { snapshotCharacterSpans, type GutterSnapshot } from "../difftab/snapshot.ts";
 import { hoverBounds, hoverPosition } from "./diff-hover-placement.ts";
 
 type Rect = { left: number; top: number; right: number; bottom: number };
@@ -59,7 +59,7 @@ const build = (snapshot: GutterSnapshot) => {
     for (let n = 0; n < Math.max(run.before.length, run.after.length); n++) {
       const before = run.before[n];
       const after = run.after[n];
-      const spans = characterSpans(before ?? "", after ?? "");
+      const spans = snapshotCharacterSpans(before ?? "", after ?? "");
       for (const [i, text] of [before, after].entries()) {
         if (text === undefined) continue;
         const line = document.createElement("span");

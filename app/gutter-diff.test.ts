@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { compareLines, markAtLine } from "./diff.ts";
-import { characterSpans, snapshotDiff } from "./difftab/snapshot.ts";
+import { characterSpans } from "./difftab/characters.ts";
+import { snapshotDiff } from "./difftab/snapshot.ts";
 import { hoverBounds, hoverPosition } from "./ed/diff-hover-placement.ts";
 
 test("ADR 0104 I1: a marked run retains its before and after text", () => {
@@ -100,4 +101,16 @@ test("ADR 0104 I1, I3, A3: one tab retains the clicked text, and old reloads can
   assert.equal(tab().snapshot, second);
   state = reduce(state, { type: "showDiff" });
   assert.equal(tab().snapshot, undefined);
+});
+
+test("ADR 0104 I5, I7: a very long changed line retains both coarse middles and its common ends", async () => {
+  const { snapshotCharacterSpans } = await import("./difftab/snapshot.ts");
+  const before = "猫".repeat(50_000);
+  const after = "犬".repeat(50_000);
+  assert.deepEqual(snapshotCharacterSpans(`前${before}後`, `前${after}後`), [
+    { kind: "same", text: "前" },
+    { kind: "removed", text: before },
+    { kind: "added", text: after },
+    { kind: "same", text: "後" },
+  ]);
 });

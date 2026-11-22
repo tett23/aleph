@@ -93,7 +93,7 @@ test("the settings Rust wrote replace only the paths it keeps (docs/adr/0050)", 
   adopt(c, written);
   assert.deepEqual(c.workspaces, ["/w/a", "/w/b"]);
   assert.equal(c.libraryDir, "/lib");
-  assert.equal(c.gitPath, "/g");
+  assert.equal("gitPath" in c, false);
   assert.equal(c.golemPath, "/go");
   assert.equal(c.shemPath, "/s");
   assert.equal(c.theme, "dark", "the rest is the webview's");

@@ -54,6 +54,10 @@ The writing checks for `.gm`, `.md`, and `.txt` skip absolute HTTP and HTTPS URL
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
 The file tree shows each project’s `build/` folder with every file in it, so outputs such as PDFs can be handed to other applications: drag rows out of the window, choose “コピー” (copy) from the right-click menu and paste in Finder, or choose “zip で書き出す…” (export as zip) on a folder or a project. The zip writes its file names in UTF-8, normalized to NFC and flagged as UTF-8, and leaves out `.DS_Store` and `.git`.
 
+Closing a notification that stays on screen marks it as seen and updates the unread count on the “通知” (Notifications) tab in the bottom panel.
+This also works in separate page preview and plot windows.
+Closed notifications stay in the main window’s history.
+
 The assistant in the bottom panel takes a request in plain words, such as "widen the line pitch a little", and proposes edits to the focused sheet (or the selection) with an explanation and a diff. Nothing changes until you press “適用” (apply). If the workspace has uncommitted changes, Aleph first offers to commit them, then applies, saves, and opens the diff tab. The ribbon's “差分” (diff) button shows the workspace's changes against the last commit at any time.
 By default the assistant runs Qwen3.5-4B on your Mac with the bundled `llama-server`, and sends nothing outside. The other three models of the list can be downloaded from the settings. Claude Code and Codex can also be chosen when they are installed; they send the request, the target text and the manual excerpts to Anthropic or OpenAI with your own account, so Aleph asks once before using each. If they fail, Aleph asks the local model instead and says so.
 
@@ -68,6 +72,10 @@ A separate press of Escape after conversion ends performs the usual action.
 The diff tab and Git panel mark changed characters inline, including in Japanese text. Removed text has a strikethrough, and added text is underlined.
 
 Hover over a change marker next to the editor's line numbers to see the before and after text. Click the marker or its “詳細” (details) button to open that sheet's diff, including unsaved edits at the moment of the click. The diff tab's “ワークスペース全体の差分” button returns to the saved workspace changes.
+
+Aleph bundles Git support through libgit2. Its Git panel initializes repositories, shows changes and history, and commits, pushes, and pulls without requiring a Git executable. The Git section of the app settings edits your global author name and email. Use a project's gear button or the Git panel to edit the identity of a particular repository.
+
+For push and pull, configure a tracking branch on an SSH or HTTPS remote. SSH uses your agent and verifies the server against your known hosts. HTTPS verifies the server certificate and asks for a username and password or token when the server requires them.
 
 ## Status
 

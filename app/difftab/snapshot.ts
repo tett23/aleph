@@ -1,29 +1,16 @@
-import { changeRuns, splitLines, type LineChange } from "../diff.ts";
+import { splitLines, type LineChange } from "../diff.ts";
+import { characterSpans } from "./characters.ts";
 import type { DiffLine, DiffSpan } from "./text.ts";
 
 export type GutterSnapshot = { base: string | null; text: string; runs: LineChange[]; selected: LineChange[]; line: number };
 export type SheetSnapshot = GutterSnapshot & { path: string; workspace: string | null };
 
-export const characterSpans = (before: string, after: string): DiffSpan[] => {
-  const b = Array.from(before);
-  const spans: DiffSpan[] = [];
-  let from = 0;
-  const push = (kind: DiffSpan["kind"], parts: string[]) => {
-    if (parts.length) spans.push({ kind, text: parts.join("") });
-  };
-  for (const run of changeRuns(b, Array.from(after))) {
-    push("same", b.slice(from, run.beforeStart));
-    push("removed", run.before);
-    push("added", run.after);
-    from = run.beforeStart + run.before.length;
-  }
-  push("same", b.slice(from));
-  return spans;
-};
+// The full text is retained even when the middle is too long for character LCS.
+export const snapshotCharacterSpans = (before: string, after: string) => characterSpans(before, after, 4_000_000);
 
 const CONTEXT = 3;
 const LIMIT = 2000;
-type Row = Exclude<DiffLine, { kind: "text" | "header" }> | { before?: string; after?: string };
+type Row = Exclude<DiffLine, { kind: "text" }> | { before?: string; after?: string };
 
 export const snapshotDiff = (base: string | null, text: string, runs: LineChange[], selected: LineChange[]) => {
   const before = splitLines(base ?? "");
@@ -73,7 +60,7 @@ export const snapshotDiff = (base: string | null, text: string, runs: LineChange
     if ("kind" in row) return row;
     const spans: DiffSpan[] = row.before === undefined ? [{ kind: "added", text: row.after! }]
       : row.after === undefined ? [{ kind: "removed", text: row.before }]
-      : characterSpans(row.before, row.after);
+      : snapshotCharacterSpans(row.before, row.after);
     return { kind: "text", spans };
   });
   return { lines, target: target - start, omittedBefore: start, omittedAfter: rows.length - start - lines.length };

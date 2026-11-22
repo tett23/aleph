@@ -77,7 +77,6 @@ fn finish(h: [u32; 8], rest: &[u8], total: u64) -> String {
 }
 
 /// The SHA-256 of `bytes` in lower-case hex (the tests check the files with it).
-#[cfg(test)]
 pub fn hex(bytes: &[u8]) -> String {
     let whole = bytes.len() / 64 * 64;
     let h = bytes[..whole].as_chunks::<64>().0.iter().fold(H0, compress);

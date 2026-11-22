@@ -101,7 +101,7 @@ impl Reach {
         let Some(r) = resolve(p) else {
             return refuse();
         };
-        let under = |root: &PathBuf| r.starts_with(root);
+        let under = |root: &PathBuf| !root.as_os_str().is_empty() && r.starts_with(root);
         let in_config = under(&self.config);
         let in_trash = under(&self.trash);
         let ok = match access {
@@ -121,19 +121,6 @@ impl Reach {
 
 // ---- subcommands ----
 
-const GIT: [&str; 11] = [
-    "add",
-    "branch",
-    "commit",
-    "diff",
-    "init",
-    "log",
-    "pull",
-    "push",
-    "rev-parse",
-    "show",
-    "status",
-];
 const GOLEM: [&str; 8] = [
     "build",
     "check",
@@ -149,7 +136,6 @@ const SHEM: [&str; 2] = ["render", "--version"];
 /// Whether the first argument is a subcommand Aleph uses with that program.
 pub fn allowed(program: &str, args: &[String]) -> Result<(), String> {
     let list: &[&str] = match program {
-        "git" => &GIT,
         "golem" => &GOLEM,
         "shem" => &SHEM,
         _ => &[],
@@ -163,9 +149,8 @@ pub fn allowed(program: &str, args: &[String]) -> Result<(), String> {
 
 // ---- the settings Rust alone changes (docs/adr/0050) ----
 
-const PATHS: [&str; 6] = [
+const PATHS: [&str; 5] = [
     "libraryDir",
-    "gitPath",
     "golemPath",
     "shemPath",
     "claudePath",
@@ -235,6 +220,7 @@ pub fn merge(current: &Value, incoming: Value) -> Value {
     let Value::Object(mut out) = incoming else {
         return current.clone();
     };
+    out.remove("gitPath");
     for k in [ASSISTANT_MODEL, ASSISTANT_APPROVED] {
         match current.get(k) {
             Some(v) => out.insert(k.into(), v.clone()),
@@ -284,7 +270,6 @@ pub fn add_workspace(current: &Value, path: &str) -> Value {
 /// The settings key a program's path is kept under.
 pub fn binary_key(name: &str) -> Option<&'static str> {
     match name {
-        "git" => Some("gitPath"),
         "golem" => Some("golemPath"),
         "shem" => Some("shemPath"),
         "claude" => Some("claudePath"),
@@ -470,20 +455,6 @@ mod tests {
     #[test]
     fn only_the_subcommands_aleph_uses_pass() {
         for s in [
-            "add",
-            "branch",
-            "commit",
-            "diff",
-            "log",
-            "pull",
-            "push",
-            "rev-parse",
-            "show",
-            "status",
-        ] {
-            assert!(allowed("git", &args(&[s])).is_ok(), "{s}");
-        }
-        for s in [
             "build",
             "check",
             "fmt",
@@ -496,10 +467,7 @@ mod tests {
             assert!(allowed("golem", &args(&[s])).is_ok(), "{s}");
         }
         assert!(allowed("shem", &args(&["render", "a.pdf"])).is_ok());
-        // the Git panel's git init (docs/adr/0051)
-        assert!(allowed("git", &args(&["init"])).is_ok());
-        assert!(allowed("git", &args(&["-c", "core.pager=x", "status"])).is_err());
-        assert!(allowed("git", &args(&["config", "x"])).is_err());
+        assert!(allowed("git", &args(&["status"])).is_err());
         assert!(allowed("golem", &args(&["serve"])).is_err());
         assert!(allowed("golem", &args(&[])).is_err());
         assert!(allowed("sh", &args(&["-c"])).is_err());
@@ -513,7 +481,7 @@ mod tests {
             json!({ "workspaces": ["/", "/w/b", "/w/b"], "gitPath": "/tmp/evil", "golemPath": "/tmp/evil", "libraryDir": "/lib", "theme": "dark" }),
         );
         assert_eq!(out["workspaces"], json!(["/w/b"]));
-        assert_eq!(out["gitPath"], json!("/usr/bin/git"));
+        assert_eq!(out.get("gitPath"), None);
         assert_eq!(out.get("golemPath"), None);
         assert_eq!(out["libraryDir"], json!("/lib"));
         assert_eq!(out["theme"], json!("dark"));
@@ -521,7 +489,7 @@ mod tests {
             &cur,
             json!({ "workspaces": ["/w/a", "/w/b"], "gitPath": "", "libraryDir": "" }),
         );
-        assert_eq!(emptied["gitPath"], json!(""));
+        assert_eq!(emptied.get("gitPath"), None);
         assert_eq!(emptied["libraryDir"], json!(""));
         assert_eq!(merge(&cur, json!("x")), cur);
     }
@@ -673,8 +641,7 @@ mod tests {
         let once = add_workspace(&add_workspace(&cur, "/w/b"), "/w/b");
         assert_eq!(once["workspaces"], json!(["/w/a", "/w/b"]));
         assert_eq!(once["theme"], json!("dark"));
-        assert_eq!(set_path(&cur, "gitPath", "/g")["gitPath"], json!("/g"));
-        assert_eq!(binary_key("git"), Some("gitPath"));
+        assert_eq!(binary_key("git"), None);
         assert_eq!(binary_key("shem"), Some("shemPath"));
         assert_eq!(binary_key("sh"), None);
     }

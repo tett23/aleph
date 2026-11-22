@@ -12,6 +12,7 @@ export const activeSnapshot = (s: State) => s.panes.flatMap((p) => p.tabs).find(
 export const drawSnapshot = (ctx: Pick<Ctx, "store" | "editors" | "baseText">, head: HTMLElement, body: HTMLElement, snapshot: SheetSnapshot) => {
   const { path, workspace } = snapshot;
   const name = workspace ? rel(workspace, path) : path;
+  head.classList.add("snapshot-head");
   head.innerHTML = `<span class="dws" title="${esc(path)}">${esc(name)}</span><span>クリック時点の差分（未保存の編集を含む）</span><span class="sp"></span>
     <button class="btn small" type="button" data-snapshot-workspace>ワークスペース全体の差分</button>
     <button class="btn small" type="button" data-snapshot-reload>${icon("refresh-cw", 12)} 再読み込み</button>`;
@@ -27,7 +28,7 @@ export const drawSnapshot = (ctx: Pick<Ctx, "store" | "editors" | "baseText">, h
   }).join("\n");
   body.onmouseup = null;
   body.innerHTML = lines.length
-    ? `<section class="dfile">${omitted(omittedBefore, "前")}<pre>${html}</pre>${omitted(omittedAfter, "後")}</section>`
+    ? `<section class="dfile snapshot-diff">${omitted(omittedBefore, "前")}<pre>${html}</pre>${omitted(omittedAfter, "後")}</section>`
     : '<div class="muted dline">HEAD との差分はありません</div>';
   body.prepend(note);
   body.scrollTop = 0;

@@ -10,17 +10,16 @@ import { commit, committed } from "../gitpanel.ts";
 import { icon } from "../icons.ts";
 import { basename } from "../path.ts";
 import { allDocs, diffAvailable, dirty, type Doc } from "../store.ts";
-import { git, gitNow } from "../tools.ts";
+import { gitFailure, gitOperation, type GitDiff } from "../git-ipc.ts";
 import { opensOnClick } from "../workspace.ts";
 import { applyDecision, commitMessage, hasChanges } from "./apply.ts";
 import { commitBeforeApplyDialog, irreversibleApplyDialog } from "./modal.ts";
-import { diffTextHtml, fetchDiff, type DiffOutput } from "./text.ts";
-import { MAX_FILES, diffArgs, diffFiles, readStatus, type DiffFile } from "./read.ts";
+import { diffTextHtml } from "./text.ts";
+import { MAX_FILES, diffFiles, folderEntry, type DiffFile } from "./read.ts";
 
 /** The diffs read at the same time, at most. */
 const PARALLEL = 4;
 
-const STATUS = ["status", "--porcelain=v1", "-z", "-uall", "--", "."];
 
 /** Runs `f` on each item, at most `n` at a time, keeping the order of the results. */
 const pool = async <T, R>(items: T[], n: number, f: (x: T) => Promise<R>): Promise<R[]> => {
@@ -58,6 +57,7 @@ let generation = 0;
 /** Reads the workspace's diff against HEAD and draws the diff tab's head and body. */
 const load = async (ctx: Ctx, head: HTMLElement, body: HTMLElement) => {
   const mine = ++generation;
+  head.classList.remove("snapshot-head");
   const stale = () => mine !== generation;
   const ws = ctx.store.get().workspace;
   const line = (text: string) => void (body.innerHTML = `<div class="muted dline">${esc(text)}</div>`);
@@ -71,28 +71,25 @@ const load = async (ctx: Ctx, head: HTMLElement, body: HTMLElement) => {
     if (e.button === 0 && p && w) void ctx.open([`${w}/${p}`], undefined, { newTab: e.altKey });
   };
   if (!ws) return void ((head.innerHTML = ""), line("ワークスペースがありません。"));
-  const g = await gitNow();
+  const result = await (async () => {
+    const repo = await gitOperation(ws, "repository", {});
+    if (!repo) return { issue: `${basename(ws)} は Git のリポジトリではありません。` };
+    const entries = await gitOperation(ws, "status", {});
+    const diffs = new Map<string, GitDiff>();
+    await pool(entries.slice(0, MAX_FILES), PARALLEL, async (entry) => {
+      if (!folderEntry(entry) && !stale()) {
+        diffs.set(entry.path, await gitOperation(ws, "diff", { path: entry.path, from: entry.from ?? undefined }));
+      }
+    });
+    return { entries, repo, ...diffFiles(entries, diffs) };
+  })().catch((e) => ({ issue: gitFailure(e).message }));
   if (stale()) return;
-  // without git, or outside a repository: one line; git init is the Git panel's (docs/adr/0060)
-  if (!g.ok) return void ((head.innerHTML = headHtml(ws, null, false)), line(`git が使えません。${g.reason}`));
-  const prefix = await git(ctx, ws, ["rev-parse", "--show-prefix"]).catch(() => null);
-  if (stale()) return;
-  if (!prefix || prefix.code !== 0) return void ((head.innerHTML = headHtml(ws, null, false)), line(`${basename(ws)} は Git のリポジトリではありません。`));
-  const [verify, status] = await Promise.all([git(ctx, ws, ["rev-parse", "--verify", "HEAD"]).catch(() => null), git(ctx, ws, STATUS).catch(() => null)]);
-  if (stale()) return;
-  const hasHead = !!verify && verify.code === 0;
-  if (!status || status.code !== 0) return void ((head.innerHTML = headHtml(ws, null, !hasHead)), line(`git status に失敗しました。${status?.stderr.trim() ?? ""}`));
-  const pre = prefix.stdout.trim();
-  const entries = readStatus(status.stdout, pre);
-  const read = await pool(entries.slice(0, MAX_FILES), PARALLEL, async (e) => {
-    const args = diffArgs(e, hasHead);
-    if (!args || stale()) return [e.path, undefined] as const;
-    const diff = await fetchDiff((options) => git(ctx, ws, options), args).catch(() => undefined);
-    return [e.path, diff] as const;
-  });
-  if (stale()) return;
-  const { files, moreFiles } = diffFiles(status.stdout, pre, new Map(read.filter((entry): entry is readonly [string, DiffOutput] => entry[1] !== undefined)));
-  head.innerHTML = headHtml(ws, entries.length, !hasHead);
+  if ("issue" in result) {
+    head.innerHTML = headHtml(ws, null, false);
+    return line(result.issue ?? "差分を読み込めません");
+  }
+  const { files, moreFiles, entries, repo } = result;
+  head.innerHTML = headHtml(ws, entries.length, !repo.hasHead);
   if (!files.length) return line("HEAD との差分はありません");
   body.innerHTML = files.map(fileHtml).join("") + (moreFiles ? `<div class="muted dmore">ほか ${moreFiles} ファイル</div>` : "");
 };
@@ -137,19 +134,14 @@ export const mountDiffTab = (ctx: Ctx) => {
  */
 export const prepareApply = async (ctx: Ctx, doc: Doc, applicable: () => boolean): Promise<"apply" | "cancel" | "unapplicable"> => {
   const ws = ctx.store.get().workspace;
-  const g = (await gitNow()).ok;
-  let repo = false;
+  const repo = ws ? await gitOperation(ws, "repository", {}).catch(() => null) : null;
   let changed: boolean | null = null;
-  if (g && ws) {
-    const r = await git(ctx, ws, ["rev-parse", "--is-inside-work-tree"]).catch(() => null);
-    repo = !!r && r.code === 0 && r.stdout.trim() === "true";
-    if (repo) {
-      const st = await git(ctx, ws, STATUS).catch(() => null);
-      const unsaved = allDocs(ctx.store.get()).filter((d) => d.workspace === ws && dirty(d)).length;
-      changed = st && st.code === 0 ? hasChanges(unsaved, readStatus(st.stdout, "").length) : null;
-    }
+  if (ws && repo) {
+    const entries = await gitOperation(ws, "status", {}).catch(() => null);
+    const unsaved = allDocs(ctx.store.get()).filter((d) => d.workspace === ws && dirty(d)).length;
+    if (entries) changed = hasChanges(unsaved, entries.length);
   }
-  const decision = applyDecision({ git: g, repo, inWorkspace: !!ws && doc.workspace === ws, changed });
+  const decision = applyDecision({ git: true, repo: !!repo, inWorkspace: !!ws && doc.workspace === ws, changed });
   if (decision === "apply") return "apply";
   if (decision === "irreversible") return (await irreversibleApplyDialog(ctx.store)) === "apply" ? "apply" : "cancel";
   const answer = await commitBeforeApplyDialog(ctx.store);

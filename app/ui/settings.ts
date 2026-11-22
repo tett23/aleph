@@ -5,11 +5,19 @@ import type { Ctx } from "../ctx.ts";
 import { esc } from "../esc.ts";
 import { h, icon } from "../icons.ts";
 
-export const openSettingsDialog = async (ctx: Ctx, sectionId?: string) => {
+export const openSettingsDialog = async (ctx: Ctx, sectionId?: string, focus?: string, opener = document.activeElement as HTMLElement | null) => {
   // the version of the build (tauri.conf.json), not a number written here
   const version = await getVersion().catch(() => "");
   let current = sectionId ?? ctx.settings[0]?.id ?? "";
   const dim = h(`<div class="dim"></div>`);
+  const close = () => {
+    dim.remove();
+    ctx.refresh();
+    opener?.focus();
+  };
+  dim.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !e.isComposing) { e.stopPropagation(); close(); }
+  });
   const groups = [...new Set(ctx.settings.map((s) => s.group))];
   const render = async () => {
     const sec = ctx.settings.find((s) => s.id === current);
@@ -21,12 +29,12 @@ export const openSettingsDialog = async (ctx: Ctx, sectionId?: string) => {
         <div class="mhead"><img class="app-ico" src="/icon.svg" alt=""><div><h2>Aleph</h2><small class="muted">${esc(versionLabel(version, ctx.debug))}</small></div></div>
         <div class="msec">${sec ? await sec.render(ctx) : ""}</div>
       </div></div>`;
+    sec?.mount?.(dim.querySelector(".msec")!, ctx);
   };
   dim.addEventListener("click", async (e) => {
     const t = e.target as HTMLElement;
     if (t === dim || t.closest("[data-close]")) {
-      dim.remove();
-      ctx.refresh();
+      close();
       return;
     }
     const s = t.closest<HTMLElement>("[data-sec]")?.dataset.sec;
@@ -41,8 +49,9 @@ export const openSettingsDialog = async (ctx: Ctx, sectionId?: string) => {
     const sec = ctx.settings.find((x) => x.id === current);
     if (sec?.onChange && (await sec.onChange(e.target as HTMLInputElement, ctx))) await render();
   });
-  await render();
   document.body.append(dim);
+  await render();
+  if (focus) dim.querySelector<HTMLElement>(focus)?.focus();
 };
 
 export { item, toggle } from "./item.ts";
