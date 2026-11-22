@@ -34,6 +34,7 @@ import { mountQuickOpen } from "./quickopenmount.ts";
 import { mountWikilinks } from "./wikilinkmount.ts";
 import { mountKeywords } from "./keywordpanel.ts";
 import { mountProofread } from "./proofreadmount.ts";
+import { mountComposition } from "./compositionmount.ts";
 import { mountPasteImage } from "./pasteimagemount.ts";
 import { mountTrash } from "./trashpanel.ts";
 import { mountRecent, reopenLast } from "./recentpanel.ts";
@@ -223,6 +224,7 @@ const start = async () => {
   mountWikilinks(ctx);
   mountKeywords(ctx);
   mountProofread(ctx);
+  mountComposition(ctx);
   mountPasteImage(ctx);
   mountTrash(ctx);
   // last: the built-in commands, the settings sections as commands, and the window's keys (docs/adr/0023)

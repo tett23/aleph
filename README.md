@@ -66,6 +66,8 @@ By default the assistant runs Qwen3.5-4B on your Mac with the bundled `llama-ser
 
 Select text in the editor to highlight up to 10,000 other exact, case-sensitive matches in the same sheet. Matches can occur inside words, and selections can include spaces and line breaks. The match outlines update without moving or rewrapping the text.
 
+In a project's `.gm` sheets, the editor wraps lines with the kinsoku (line-breaking) and hanging punctuation settings that Golem resolves from the project's `style.toml`, and it reads them again when you save `style.toml`. `.gm` sheets outside a project, `.md`, and `.txt` use Golem's defaults. This needs a Golem with the `kinsoku` command. The bundled Golem 0.1.0-rc4 does not have it, so choose a newer Golem in the settings; until then the editor uses the defaults. The `loose` setting does not yet allow small kana and the long vowel mark at the start of a line.
+
 Choose the app's appearance under “一般” (General) → “外観” (Appearance) in the settings: “OS に合わせる” (match the OS, the default), “ライト” (light), or “ダーク” (dark). Light and dark stay fixed when the OS appearance changes. The saved choice applies to the main window and to the separate text preview, page preview, and plot windows. Windows opened later use it too, and it is kept after a restart. It changes only the app's colors, not the manuscript, the typesetting colors, or exported PDFs.
 
 In the text editor, press Escape or Control-E to dismiss suggestions. With suggestions closed, Control-E moves to the end of the logical line. Each shortcut’s context can be changed in the key binding settings.

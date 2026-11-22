@@ -121,7 +121,7 @@ impl Reach {
 
 // ---- subcommands ----
 
-const GOLEM: [&str; 8] = [
+const GOLEM: [&str; 9] = [
     "build",
     "check",
     "fmt",
@@ -130,6 +130,8 @@ const GOLEM: [&str; 8] = [
     "preflight",
     "lsp",
     "--version",
+    // the resolved kinsoku and hanging of a project (docs/adr/0090)
+    "kinsoku",
 ];
 const SHEM: [&str; 2] = ["render", "--version"];
 
@@ -471,6 +473,11 @@ mod tests {
         assert!(allowed("golem", &args(&["serve"])).is_err());
         assert!(allowed("golem", &args(&[])).is_err());
         assert!(allowed("sh", &args(&["-c"])).is_err());
+    }
+
+    #[test]
+    fn adr0090_i1_golem_kinsoku_passes() {
+        assert!(allowed("golem", &args(&["kinsoku", "/w/p"])).is_ok());
     }
 
     #[test]

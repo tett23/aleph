@@ -93,6 +93,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0087](adr/0087-preview-in-a-tab.md) | プレビューを、エディタの右の領域から、映すタブに従うプレビューのタブに移す（実装済み） |
 | [ADR 0088](adr/0088-diff-tab-and-commit-before-applying.md) | ワークスペースの HEAD との差分を出す差分のタブと、アシスタントの書き換えを適用する前にコミットを促すモーダルのダイアログ（実装済み） |
 | [ADR 0089](adr/0089-revoke-connector-approval.md) | 設定の「アシスタント」の節から、Claude Code と Codex の承認を取り消す（実装済み） |
+| [ADR 0090](adr/0090-editor-composition-settings.md) | エディタの折り返しに、Golem が解決した禁則とぶら下げ組を反映する（`strict` とぶら下げは実装した。Tauri での手の確かめと、`loose` は未了） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
@@ -116,7 +117,7 @@ Rust の側は、画面（webview）からの呼び出しを信じきらない�
 - CSP で、読み込めるスクリプトを自分のものと blob（プラグイン）に、接続を IPC に限る。`object`、`base`、フォームの送り先は使わない。
 - 画面からファイルを読み書きできるのは、ワークスペース、共有ライブラリ、アプリの一時のディレクトリの下に限る。アプリの設定のディレクトリ（`config.json`、`plugins/`、`trash/`）は読めるが、書けるのはゴミ箱だけである。パスは `canonicalize` してから確かめるので、`..` やシンボリックリンクで外へ出るものも拒む。範囲の外は誤りを返し、`exists` は偽を、ツリーと一覧は空を返す。
 - Finder から落としたファイルとフォルダは、アプリが動いているあいだだけ、コピーの元として読める。
-- golem と shem の実行ファイルは、Rust の側が設定から決める。サブコマンドは golem の `build`、`check`、`fmt`、`lint`、`new`、`preflight`、`lsp`、`--version` と、shem の `render`、`--version` に限る。組み込みの Git は型付きの操作を受け付ける（[ADR 0105](adr/0105-use-libgit2-without-git-executable.md)）。Rust 側で対象のパスを正規化し、読み取りと書き込みの許可範囲を確かめる。
+- golem と shem の実行ファイルは、Rust の側が設定から決める。サブコマンドは golem の `build`、`check`、`fmt`、`lint`、`new`、`preflight`、`lsp`、`--version`、`kinsoku`（[ADR 0090](adr/0090-editor-composition-settings.md)）と、shem の `render`、`--version` に限る。組み込みの Git は型付きの操作を受け付ける（[ADR 0105](adr/0105-use-libgit2-without-git-executable.md)）。Rust 側で対象のパスを正規化し、読み取りと書き込みの許可範囲を確かめる。
 - 設定のうち、`workspaces`、`libraryDir`、`golemPath`、`shemPath` は Rust の側だけが足し、変える。画面からの保存では、ワークスペースを外すことと、パスを空にすることだけを受け付ける。ワークスペースを足す、共有ライブラリを選ぶか作る、バイナリを選ぶときは、Rust の側がネイティブのダイアログを開く。バイナリのパスを欄に打ったときは、Rust の側がネイティブの確認のダイアログを出し、はいのときだけ使う。
 - 権限は、Aleph が開くウィンドウ（`main`、`plain-*`、`pages-*`、`plot-*`、`imelog-*`）に限って与える。`pages-*` は [ADR 0051](adr/0051-git-init-and-the-pages-window.md) で決めた。
 - ウィンドウは、アプリのページ（開発のときは開発のサーバー）から外へ移らない（[ADR 0044](adr/0044-navigation-from-the-preview.md)）。プレビューのリンクを押しても、ウィンドウは移らない。`#…` はプレビューの中のその要素へ送り、`http` と `https` は URL を示して確かめてから既定のブラウザで開く。ウィキリンクと埋め込みの見出しは Aleph の中で開き、ほかのリンク（`file:`、相対のパスなど）は何もしない。`target="_blank"` と `window.open` も新しいウィンドウを開かない。
@@ -435,6 +436,11 @@ Markdown のプレビューの改行の扱いを設定で選び、GFM の拡張�
 - 編集する部分は `contenteditable` の一つの要素で、原稿の 1 行を一つのブロックに描く。ツールバーの「縦」「横」で、本文（`.gm`、`.md`、`.txt`）の `writing-mode` を `vertical-rl` と `horizontal-tb` で切り替える。切り替えてもエディタは作り直さず、内容、カーソル、取り消しの履歴を保つ。
 - 表示は仮想化する。見えている行と前後の余白の行だけを描き、ほかの行は大きさの合計を持つ空きの要素にする。行の大きさ（横書きでは高さ、縦書きでは幅）は描いたときに測り、まだ測っていない行は字数と 1 行の字数から見積もる。選択の両端と変換中の行は、見えていなくても描く。縦書きではスクロールが横の向きになり、開いたときは冒頭（右端）を出す。
 - 本文の列の長さ（横書きでは幅、縦書きでは高さ）は、`style.toml` の `[page.grid] characters` の字数にする。設定の「1 行の字数」があればそれを使う。ほかの形式は 110 字まで広げる。
+- 本文（`.gm`、`.md`、`.txt`）の折り返しは、禁則とぶら下げ組の設定に従う（[ADR 0090](adr/0090-editor-composition-settings.md)）。プロジェクトの `.gm` は、`golem kinsoku` がプロジェクトの `style.toml` から解決した値を使い、`style.toml` を保存すると読み直して、開いているそのプロジェクトのシートに当てる。プロジェクトの外の `.gm` と、`.md`、`.txt` は Golem の既定値（`strict`、ぶら下げない）を使う。コードと設定のファイルには当てない。
+  - `kinsoku = "strict"` は WebKit の `line-break: strict` で、`hanging-punctuation = true` は `hanging-punctuation: allow-end` で表す。ぶら下げるときは、行の外に 1.5 字分（24px より小さければ 24px）の余白を取る。1.5 字分は、ぶら下げた 1 字が余白に収まるように選んだ値である。
+  - `kinsoku = "loose"` は WebKit の `line-break: loose` で表すが、WebKit はこのときも小書きの仮名と長音記号を行頭に置かない。そのため、`loose` では [ADR 0090](adr/0090-editor-composition-settings.md) の I2（Golem の分類に一致する）を満たさず、[ADR 0090](adr/0090-editor-composition-settings.md) は実装を終えていない。
+  - `golem kinsoku` が値を返さないときは、最後に読めた値を保ち、読めた値が無ければ既定値を使う。
+  - `golem kinsoku` が終了コード 1 で終わったとき（`style.toml` の誤り）は、標準エラー出力を通知に出す。ほかの失敗（`kinsoku` を持たない Golem の終了コード 2、出力を読めない、起動できない）では、通知を出さない。同梱の Golem 0.1.0-rc4 は `kinsoku` を持たないので、設定で `kinsoku` を持つ Golem を選ぶまで既定値を使う。
 - 本文は明朝、それ以外（`.emet`、`.toml` など）は等幅で書く。`.gm` の中の命令の頭と引数、式は等幅にし、散文スロットは本文のフォントのままにする。文字サイズは本文とコードで別に、行間は本文に設定する。
 - 溝には、HEAD からの変更の印（追加、変更、削除）、行番号、診断の印を並べる。横書きでは行の左に、縦書きでは行の上に出す。折り返した行では、最初の折り返しにそろえる。HEAD にないファイルでは、空でない本文の各行を追加とする。
 - `.gm` には、縦書きでも横書きでも、改ページが入る位置の見積もりの印（「改ページ（見積もり） 2 → 3」）を行のあいだに出す。段落の字数を字詰めで割った行数と、見出しの行数（第 1 階層は 3 行、ほかは 2 行）から数え、`@page-break` と `@column-break` の後では必ずページを改める。禁則、ルビ、行アキは数えない。
