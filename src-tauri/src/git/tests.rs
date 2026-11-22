@@ -367,6 +367,12 @@ fn adr0105_i2_i4_linked_worktree_shares_identity_and_dropped_paths_are_read_only
             ..
         })
     ));
+    let view = repository_info(&linked_repo).unwrap();
+    assert_eq!(view.root.as_os_str(), linked.as_os_str());
+    assert_eq!(
+        view.git_dir.as_os_str(),
+        linked_repo.path().canonicalize().unwrap().as_os_str()
+    );
     let info = serde_json::to_value(identity::local(&linked_repo).unwrap()).unwrap();
     assert_eq!(info["target"], target.to_str().unwrap());
     assert_eq!(info["effective"]["name"]["value"], "Worktree");
@@ -487,4 +493,49 @@ fn adr0104_i1_head_text_has_the_same_meaning_from_the_root_and_a_subdirectory() 
     let error = read_head(&subdirectory, "非UTF8.md").unwrap_err();
     assert_eq!(error.kind, ErrorKind::Read);
     assert!(error.message.contains("UTF-8"));
+}
+
+#[test]
+fn adr0105_i2_two_workspaces_of_one_repository_serialize_commits() {
+    let root = testdir::fresh("embedded-git-concurrent")
+        .canonicalize()
+        .unwrap();
+    let nested = root.join("nested");
+    std::fs::create_dir(&nested).unwrap();
+    let repo = initialize(&root).unwrap();
+    let mut config = repo.config().unwrap();
+    config.set_str("user.name", "Fixture").unwrap();
+    config
+        .set_str("user.email", "fixture@example.test")
+        .unwrap();
+    std::fs::write(nested.join("a.gm"), "変更\n").unwrap();
+    let reach = guard::Reach {
+        roots: vec![root.clone(), nested.clone()],
+        ..Default::default()
+    };
+    let start = std::sync::Barrier::new(2);
+    let run = |workspace| {
+        start.wait();
+        operate(
+            &reach,
+            workspace,
+            Operation::Commit {
+                message: "Save current change".into(),
+                automatic: false,
+                scope: Some(Scope::Repository),
+            },
+        )
+        .unwrap()
+    };
+    let (first, second) = std::thread::scope(|thread| {
+        let first = thread.spawn(|| run(&root));
+        let second = thread.spawn(|| run(&nested));
+        (first.join().unwrap(), second.join().unwrap())
+    });
+    assert!(matches!(
+        (first, second),
+        (Response::Commit(Some(_)), Response::Commit(None))
+            | (Response::Commit(None), Response::Commit(Some(_)))
+    ));
+    assert_eq!(history(&repo).unwrap().len(), 1);
 }

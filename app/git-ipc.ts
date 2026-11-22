@@ -45,7 +45,7 @@ export const gitOperation = <K extends keyof Operations>(cwd: string, kind: K, i
 export const globalIdentity = () => invoke<GitIdentity>("git_global_identity");
 export const saveGlobalIdentity = (input: IdentityInput) => invoke<GitIdentity>("git_save_global_identity", input);
 
-export type GitFailure = { kind: string; message: string; repository?: string; missing?: IdentityKey[]; authTarget?: string };
+export type GitFailure = { kind: string; message: string; repository?: string; identityTarget?: string; missing?: IdentityKey[]; authTarget?: string };
 export const gitFailure = (failure: unknown): GitFailure =>
   failure !== null && typeof failure === "object" && "kind" in failure && "message" in failure
     ? failure as GitFailure

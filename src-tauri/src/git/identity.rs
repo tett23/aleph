@@ -95,6 +95,11 @@ pub fn signature<'a>(repo: &Repository, config: &Config) -> Result<Signature<'a>
                 "Git の名前とメールアドレスを設定してください",
             );
             error.repository = repo.workdir().map(|dir| dir.display().to_string());
+            error.identity_target = repo
+                .commondir()
+                .canonicalize()
+                .ok()
+                .map(|path| path.join("config").into_boxed_path());
             error.missing = missing;
             Err(error)
         }
