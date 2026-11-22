@@ -1,6 +1,6 @@
 # ADR 0103: ツリーでドラッグする項目をポインターに追従表示する
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
