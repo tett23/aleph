@@ -1,6 +1,7 @@
 // Small DOM helpers: toast, ask (Tauri's WebView has no window.prompt), confirm and menu.
 import { esc } from "../esc.ts";
 import { h } from "../icons.ts";
+import { menuBounds, menuPosition } from "./menu-position.ts";
 import { notify } from "./notices.ts";
 import { swallowLatePress } from "./press.ts";
 
@@ -55,29 +56,56 @@ export const onPress = (el: HTMLElement, f: (e: MouseEvent) => void) =>
     if (e.button === 0) f(e);
   });
 
+let closeMenu: (() => void) | undefined;
+
 export const menu = (anchor: HTMLElement, items: MenuItem[]) => {
-  document.querySelectorAll(".menu").forEach((m) => m.remove());
-  const r = anchor.getBoundingClientRect();
-  const m = h(`<div class="menu" style="position:fixed;top:${r.bottom + 4}px;left:${Math.max(4, Math.min(r.left, innerWidth - 260))}px"></div>`);
+  closeMenu?.();
+  const m = h(`<div class="menu"></div>`);
+  const viewport = window.visualViewport;
+
+  const place = () => {
+    const bounds = menuBounds(viewport
+      ? { left: viewport.offsetLeft, top: viewport.offsetTop, width: viewport.width, height: viewport.height }
+      : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight });
+    m.style.minWidth = `min(220px, ${bounds.width}px)`;
+    m.style.maxWidth = `${bounds.width}px`;
+    m.style.maxHeight = `${bounds.height}px`;
+    const { left, top } = menuPosition(anchor.getBoundingClientRect(), m.getBoundingClientRect(), bounds);
+    m.style.left = `${left}px`;
+    m.style.top = `${top}px`;
+  };
+  const onOutsidePress = (e: MouseEvent) => {
+    const target = e.target as Node;
+    if (m.contains(target) || anchor.contains(target)) return;
+    close();
+  };
+  const close = () => {
+    m.remove();
+    document.removeEventListener("mouseup", onOutsidePress, { capture: true });
+    window.removeEventListener("resize", place);
+    viewport?.removeEventListener("resize", place);
+    viewport?.removeEventListener("scroll", place);
+    closeMenu = undefined;
+  };
+
   items.forEach((it) => {
     if (it === "-") return m.append(h("<hr>"));
     const d = h(`<div>${it.icon ?? ""}<span>${esc(it.label)}</span>${it.hint ? `<kbd>${esc(it.hint)}</kbd>` : ""}</div>`);
     d.onmouseup = (e) => {
       if (e.button !== 0) return;
-      m.remove();
+      close();
       it.run();
     };
     m.append(d);
   });
+  m.style.overflow = "auto";
   document.body.append(m);
-  // a press anywhere but on the menu or its button closes it
-  const close = (e: MouseEvent) => {
-    const t = e.target as Node;
-    if (m.contains(t) || anchor.contains(t)) return;
-    m.remove();
-    document.removeEventListener("mouseup", close, true);
-  };
-  setTimeout(() => document.addEventListener("mouseup", close, true), 0);
+  place();
+  closeMenu = close;
+  document.addEventListener("mouseup", onOutsidePress, { capture: true });
+  window.addEventListener("resize", place);
+  viewport?.addEventListener("resize", place);
+  viewport?.addEventListener("scroll", place);
 };
 
 /** A question with several answers (docs/adr/0063): the index chosen, or null when cancelled. The last is the main one. */
