@@ -14,15 +14,16 @@ export type KeyDown = { key: string; keyCode: number; isComposing: boolean };
 export type ReadDom = (first: number, last: number) => string;
 
 export const createInput = (core: Core) => {
-  const ime = createIme();
+  const ime = createIme(({ commit, caret }) => {
+    const selection = { anchor: caret, head: caret };
+    if (commit) core.apply([commit], "input.ime", selection);
+    else core.select(selection);
+  });
   const finish = (type: "compositionend" | "blur", data: string, read: ReadDom) => {
     const lines = ime.lines(core.doc());
     if (!lines) return null;
     const dom = read(lines[0], lines[1]);
-    const r = ime.feed(type === "blur" ? { type, dom } : { type, data, dom });
-    if (!r || "wait" in r) return null;
-    if (r.commit) core.apply([r.commit], "input.ime", { anchor: r.caret, head: r.caret });
-    else core.select({ anchor: r.caret, head: r.caret });
+    ime.feed(type === "blur" ? { type, dom } : { type, data, dom });
     return lines;
   };
   return {
