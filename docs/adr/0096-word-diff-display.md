@@ -1,6 +1,6 @@
 # ADR 0096: 差分を文字単位で表示する
 
-Status: accepted-pending
+Status: accepted
 
 ## 文脈
 

@@ -48,4 +48,3 @@
 
 - **アシスタントの手の確かめ（[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md) A2、A4、A5）**：[ADR 0081](adr/0081-assistant-with-local-llm-and-connectors.md) の、ネットワークを切った Mac でダウンロードなしに答えが返ること（A2、A4）と、ログアウトした Claude Code でローカルに頼み直すこと（A5）を、`scripts/bundle-tools.sh` で同梱したデバッグ版で確かめる。同じ ADR の A3 と A6、[ADR 0088](adr/0088-diff-tab-and-commit-before-applying.md) の A1〜A4 は、2026-11-18 にデバッグ版で確かめ、結果をこの項目を短くしたプルリクエストに書いた。
 - **承認の取り消し（[ADR 0089](adr/0089-revoke-connector-approval.md) A1）**：[ADR 0089](adr/0089-revoke-connector-approval.md) の、Claude Code を承認した後に設定で取り消すと行が「承認していません」になり、次に頼むと承認のダイアログがもう一度出ることを、デバッグ版で確かめる。
-- **文字単位の差分（[ADR 0096](adr/0096-word-diff-display.md) A1〜A3）**：Tauri で、リポジトリのルートをワークスペースにし、空白のない日本語の長い段落を含む追跡済みのファイルで 1 文字を変える。差分のタブと Git のパネルが同じ 1 文字の削除と追加を示すことと、明暗両テーマで削除と追加を区別できることを確かめる。
