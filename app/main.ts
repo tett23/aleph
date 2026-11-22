@@ -10,7 +10,7 @@ import { startPreviewWindow } from "./preview/window.ts";
 import { mountPlotFeature, startPlotWindow } from "./plot/mount.ts";
 import { emit, listen } from "@tauri-apps/api/event";
 import type { Ctx } from "./ctx.ts";
-import { createStore, initialState, readPreviewMode, shownDoc, type State } from "./store.ts";
+import { createStore, initialState, readPreviewMode, type State } from "./store.ts";
 import { confirmDialog, toast } from "./ui/dom.ts";
 import { notify, notifyError } from "./ui/notices.ts";
 import { finishWrite, mayWrite, mountWatch } from "./watchmount.ts";
@@ -172,7 +172,7 @@ const start = async () => {
   let cleanupEditorArea: (() => void) | void;
   const draw = (s: State, prev: State | null, what: string[] = []) => {
     const changed = (k: keyof State) => !prev || prev[k] !== s[k];
-    renderRibbon(document.body, s);
+    renderRibbon(document.body, s, ctx);
     shell.sidebarEl.classList.toggle("hidden", !s.showSidebar);
     if (changed("workspace")) renderWorkspaceBar(document.body, s, currentBranch());
     renderToolbar(document.body, s, ctx, titles);
@@ -245,12 +245,8 @@ const start = async () => {
     }),
   );
 
-  shell = mountShell(document.getElementById("app")!, ctx, () => {
-    const s = store.get();
-    const p = s.open[0]?.project ?? s.plot ?? shownDoc(s)?.project;
-    if (p) store.dispatch({ type: "plot", project: p });
-    else toast("Golem のプロジェクトのシートを開いてから押してください");
-  });
+  // the ribbon's plot runs view.plot, which checks plot.csv again first (docs/adr/0098)
+  shell = mountShell(document.getElementById("app")!, ctx);
   store.subscribe((s, prev) => draw(s, prev));
   draw(store.get(), null);
   // the tabs of the last launch, or else the newest recent sheet

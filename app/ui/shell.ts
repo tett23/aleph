@@ -11,6 +11,7 @@ import { canVertical } from "../toolbar.ts";
 import { menuCommands } from "../commands.ts";
 import { hintOf } from "../keybind.ts";
 import { runCommand } from "../palette.ts";
+import { plotReason } from "../plot/availability.ts";
 import { menu, onPress } from "./dom.ts";
 import { workspaceProjectItem } from "./tree.ts";
 import { openSettingsDialog } from "./settings.ts";
@@ -46,12 +47,65 @@ export type Shell = {
   bottomPanelEl: HTMLElement;
 };
 
-export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): Shell => {
-  root.innerHTML = `
-    <div class="ribbon" data-tauri-drag-region>
-      ${RIBBON.map(([k, i, t]) => `<span class="iconbtn" data-rib="${k}" title="${t}">${icon(i)}</span>`).join("")}
+type RibbonId = (typeof RIBBON)[number][0];
+
+/** The ribbon's buttons (docs/adr/0098), named by the item; their states are set by renderRibbon. */
+export const ribbonHtml = () => `
+      ${RIBBON.map(([k, i, t]) => `<button type="button" class="iconbtn" data-rib="${k}" aria-label="${esc(t)}" aria-pressed="false" title="${esc(t)}">${icon(i)}</button>`).join("")}
       <span class="grow" data-tauri-drag-region></span>
-      <span class="iconbtn" data-settings title="設定">${icon("settings")}</span>
+      <button type="button" class="iconbtn" data-settings aria-label="設定" title="設定">${icon("settings")}</button>`;
+
+/** The command whose check an item uses: the plot's and the diff's, and the sidebar's panels that have one. */
+const ribbonCommand = (ctx: Ctx, k: RibbonId) => {
+  const id = k === "plot" ? "view.plot" : k === "diff" ? "view.diff" : `view.sidebar.${k}`;
+  return ctx.commands.find((c) => c.id === id);
+};
+
+/**
+ * An item's state (docs/adr/0098): disabled when its command cannot run, else selected or not.
+ * A disabled plot says why in its tooltip.
+ */
+export const ribbonItem = (k: RibbonId, s: State, ctx: Ctx): { selected: boolean; disabled: boolean; title: string } => {
+  const label = RIBBON.find(([x]) => x === k)?.[2] ?? k;
+  const c = ribbonCommand(ctx, k);
+  // a panel without a command is always enabled; the plot and the diff without theirs are not
+  const disabled = c ? !c.when(s) : k === "plot" || k === "diff";
+  const selected = !disabled && ((s.showSidebar && k === s.sidebarPanel) || (k === "plot" && s.plot !== null) || (k === "diff" && diffSelected(s)));
+  const reason = disabled && k === "plot" ? plotReason(ctx.plotGate?.availability(s) ?? { kind: "noTarget" }) : null;
+  return { selected, disabled, title: reason ? `${label}（${reason}）` : label };
+};
+
+/** A press on an item; a disabled item runs nothing, and the plot's and the diff's commands check again. */
+const pressRibbon = (ctx: Ctx, t: HTMLElement) => {
+  if (t.dataset.settings !== undefined) return void openSettingsDialog(ctx);
+  const k = t.dataset.rib as RibbonId | undefined;
+  if (!k || (t as HTMLButtonElement).disabled) return;
+  if (k === "plot" || k === "diff") {
+    // the diff tab, through its command (docs/adr/0088); the plot, through view.plot (docs/adr/0098)
+    const c = ribbonCommand(ctx, k);
+    if (c && c.when(ctx.store.get())) void runCommand(ctx, c);
+    return;
+  }
+  ctx.store.dispatch({ type: "sidebarPanel", panel: k });
+};
+
+/** The mouse at mouseup (see onPress), and the keyboard's Enter and Space: a click with no pointer (detail 0). */
+export const wireRibbon = (el: HTMLElement, ctx: Ctx) => {
+  const at = (e: Event) => (e.target as HTMLElement).closest<HTMLElement>("[data-rib],[data-settings]");
+  onPress(el, (e) => {
+    const t = at(e);
+    if (t) pressRibbon(ctx, t);
+  });
+  el.addEventListener("click", (e) => {
+    if ((e as MouseEvent).detail !== 0) return;
+    const t = at(e);
+    if (t) pressRibbon(ctx, t);
+  });
+};
+
+export const mountShell = (root: HTMLElement, ctx: Ctx): Shell => {
+  root.innerHTML = `
+    <div class="ribbon" data-tauri-drag-region>${ribbonHtml()}
     </div>
     <div class="sidebar">
       <div class="workspace-bar" data-tauri-drag-region><span class="name" data-wsmenu></span><span class="br"></span></div>
@@ -78,19 +132,7 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
   };
   const toolbar = $(".toolbar");
 
-  onPress($(".ribbon"), (e) => {
-    const t = (e.target as HTMLElement).closest<HTMLElement>("[data-rib],[data-settings]");
-    if (!t) return;
-    if (t.dataset.settings !== undefined) return void openSettingsDialog(ctx);
-    if (t.dataset.rib === "plot") return onPlot();
-    // the diff tab, through its command (docs/adr/0088)
-    if (t.dataset.rib === "diff") {
-      const c = ctx.commands.find((x) => x.id === "view.diff");
-      if (c && c.when(ctx.store.get())) void runCommand(ctx, c);
-      return;
-    }
-    ctx.store.dispatch({ type: "sidebarPanel", panel: t.dataset.rib as SidebarPanelId });
-  });
+  wireRibbon($(".ribbon"), ctx);
 
   onPress($(".workspace-bar"), (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>("[data-wsmenu]");
@@ -131,10 +173,15 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
   return shell;
 };
 
-export const renderRibbon = (root: HTMLElement, s: State) =>
-  root.querySelectorAll<HTMLElement>("[data-rib]").forEach((b) =>
-    b.classList.toggle("on", (s.showSidebar && b.dataset.rib === s.sidebarPanel) || (b.dataset.rib === "plot" && s.plot !== null) || (b.dataset.rib === "diff" && diffSelected(s))),
-  );
+/** Sets each item's state: the selection's class and aria-pressed, disabled, and the tooltip (docs/adr/0098). */
+export const renderRibbon = (root: ParentNode, s: State, ctx: Ctx) =>
+  root.querySelectorAll<HTMLButtonElement>("[data-rib]").forEach((b) => {
+    const { selected, disabled, title } = ribbonItem(b.dataset.rib as RibbonId, s, ctx);
+    b.classList.toggle("on", selected);
+    b.setAttribute("aria-pressed", String(selected));
+    b.disabled = disabled;
+    b.title = title;
+  });
 
 export const renderWorkspaceBar = (root: HTMLElement, s: State, branch: string) => {
   const name = root.querySelector<HTMLElement>(".workspace-bar .name")!;
