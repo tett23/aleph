@@ -3,7 +3,7 @@ import { characterSpans } from "./characters.ts";
 import type { DiffLine, DiffSpan } from "./text.ts";
 
 export type GutterSnapshot = { base: string | null; text: string; runs: LineChange[]; selected: LineChange[]; line: number };
-export type SheetSnapshot = GutterSnapshot & { path: string; workspace: string | null };
+export type SheetSnapshot = GutterSnapshot & { path: string; workspace: string | null; reloaded?: true };
 
 // The full text is retained even when the middle is too long for character LCS.
 export const snapshotCharacterSpans = (before: string, after: string) => characterSpans(before, after, 4_000_000);

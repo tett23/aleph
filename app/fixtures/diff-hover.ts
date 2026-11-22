@@ -130,6 +130,7 @@ const checkDiffTab = async (editor: Editor, clicked: GutterSnapshot) => {
   await frame();
   check("ADR 0104 I3: the late base read cannot replace the newer snapshot", activeSnapshot(store.get()) === latest);
   draw();
+  check("ADR 0104 I1: the heading indicates when the refreshed snapshot was taken", head.textContent!.includes("再読み込み時点"));
   ctx.editors.delete(path);
   reload();
   check("ADR 0104 I3: reloading after closing the editor displays the reason", body.textContent!.includes("閉じている"));
