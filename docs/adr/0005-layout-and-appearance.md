@@ -1,6 +1,6 @@
 # ADR 0005: 画面の構成と見た目
 
-Status: superseded [{"part":"名前「右のパネル」","by":["docs/adr/0082-ui-names-and-glossary.md"]},{"part":"エディタとプレビューを左右に並べること、ツールバーの「原稿のみ」「本文」「ページ」","by":["docs/adr/0087-preview-in-a-tab.md"]}]
+Status: superseded [{"part":"名前「右のパネル」","by":["docs/adr/0082-ui-names-and-glossary.md"]},{"part":"エディタとプレビューを左右に並べること、ツールバーの「原稿のみ」「本文」「ページ」","by":["docs/adr/0087-preview-in-a-tab.md"]},{"part":"リボンの選択状態と無効状態","by":["docs/adr/0098-ribbon-enabled-and-selected-states.md"],"kind":"supplement"},{"part":"見た目のライトとダークの明示指定","by":["docs/adr/0099-explicit-light-and-dark-appearance.md"],"kind":"supplement"},{"part":"実装しないこと の、ライトとダークと OS 追従の切り替え","by":["docs/adr/0099-explicit-light-and-dark-appearance.md"],"kind":"replace"}]
 
 ## 文脈
 
