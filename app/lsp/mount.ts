@@ -148,6 +148,10 @@ const sync = (ctx: Ctx, s: State, prev: State | null) => {
     synced.delete(path);
     diagnostics.delete(path);
     tokens.delete(path);
+    const view = views.get(path);
+    view?.setLayer("st", []);
+    view?.setFallbackColors(true);
+    view?.setDiagnostics([]);
     clients.get(st.project)?.notify("textDocument/didClose", { textDocument: { uri: uriOf(path) } });
     if (![...synced.values()].some((x) => x.project === st.project))
       idle.set(st.project, window.setTimeout(() => (clients.get(st.project)?.stop(), clients.delete(st.project)), IDLE_STOP));
@@ -260,9 +264,22 @@ const positionAt = (t: TextEditor, pos: number) => {
 type Item = { label: string; detail?: string; insertText?: string };
 
 const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
+  // Bind the view for the lifetime of the sheet; the store may give a
+  // standalone sheet a project while its editor is still open (ADR 0101).
   if (!LSP_KINDS.includes(doc.kind)) return null;
   let editor: TextEditor | null = null;
   const current = () => allDocs(ctx.store.get()).find((d) => d.path === doc.path) ?? doc;
+  const forProject = (run: (doc: Doc) => Promise<unknown>) => () => {
+    const d = current();
+    if (!d.project) return false;
+    void run(d);
+    return true;
+  };
+  const keys = [
+    { id: "file.save", key: "Mod-s", run: forProject((d) => formatAndSave(ctx, d)) },
+    // ⌥⇧F matches by the key's place too: on macOS the option key turns F into "Ï"
+    { id: "editor.format", key: "Shift-Alt-f", run: forProject((d) => formatNow(ctx, d)) },
+  ];
   return {
     attach: (t) => {
       editor = t;
@@ -272,11 +289,7 @@ const pluginFor = (doc: Doc, ctx: Ctx): EditorPlugin | null => {
         if (views.get(doc.path) === t) views.delete(doc.path);
       };
     },
-    keys: [
-      { id: "file.save", key: "Mod-s", run: () => !!current().project && (void formatAndSave(ctx, current()), true) },
-      // ⌥⇧F matches by the key's place too: on macOS the option key turns F into "Ï"
-      { id: "editor.format", key: "Shift-Alt-f", run: () => !!current().project && (void formatNow(ctx, current()), true) },
-    ],
+    get keys() { return current().project ? keys : []; },
     hover: async (pos) => {
       const path = doc.path;
       const c = readyClient(path);

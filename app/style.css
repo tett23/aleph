@@ -79,7 +79,8 @@ input.field:focus, textarea.field:focus { border-color: var(--text-2); }
 .menu div:first-child { margin-top: 5px; }
 .menu div:last-child { margin-bottom: 5px; }
 .menu span, .menu kbd { min-width: 0; overflow-wrap: anywhere; }
-.menu div:hover { background: var(--sel); }
+.menu div:not([aria-disabled]):hover { background: var(--sel); }
+.menu div[aria-disabled="true"] { color: var(--faint); }
 .menu hr { border: none; border-top: 1px solid var(--border); margin: 4px 5px; }
 .acts { display: flex; gap: 2px; padding: 0 8px 6px; }
 .acts .sp { flex: 1; }

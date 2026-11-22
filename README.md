@@ -32,6 +32,9 @@ When the move crosses a project boundary, Aleph confirms the change and shows an
 When Golem LSP supports file operations, Aleph updates local references before renaming; if reference updates are unavailable, you can cancel or rename without updating them.
 Right-click a project or folder to add a folder or an empty sheet of a chosen type. Right-click a Markdown sheet to convert that sheet to gm.
 
+Choose “Golem プロジェクトに初期化” (initialize as a Golem project) from the workspace menu or command palette to make the current workspace folder itself a project. Aleph keeps existing files and stops if generated paths collide or the workspace already contains a project.
+
+
 With New Sheet, a name without an extension prompts you to choose Markdown (.md) or Golem (.gm).
 Inside a project, New Sheet registers Golem documents as chapters.
 

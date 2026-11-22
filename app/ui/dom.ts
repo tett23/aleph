@@ -44,7 +44,7 @@ export const confirmDialog = (title: string, ok = "OK"): Promise<boolean> =>
     document.body.append(dim);
   });
 
-export type MenuItem = { label: string; icon?: string; hint?: string; run: () => void } | "-";
+export type MenuItem = { label: string; icon?: string; hint?: string; disabled?: boolean; run: () => void } | "-";
 
 /**
  * Calls `f` for a primary-button press on `el`. Taken at mouseup: under the overlay
@@ -90,9 +90,9 @@ export const menu = (anchor: HTMLElement, items: MenuItem[]) => {
 
   items.forEach((it) => {
     if (it === "-") return m.append(h("<hr>"));
-    const d = h(`<div>${it.icon ?? ""}<span>${esc(it.label)}</span>${it.hint ? `<kbd>${esc(it.hint)}</kbd>` : ""}</div>`);
+    const d = h(`<div${it.disabled ? ' aria-disabled="true"' : ""}>${it.icon ?? ""}<span>${esc(it.label)}</span>${it.hint ? `<kbd>${esc(it.hint)}</kbd>` : ""}</div>`);
     d.onmouseup = (e) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || it.disabled) return;
       close();
       it.run();
     };

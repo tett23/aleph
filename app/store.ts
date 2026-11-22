@@ -74,6 +74,7 @@ export type Action =
   | { type: "focus"; index: number }
   | { type: "edit"; path: string; text: string }
   | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "automatic" | "intermediate"; beforeFormat?: string }
+  | { type: "projectInitialized"; root: string; grid: Grid }
   | { type: "rename"; from: string; to: string }
   | { type: "move"; from: string; to: string; projects: string[]; grids: Record<string, Grid> }
   | { type: "moveGrids"; grids: Record<string, Grid> }
@@ -370,6 +371,8 @@ const step = (s: State, a: Action): State => {
       return mapTabs(s, (d) => (d.path === a.path ? { ...d, text: a.text } : d));
     case "saved":
       return mapTabs(s, (d) => (d.path === a.path ? { ...d, saved: a.text } : d));
+    case "projectInitialized":
+      return mapTabs(s, (doc) => doc.path.startsWith(a.root + "/") ? { ...doc, project: a.root, grid: a.grid } : doc);
     case "moveGrids":
       return mapTabs(s, (d) => d.project && a.grids[d.project] ? { ...d, grid: a.grids[d.project] } : d);
     case "move":

@@ -14,6 +14,7 @@ mod lsp;
 mod models;
 mod nav;
 mod process;
+mod project_init;
 mod replace;
 mod search;
 mod sha256;
@@ -367,10 +368,15 @@ fn remove_path(app: AppHandle, path: String) -> R<()> {
 
 /// Copies a file; the source may also be one dropped from Finder (docs/adr/0050).
 #[tauri::command]
-fn copy_file(app: AppHandle, from: String, to: String) -> R<()> {
+fn copy_file(app: AppHandle, from: String, to: String, new_in: Option<String>) -> R<()> {
     may(&app, &from, RD)?;
     may(&app, &to, WR)?;
-    fsops::copy_file(Path::new(&from), Path::new(&to)).map_err(err)
+    if let Some(root) = new_in {
+        may(&app, &root, WR)?;
+        project_init::copy_new_file(Path::new(&root), Path::new(&from), Path::new(&to))
+    } else {
+        fsops::copy_file(Path::new(&from), Path::new(&to)).map_err(err)
+    }
 }
 
 /// One report of a copy of dropped items, for the toast (docs/adr/0078).
@@ -1368,6 +1374,31 @@ fn tool_now(app: AppHandle, name: String, cwd: String, args: Vec<String>) -> R<p
     process::run(&tool_path(&app, &name)?, Path::new(&cwd), &args)
 }
 
+/// Initializes exactly one registered workspace root (ADR 0101).
+#[tauri::command]
+async fn initialize_workspace_project(app: AppHandle, root: String) -> R<()> {
+    blocking(move || {
+        let config = kept_config(&app);
+        let registered = config
+            .get("workspaces")
+            .and_then(|paths| paths.as_array())
+            .is_some_and(|paths| {
+                paths
+                    .iter()
+                    .any(|path| path.as_str() == Some(root.as_str()))
+            });
+        if !registered {
+            return Err(format!("{root}: 登録済みのワークスペースではありません"));
+        }
+        may(&app, &root, WR)?;
+        let golem = tool_path(&app, "golem")?;
+        project_init::initialize(Path::new(&root), &cache_dir(&app)?, |cwd, args| {
+            process::run(&golem, cwd, args)
+        })
+    })
+    .await
+}
+
 // ---- search (docs/adr/0015) ----
 
 #[derive(serde::Deserialize)]
@@ -1723,6 +1754,7 @@ pub fn run_app() {
             tree_move_read,
             tree_move_apply,
             copy_file,
+            initialize_workspace_project,
             copy_dropped,
             list_dir,
             temp_dir,

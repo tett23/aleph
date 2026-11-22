@@ -46,13 +46,14 @@ export const api = {
   readBytes: (path: string) => invoke<ArrayBuffer>("read_bytes", { path }),
   writeText: (path: string, content: string, createNew = false) => invoke<void>("write_text", { path, content, createNew }),
   exists: (path: string) => invoke<boolean>("exists", { path }),
+  initializeWorkspaceProject: (root: string) => invoke<void>("initialize_workspace_project", { root }),
   createEntry: (path: string, dir: boolean) => invoke<void>("create_entry", { path, dir }),
   makeDir: (path: string) => invoke<void>("make_dir", { path }),
   rename: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
   treeMoveInventory: (workspace: string) => invoke<TreeMoveInventory>("tree_move_inventory", { workspace }),
   treeMoveRead: (workspace: string, path: string) => invoke<string | null>("tree_move_read", { workspace, path }),
   treeMoveApply: (plan: TreeMoveDiskPlan) => invoke<TreeMoveOutcome>("tree_move_apply", { plan }),
-  copyFile: (from: string, to: string) => invoke<void>("copy_file", { from, to }),
+  copyFile: (from: string, to: string, newIn?: string) => invoke<void>("copy_file", { from, to, newIn }),
   /** Copies what was dropped on the tree into `target` (docs/adr/0078); progress comes as `aleph:copy-progress` with `id`. */
   copyDropped: (id: number, target: string, paths: string[]) => invoke<Outcome[]>("copy_dropped", { id, target, paths }),
   /** The trash (docs/adr/0033): its folder, and moving or removing a file or folder. */

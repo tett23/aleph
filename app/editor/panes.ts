@@ -167,10 +167,11 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
               if (canVertical(doc.kind)) editor?.setWidth(ctx.config.charsOverride ?? doc.grid.chars);
             }
           }
+          // A workspace can become a project while its sheets stay open.
           if (!t.plot) t.open.forEach((doc, i) => {
-            const previous = v.docs[i];
-            if (previous.doc.grid === doc.grid && previous.doc.project === doc.project) return;
-            previous.update(doc);
+            const current = v.docs[i];
+            if (current.doc.project === doc.project && current.doc.grid === doc.grid) return;
+            current.update(doc);
             const editor = v.editors.get(doc.path);
             editor?.setGrid(doc.grid);
             if (canVertical(doc.kind)) editor?.setWidth(ctx.config.charsOverride ?? doc.grid.chars);
