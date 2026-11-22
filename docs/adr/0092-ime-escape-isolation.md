@@ -1,6 +1,6 @@
 # ADR 0092: IME の変換を取り消す Esc を画面の操作に渡さない
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

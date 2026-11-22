@@ -1,6 +1,6 @@
 # ADR 0095: コンテキストメニューを画面内に収める
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

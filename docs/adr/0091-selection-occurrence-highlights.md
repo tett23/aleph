@@ -1,6 +1,6 @@
 # ADR 0091: 選択した文字列と同じ箇所をハイライトする
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

@@ -1,6 +1,6 @@
 # ADR 0073: ショートカットにコンテキストを指定し、Ctrl+E で補完を閉じるか行末に移る
 
-Status: accepted
+Status: superseded [{"part":"IME 変換中の Esc の扱い","by":["docs/adr/0092-ime-escape-isolation.md"],"kind":"supplement"}]
 
 ## 文脈
 

@@ -1,6 +1,6 @@
 # ADR 0065: ツリーでフォルダとシートを作り、Markdown を gm に変換する
 
-Status: accepted
+Status: superseded [{"part":"既存の新規シート操作で拡張子を省略した場合","by":["docs/adr/0093-ask-sheet-extension.md"],"kind":"replace"}]
 
 ## 文脈
 

@@ -1,6 +1,6 @@
 # ADR 0090: エディタの折り返しに禁則とぶら下げ組を反映する
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

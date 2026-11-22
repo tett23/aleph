@@ -1,6 +1,6 @@
 # ADR 0093: 拡張子なしで作るシートの形式を尋ねる
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

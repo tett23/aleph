@@ -1,6 +1,6 @@
 # ADR 0094: URL を校正の対象から除く
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
