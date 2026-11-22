@@ -3,7 +3,8 @@ import { api, type Entry } from "../api.ts";
 import { notifyError } from "./notices.ts";
 import { adopt } from "../config.ts";
 import type { Ctx } from "../ctx.ts";
-import { forgetGrid } from "../docs.ts";
+import { forgetGrid, gridOf } from "../docs.ts";
+import { forgetManifest, loadManifest } from "../separator.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { addChapter, manifestChapters, removeChapters } from "../manifest.ts";
@@ -43,6 +44,7 @@ let baseEntries: Entry[] = [];
 /** The workspace's default tree, used by search, links and trash independently of display settings. */
 export const treeEntries = () => baseEntries;
 const chapters = new Map<string, string[]>();
+const initializing = new Map<string, 'placing' | 'refreshing'>();
 
 /** Items of a row's right-click menu, by the parts that add them (bookmarks, the trash). */
 export const treeMenus: ((path: string, dir: boolean, ctx: Ctx) => MenuItem[])[] = [];
@@ -60,6 +62,7 @@ export const reloadTree = async (ctx: Ctx) => {
   const projects = new Set(ws ? projectsIn(ws, baseEntries) : []);
   // projects of every workspace, for the cross-project panels
   for (const w of ctx.store.get().workspaces) if (w !== ws) projectsIn(w, await api.listTree(w).catch(() => [])).forEach((p) => projects.add(p));
+  for (const [root, stage] of initializing) if (stage === 'placing') projects.delete(root);
   ctx.projects = [...projects];
   chapters.clear();
   await Promise.all(
@@ -247,10 +250,65 @@ const newSheetName = async (input: string): Promise<string | null> => {
   return extension ? name + extension : null;
 };
 
+const prepareProjectFonts = async (ctx: Ctx, project: string) => {
+  try {
+    for (const prepare of ctx.onNewProject) await prepare(project, ctx);
+  } catch (error) {
+    ctx.notify({ message: `フォントを用意できませんでした：${String(error)}`, level: "warning" });
+  }
+};
+
+const initializeProject = async (ctx: Ctx, root: string) => {
+  if (ctx.projects.includes(root))
+    return void ctx.notify({ message: `${root} はすでに Golem プロジェクトです`, level: "warning" });
+  if (initializing.has(root))
+    return void ctx.notify({ message: `${root} を初期化しています` });
+  initializing.set(root, "placing");
+  try {
+    try {
+      await api.initializeWorkspaceProject(root);
+    } catch (error) {
+      ctx.notify({ message: `Golem プロジェクトに初期化できませんでした\n${String(error)}`, level: "error", sticky: true });
+      return;
+    }
+    initializing.set(root, "refreshing");
+
+    await prepareProjectFonts(ctx, root);
+    try {
+      await reloadTree(ctx);
+      if (!ctx.projects.includes(root)) throw new Error("ツリーでプロジェクトを再確認できません");
+      forgetGrid(root);
+      forgetManifest(root);
+      const [grid] = await Promise.all([gridOf(root), loadManifest(root)]);
+      ctx.store.dispatch({ type: "projectInitialized", root, grid });
+      ctx.refresh(["sidebar", "rightSidebar", "status", "previewTab"]);
+    } catch (error) {
+      ctx.notify({ message: `初期化したプロジェクトを読み直せませんでした：${root}\n${String(error)}`, level: "error", sticky: true });
+      return;
+    }
+    ctx.notify({ message: `Golem プロジェクトに初期化しました：${root}` });
+  } finally {
+    initializing.delete(root);
+  }
+};
+
+/** The workspace menu is also available when the root has no tree row. */
+export const workspaceProjectItem = (ctx: Ctx, root: string | null): MenuItem | null =>
+  root && root === ctx.store.get().workspace
+    ? {
+        label: ctx.projects.includes(root) ? "Golem プロジェクトに初期化（初期化済み）" : "Golem プロジェクトに初期化",
+        icon: icon("book-plus", 14),
+        run: () => { if (root === ctx.store.get().workspace) void runTreeAct(ctx, "init-project"); },
+      }
+    : null;
+
 /** The tree's actions (the buttons above it), also run as commands (docs/adr/0023). */
 export const runTreeAct = async (ctx: Ctx, act: string) => {
   const s = ctx.store.get();
   switch (act) {
+    case "init-project":
+      if (s.workspace) await initializeProject(ctx, s.workspace);
+      return;
     case "add-ws":
       return addWorkspace(ctx);
     case "refresh":
@@ -275,8 +333,7 @@ export const runTreeAct = async (ctx: Ctx, act: string) => {
       // fonts come from the shared library, never from golem's download (docs/adr/0004, docs/adr/0014)
       const out = await golem(ctx, ws, ["new", name, "--no-fonts"]);
       if (out.code !== 0) return void notifyError((out.stderr || out.stdout).trim() || "golem new に失敗しました");
-      for (const f of ctx.onNewProject) await f(`${ws}/${name}`, ctx);
-      if (!ctx.config.libraryDir) toast("共有ライブラリがないので、フォントは入っていません。設定の「共有ライブラリ」でフォルダを決めると、開いたときにコピーします");
+      await prepareProjectFonts(ctx, `${ws}/${name}`);
       await reloadTree(ctx);
       ctx.store.dispatch({ type: "expand", path: `${ws}/${name}`, on: true });
       return ctx.open([`${ws}/${name}/chapters/01.gm`]);
@@ -383,6 +440,10 @@ export const mountTree = (ctx: Ctx) => {
   };
 
   // "Finder で表示" for files, folders and projects (docs/adr/0053)
+  treeMenus.push((path, dir, c) => {
+    const item = dir ? workspaceProjectItem(c, path) : null;
+    return item ? [item] : [];
+  });
   treeMenus.push((p) => revealItems(p, (x) => void api.revealPath(x).catch((e) => notifyError(String(e))), icon("folder", 14)));
   // the files' URLs on the pasteboard, and a folder's zip (docs/adr/0077)
   treeMenus.push((p, dir) => [

@@ -142,7 +142,7 @@ const flushLatest = (ctx: Ctx, path: string) => {
 const sync = (ctx: Ctx, s: State, prev: State | null) => {
   const now = new Map(allDocs(s).filter((d) => lspDoc(d) || renameDoc(d)).map((d) => [d.path, d]));
   for (const [path, st] of synced) {
-    if (now.has(path)) continue;
+    if (now.get(path)?.project === st.project) continue;
     clearTimeout(st.timer);
     synced.delete(path);
     diagnostics.delete(path);

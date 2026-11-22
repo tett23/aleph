@@ -178,6 +178,7 @@ export const mountCommands = (ctx: Ctx) => {
 
   add({ id: "file.newSheet", label: "新しいシート", icon: "square-pen", when: (s) => !!s.workspace, run: (c) => runTreeAct(c, "new-file") });
   add({ id: "file.newFolder", label: "新しいフォルダ", icon: "folder-plus", when: (s) => !!s.workspace, run: (c) => runTreeAct(c, "new-folder") });
+  add({ id: "file.initializeWorkspaceProject", label: "Golem プロジェクトに初期化", icon: "book-plus", when: (s) => !!s.workspace && s.workspaces.includes(s.workspace), run: (c) => runTreeAct(c, "init-project") });
   add({ id: "file.newProject", label: "新しいプロジェクト（golem new）", icon: "book-plus", when: (s) => !!s.workspace, run: (c) => runTreeAct(c, "new-project") });
   add({
     id: "file.save",

@@ -10,7 +10,7 @@ import type { Ctx } from "./ctx.ts";
 import { copyWithProgress, dropTarget, type Hit, type Progress } from "./dropin.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
-import { FIGURE_KINDS, copyFonts, figureInsert, freeName, installItem, libSubdir, libraryFiles, stateOf, targetIn, type Fs, type LibFile, type LibState } from "./library.ts";
+import { FIGURE_KINDS, copyFonts, figureInsert, fontsWanted, freeName, installItem, libSubdir, libraryFiles, stateOf, targetIn, type Fs, type LibFile, type LibState } from "./library.ts";
 import { basename, rel } from "./path.ts";
 import { allDocs, focused, shownDoc } from "./store.ts";
 import { confirmDialog } from "./ui/dom.ts";
@@ -118,11 +118,22 @@ const drawProject = async (el: HTMLElement, ctx: Ctx) => {
   };
 };
 
-const fontsFor = async (ctx: Ctx, project: string, quiet = false) => {
-  if (!ctx.config.libraryDir) return;
-  const copied = await copyFonts(fs, ctx.config.libraryDir, project).catch(() => []);
+const fontsFor = async (ctx: Ctx, project: string, quiet = false, reportMissing = false) => {
+  if (!ctx.config.libraryDir && !reportMissing) return;
+  const exclusive: Fs = { ...fs, copyFile: (from, to) => api.copyFile(from, to, project) };
+  const copied = ctx.config.libraryDir ? await copyFonts(exclusive, ctx.config.libraryDir, project).catch((error) => {
+    if (reportMissing) ctx.notify({ message: `共有ライブラリのフォントをコピーできませんでした：${String(error)}`, level: "warning" });
+    return [];
+  }) : [];
   if (copied.length) ctx.toast(`共有ライブラリからフォントをコピーしました：${copied.map(basename).join("、")}`);
-  else if (!quiet) ctx.toast("足りないフォントはありません");
+  if (reportMissing) {
+    const style = await fs.readText(`${project}/style.toml`);
+    const wanted = fontsWanted(style);
+    const present = await Promise.all(wanted.map((font) => fs.exists(`${project}/${font}`)));
+    const missing = wanted.filter((_, i) => !present[i]);
+    if (missing.length)
+      ctx.notify({ message: `用意できなかったフォント：${missing.join("、")}`, level: "warning", sticky: true });
+  } else if (!copied.length && !quiet) ctx.toast("足りないフォントはありません");
 };
 
 // ---- dropping files ----
@@ -264,9 +275,12 @@ export const mountLibrary = (ctx: Ctx) => {
   mountDrops(ctx);
 
   // new projects take their fonts from the library (made with golem new --no-fonts)
-  ctx.onNewProject.push((project, c) => fontsFor(c, project, true));
-  // a project's fonts are completed when one of its sheets is opened
   const seen = new Set<string>();
+  ctx.onNewProject.push((project, c) => {
+    seen.add(project);
+    return fontsFor(c, project, true, true);
+  });
+  // a project's fonts are completed when one of its sheets is opened
   ctx.store.subscribe((s) => {
     for (const d of allDocs(s))
       if (d.project && !seen.has(d.project)) {

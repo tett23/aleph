@@ -12,6 +12,7 @@ import { menuCommands } from "../commands.ts";
 import { hintOf } from "../keybind.ts";
 import { runCommand } from "../palette.ts";
 import { menu, onPress } from "./dom.ts";
+import { workspaceProjectItem } from "./tree.ts";
 import { openSettingsDialog } from "./settings.ts";
 
 const RIBBON: [SidebarPanelId | "plot" | "diff", string, string][] = [
@@ -95,9 +96,11 @@ export const mountShell = (root: HTMLElement, ctx: Ctx, onPlot: () => void): She
     const t = (e.target as HTMLElement).closest<HTMLElement>("[data-wsmenu]");
     if (!t) return;
     const s = ctx.store.get();
+    const initialize = workspaceProjectItem(ctx, s.workspace);
     menu(t, [
       ...s.workspaces.map((w) => ({ label: basename(w), icon: icon(w === s.workspace ? "check" : "dot", 14), run: () => ctx.store.dispatch({ type: "workspace", path: w }) })),
       "-",
+      ...(initialize ? [initialize] : []),
       { label: "ワークスペースを足す…", icon: icon("plus", 14), run: () => void openSettingsDialog(ctx, "workspaces") },
     ]);
   });
