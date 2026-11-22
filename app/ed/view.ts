@@ -13,6 +13,7 @@ import { invisibleRanges, lineSpans, specialRanges, type Range } from "./spans.t
 import { linesOfRanges, movedLine, mustLines as mustLinesOf } from "./update.ts";
 import { createSelectionDecoration } from "./selection-decoration.ts";
 import { verticalMove } from "./vmove.ts";
+import { styleOf, type Composition } from "../composition.ts";
 
 export type { Severity };
 
@@ -663,6 +664,16 @@ export const createView = (o: ViewOptions) => {
     setInvisibles: (on: boolean) => {
       invisibles = on;
       setClasses();
+      units.clear();
+      draw();
+    },
+    /** The kinsoku and hanging of the text (docs/adr/0090); the lines wrap again. */
+    setComposition: (c: Composition | null) => {
+      const css = styleOf(c);
+      content.style.setProperty("line-break", css.lineBreak);
+      content.style.setProperty("hanging-punctuation", css.hangingPunctuation);
+      root.classList.toggle("hang", !!c?.hanging);
+      rebuildHeights();
       units.clear();
       draw();
     },

@@ -155,6 +155,8 @@ mark { background: rgba(240, 200, 60, 0.4); color: inherit; border-radius: 2px; 
 .ed.vertical .ed-scroll { writing-mode: vertical-rl; width: 100%; }
 .ed-content { outline: none; caret-color: var(--text); white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; line-height: var(--elh); box-sizing: content-box; max-inline-size: calc(var(--chars) * 1em + 2px); margin-inline-start: max(var(--gw), calc((100% - 760px) / 2 + var(--gw))); padding-block: 24px 40vh; padding-inline-end: 24px; }
 .ed.vertical .ed-content { margin-inline-start: var(--gw); padding-block: 24px 30vw; letter-spacing: 0; }
+/* hung 。．、， need room past the line end (docs/adr/0090) */
+.ed.hang .ed-content { padding-inline-end: max(24px, 1.5em); }
 .ed-line { position: relative; }
 .ed-gap { pointer-events: none; }
 .ed-content ::selection { background: var(--sel); }
