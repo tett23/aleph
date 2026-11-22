@@ -9,7 +9,9 @@ import type { Ctx } from "../ctx.ts";
 import { stubEditor } from "../editor/stub.ts";
 import { dirname } from "../path.ts";
 import { applyTheme } from "../theme.ts";
+import { treeReloaded } from "../ui/tree.ts";
 import { setUiState, windowUiState } from "../uistate.ts";
+import { createPlotGate, plotTarget } from "./availability.ts";
 import { parsePlot, type PlotRow } from "./data.ts";
 import { mountPlot, type PlotView } from "./view.ts";
 
@@ -25,6 +27,15 @@ export const plotRows = async (project: string): Promise<PlotRow[]> => {
 export const plotRowsNow = (project: string) => cache.get(project) ?? null;
 
 export const mountPlotFeature = (ctx: Ctx) => {
+  // whether the plot can be opened (docs/adr/0098): checked when the target project changes and
+  // after the tree is read again (a file made, deleted or renamed, here or outside); the ribbon is drawn again
+  const gate = createPlotGate(api, () => ctx.store.get(), () => ctx.refresh([]));
+  ctx.plotGate = gate;
+  ctx.store.subscribe((s, prev) => {
+    if (plotTarget(s) !== plotTarget(prev)) void gate.check();
+  });
+  treeReloaded.push(() => void gate.check());
+  void gate.check();
   const views = new Set<{ project: string; v: PlotView }>();
   ctx.kindViews.plot = (el, doc, c) => {
     const active = { project: doc.project!, v: null as unknown as PlotView };

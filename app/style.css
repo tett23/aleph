@@ -65,6 +65,15 @@ input.field:focus, textarea.field:focus { border-color: var(--text-2); }
 /* ribbon */
 .ribbon { width: 44px; background: var(--bg-2); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding: 40px 0 10px; gap: 4px; }
 .ribbon .grow { flex: 1; }
+/* the ribbon's three states (docs/adr/0098): enabled items in the text's color whether selected or not; the
+   selected one adds a colorless background and a bar at the ribbon's edge; only a disabled one is faint, without the hover */
+.ribbon .iconbtn { border: 0; padding: 0; background: transparent; color: var(--text); }
+.ribbon .iconbtn:hover:not(:disabled) { background: var(--hover); }
+.ribbon .iconbtn.on { position: relative; background: var(--sel); }
+.ribbon .iconbtn.on:hover { background: var(--sel); }
+.ribbon .iconbtn.on::before { content: ""; position: absolute; left: -8px; top: 5px; bottom: 5px; width: 2px; border-radius: 1px; background: var(--text); }
+.ribbon .iconbtn:disabled { color: var(--faint); background: transparent; }
+.ribbon .iconbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* side */
 .sidebar { width: 270px; background: var(--lib); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
 .sidebar.hidden, .right-sidebar.hidden { display: none; }

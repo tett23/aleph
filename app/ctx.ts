@@ -4,6 +4,7 @@ import type { Config } from "./config.ts";
 import type { Handle, NotifyOpts } from "./notify.ts";
 import type { Editor, EditorPlugin } from "./ed/editor.ts";
 import type { Doc, SidebarPanelId, RightSidebarPanelId, State, Store } from "./store.ts";
+import type { PlotGate } from "./plot/availability.ts";
 
 export type SaveOptions = { explicit?: boolean; pageSave?: "automatic" | "intermediate"; beforeFormat?: string };
 
@@ -103,6 +104,8 @@ export type Ctx = {
   save: (paths?: string[], opts?: SaveOptions) => Promise<Set<string>>;
   /** HEAD's text of a file, for the change marks; null when not in HEAD. */
   baseText: (doc: Doc) => Promise<string | null | false>;
+  /** Whether the plot can be opened, shared by the ribbon, the palette and the keys (docs/adr/0098). */
+  plotGate?: PlotGate;
   /** Draws the panels and the status bar again (after a change outside the store). */
   refresh: (what?: ("sidebar" | "rightSidebar" | "status" | "previewTab" | "editorArea" | "bottomPanel")[]) => void;
 };

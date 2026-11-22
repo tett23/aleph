@@ -8,6 +8,7 @@ import { fuzzy } from "./fuzzy.ts";
 import { icon } from "./icons.ts";
 import { hintOf } from "./keybind.ts";
 import { openWindow } from "./preview/mount.ts";
+import { plotReason } from "./plot/availability.ts";
 import { focused, pagesAvailable, previewAvailable, shownDoc, type SidebarPanelId, type RightSidebarPanelId, type PreviewMode, type State } from "./store.ts";
 import { verticalOn, canVertical } from "./toolbar.ts";
 import { openSettingsDialog } from "./ui/settings.ts";
@@ -213,12 +214,16 @@ export const mountCommands = (ctx: Ctx) => {
     id: "view.plot",
     label: "プロット",
     icon: "table-2",
-    // while the preview tab is selected, the followed sheet's project: its plot takes the followed tab's place (docs/adr/0087)
-    when: (s) => !!(focused(s)?.project ?? s.plot ?? shownDoc(s)?.project),
-    run: (c) => {
-      const s = c.store.get();
-      const p = focused(s)?.project ?? s.plot ?? shownDoc(s)?.project;
+    // the target project's plot.csv is there and readable (docs/adr/0098); the project is chosen by
+    // plotTarget: while the preview tab is selected, the followed sheet's (docs/adr/0087)
+    when: (s) => !!ctx.plotGate?.enabled(s),
+    // checked again right before running: it may have gone since the last check
+    run: async (c) => {
+      const gate = c.plotGate;
+      if (!gate) return;
+      const p = await gate.confirm();
       if (p) c.store.dispatch({ type: "plot", project: p });
+      else c.toast(`プロットを開けません：${plotReason(gate.availability(c.store.get()))}`);
     },
   });
   const prose = (s: ReturnType<typeof ctx.store.get>) => s.open.length > 0 && s.open.every((d) => canVertical(d.kind));
