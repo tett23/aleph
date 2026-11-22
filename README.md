@@ -47,6 +47,10 @@ By default the assistant runs Qwen3.5-4B on your Mac with the bundled `llama-ser
 
 In the text editor, press Escape or Control-E to dismiss suggestions. With suggestions closed, Control-E moves to the end of the logical line. Each shortcut’s context can be changed in the key binding settings.
 
+When the Japanese input method uses Escape to cancel conversion, that press cancels only the conversion.
+For example, you can continue typing the name of a new sheet in the same dialog.
+A separate press of Escape after conversion ends performs the usual action.
+
 The diff tab and Git panel mark changed characters inline, including in Japanese text. Removed text has a strikethrough, and added text is underlined.
 
 ## Status
