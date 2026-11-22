@@ -1,6 +1,6 @@
 # ADR 0098: リボンの選択状態と無効状態を区別する
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

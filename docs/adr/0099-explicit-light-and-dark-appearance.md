@@ -1,6 +1,6 @@
 # ADR 0099: OS と独立してライトとダークを指定する
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
