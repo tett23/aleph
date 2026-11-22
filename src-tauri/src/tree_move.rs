@@ -362,7 +362,12 @@ fn cleanup(path: &Path, expected: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn write_checked(path: &Path, before: Option<&str>, after: &str) -> Result<()> {
+fn write_checked(
+    path: &Path,
+    before: Option<&str>,
+    after: &str,
+    published: &mut bool,
+) -> Result<()> {
     if read_optional(path)?.as_deref() != before {
         return Err(at(path, "計画取得後に本文が変わりました"));
     }
@@ -379,6 +384,7 @@ fn write_checked(path: &Path, before: Option<&str>, after: &str) -> Result<()> {
                 Err(left) => Err(format!("{e}\n{left}")),
             };
         }
+        *published = true;
         return Ok(());
     }
     if let Err(error) = swap(path, &temp) {
@@ -407,6 +413,7 @@ fn write_checked(path: &Path, before: Option<&str>, after: &str) -> Result<()> {
             at(&temp, "元の内容をここに保持しました")
         ));
     }
+    *published = true;
     cleanup(&temp, before)
 }
 
@@ -467,10 +474,9 @@ fn stages(
                     Err(e) => return Err(at(parent, e)),
                 }
             }
-            let result = write_checked(&path, edit.before.as_deref(), &edit.after);
-            if result.is_ok()
-                || read_optional(&path).is_ok_and(|s| s.as_deref() == Some(edit.after.as_str()))
-            {
+            let mut published = false;
+            let result = write_checked(&path, edit.before.as_deref(), &edit.after, &mut published);
+            if published {
                 applied.push((path, edit));
             }
             result?;
@@ -488,7 +494,7 @@ fn stages(
     let mut remaining_writes = Vec::new();
     for (path, edit) in applied.into_iter().rev() {
         let r = inside(&plan.workspace, &path, false).and_then(|()| match &edit.before {
-            Some(text) => write_checked(&path, Some(&edit.after), text),
+            Some(text) => write_checked(&path, Some(&edit.after), text, &mut false),
             None => cleanup(&path, Some(&edit.after)),
         });
         if let Err(e) = r {

@@ -152,3 +152,23 @@ fn adr0100_i3_i7_external_edits_and_failed_path_restore_are_reported_and_kept() 
     }
     assert_eq!(fs::read_to_string(moved_chapter).unwrap(), "outside edit");
 }
+
+#[test]
+fn adr0100_i3_i7_rollback_keeps_external_text_that_happens_to_equal_the_planned_edit() {
+    let mut plan = fixture();
+    let chapter = plan.from.join("children/page.gm");
+    let moved = plan.to.join("children/page.gm");
+    plan.writes = vec![DiskWrite {
+        path: chapter.clone(),
+        before: Some("本文".into()),
+        after: "同じ文".into(),
+    }];
+    let outcome = stages(&plan, std::slice::from_ref(&plan.workspace), |path| {
+        assert_eq!(path, moved);
+        fs::write(path, "同じ文").unwrap();
+        Ok(())
+    })
+    .unwrap();
+    assert!(!outcome.moved && outcome.error.is_some());
+    assert_eq!(fs::read_to_string(chapter).unwrap(), "同じ文");
+}
