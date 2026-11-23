@@ -1,6 +1,7 @@
 //! macOS FSEvents, called through its C API with no crate (docs/adr/0063): a stream over
 //! some folders that reports each changed path, on a dispatch queue of its own (not the
-//! main thread). The paths come as a C array of C strings (no kFSEventStreamCreateFlagUseCFTypes).
+//! main thread). Each event comes as a dictionary of its path and its file's ID (the inode), so that a
+//! rename's two events can be paired (docs/adr/0108); Aleph's own changes are marked.
 
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::path::PathBuf;
@@ -9,6 +10,8 @@ type CFIndex = isize;
 type CFTypeRef = *const c_void;
 type CFStringRef = *const c_void;
 type CFArrayRef = *const c_void;
+type CFDictionaryRef = *const c_void;
+type CFNumberRef = *const c_void;
 type FSEventStreamRef = *mut c_void;
 type DispatchQueue = *mut c_void;
 
@@ -24,14 +27,22 @@ struct FSEventStreamContext {
 type Callback =
     extern "C" fn(FSEventStreamRef, *mut c_void, usize, *mut c_void, *const u32, *const u64);
 
+const USE_CF_TYPES: u32 = 0x01;
 const NO_DEFER: u32 = 0x02;
 const WATCH_ROOT: u32 = 0x04;
 const FILE_EVENTS: u32 = 0x10;
+const MARK_SELF: u32 = 0x20;
+const USE_EXTENDED_DATA: u32 = 0x40;
 const SINCE_NOW: u64 = 0xFFFF_FFFF_FFFF_FFFF;
 const UTF8: u32 = 0x0800_0100;
+const SINT64: CFIndex = 4;
 
 /// The folder must be scanned again: events below it were dropped or merged.
 pub const MUST_SCAN_SUBDIRS: u32 = 0x01;
+/// The item was renamed: a move gives one such event at its old path and one at its new (docs/adr/0108).
+pub const ITEM_RENAMED: u32 = 0x800;
+/// The change was made by this process (the stream marks itself).
+pub const OWN_EVENT: u32 = 0x0008_0000;
 
 #[link(name = "CoreServices", kind = "framework")]
 extern "C" {
@@ -66,6 +77,12 @@ extern "C" {
         callbacks: *const c_void,
     ) -> CFArrayRef;
     fn CFRelease(cf: CFTypeRef);
+    fn CFArrayGetValueAtIndex(array: CFArrayRef, i: CFIndex) -> CFTypeRef;
+    fn CFDictionaryGetValue(dict: CFDictionaryRef, key: CFTypeRef) -> CFTypeRef;
+    fn CFStringGetLength(s: CFStringRef) -> CFIndex;
+    fn CFStringGetMaximumSizeForEncoding(length: CFIndex, encoding: u32) -> CFIndex;
+    fn CFStringGetCString(s: CFStringRef, buf: *mut c_char, size: CFIndex, encoding: u32) -> u8;
+    fn CFNumberGetValue(n: CFNumberRef, kind: CFIndex, value: *mut c_void) -> u8;
 }
 
 // libdispatch, in libSystem
@@ -79,11 +96,29 @@ extern "C" {
     fn dispatch_release(object: *mut c_void);
 }
 
-/// A changed path and the event's flags (`MUST_SCAN_SUBDIRS` among them).
+/// A changed path, the event's flags (`MUST_SCAN_SUBDIRS` among them), its ID (later events have larger
+/// ones), and the inode of the file it is about, when FSEvents gave one.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Event {
     pub path: String,
     pub flags: u32,
+    pub id: u64,
+    pub inode: Option<u64>,
+}
+
+/// The text of a CFString.
+///
+/// SAFETY: `s` is null or a live CFString.
+unsafe fn string_of(s: CFStringRef) -> Option<String> {
+    if s.is_null() {
+        return None;
+    }
+    let size = CFStringGetMaximumSizeForEncoding(CFStringGetLength(s), UTF8) + 1;
+    let mut buf = vec![0 as c_char; size.max(1) as usize];
+    if CFStringGetCString(s, buf.as_mut_ptr(), size, UTF8) == 0 {
+        return None;
+    }
+    Some(CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned())
 }
 
 type Handler = Box<dyn Fn(Vec<Event>) + Send + Sync>;
@@ -94,25 +129,63 @@ extern "C" fn on_events(
     n: usize,
     paths: *mut c_void,
     flags: *const u32,
-    _: *const u64,
+    ids: *const u64,
 ) {
-    // SAFETY: info is the Handler the Watcher owns until the stream is stopped; paths and flags hold n items
-    let (handler, paths, flags) = unsafe {
+    // SAFETY: info is the Handler the Watcher owns until the stream is stopped; flags and ids hold n items,
+    // and paths is a CFArray of n dictionaries (UseCFTypes and UseExtendedData)
+    let (handler, flags, ids) = unsafe {
         (
             &*(info as *const Handler),
-            std::slice::from_raw_parts(paths as *const *const c_char, n),
             std::slice::from_raw_parts(flags, n),
+            std::slice::from_raw_parts(ids, n),
         )
     };
-    let events = paths
-        .iter()
-        .zip(flags)
-        .map(|(p, f)| Event {
-            // SAFETY: each path is a NUL-terminated C string the framework keeps for the call
-            path: unsafe { CStr::from_ptr(*p) }.to_string_lossy().into_owned(),
-            flags: *f,
+    // the keys of the extended data, kFSEventStreamEventExtendedDataPathKey and ...FileIDKey (macros in FSEvents.h)
+    // SAFETY: plain CoreFoundation calls; the strings are released below
+    let (path_key, id_key) = unsafe {
+        (
+            CFStringCreateWithCString(std::ptr::null(), c"path".as_ptr(), UTF8),
+            CFStringCreateWithCString(std::ptr::null(), c"fileID".as_ptr(), UTF8),
+        )
+    };
+    if path_key.is_null() || id_key.is_null() {
+        // SAFETY: only the strings made above
+        unsafe {
+            [path_key, id_key]
+                .iter()
+                .filter(|k| !k.is_null())
+                .for_each(|k| CFRelease(*k))
+        };
+        return;
+    }
+    let events = (0..n)
+        .filter_map(|i| {
+            // SAFETY: the dictionary and its values live for the call; the keys are live CFStrings
+            unsafe {
+                let d = CFArrayGetValueAtIndex(paths as CFArrayRef, i as CFIndex);
+                if d.is_null() {
+                    return None;
+                }
+                let path = string_of(CFDictionaryGetValue(d, path_key))?;
+                let id = CFDictionaryGetValue(d, id_key);
+                let mut inode: i64 = 0;
+                let inode = (!id.is_null()
+                    && CFNumberGetValue(id, SINT64, &mut inode as *mut i64 as *mut c_void) != 0)
+                    .then_some(inode as u64);
+                Some(Event {
+                    path,
+                    flags: flags[i],
+                    id: ids[i],
+                    inode,
+                })
+            }
         })
         .collect();
+    // SAFETY: the strings made above
+    unsafe {
+        CFRelease(path_key);
+        CFRelease(id_key);
+    }
     handler(events);
 }
 
@@ -195,7 +268,7 @@ pub fn watch(
             array,
             SINCE_NOW,
             latency,
-            FILE_EVENTS | NO_DEFER | WATCH_ROOT,
+            FILE_EVENTS | NO_DEFER | WATCH_ROOT | USE_CF_TYPES | USE_EXTENDED_DATA | MARK_SELF,
         );
         CFRelease(array);
         if stream.is_null() {
@@ -261,6 +334,44 @@ mod tests {
         while rx.try_recv().is_ok() {}
         std::fs::write(d.join("c.gm"), "三").unwrap();
         assert!(!seen(&rx, "/c.gm"), "after the stop");
+    }
+
+    #[test]
+    fn adr0108_i1_a_rename_gives_two_events_of_one_inode_and_aleph_s_own_are_marked() {
+        let d = testdir::fresh("fsevents-rename").canonicalize().unwrap();
+        std::fs::write(d.join("a.gm"), "一").unwrap();
+        let (tx, rx) = mpsc::channel();
+        let tx = std::sync::Mutex::new(tx);
+        let _w = watch(std::slice::from_ref(&d), 0.05, move |es| {
+            let _ = tx.lock().unwrap().send(es);
+        })
+        .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::rename(d.join("a.gm"), d.join("b.gm")).unwrap();
+        let mut all: Vec<Event> = Vec::new();
+        let end = Instant::now() + Duration::from_secs(2);
+        while all.iter().filter(|e| e.flags & ITEM_RENAMED != 0).count() < 2 {
+            let Some(left) = end.checked_duration_since(Instant::now()) else {
+                break;
+            };
+            match rx.recv_timeout(left) {
+                Ok(es) => all.extend(es),
+                Err(_) => break,
+            }
+        }
+        let renamed: Vec<&Event> = all.iter().filter(|e| e.flags & ITEM_RENAMED != 0).collect();
+        assert_eq!(renamed.len(), 2, "{all:?}");
+        assert!(
+            renamed[0].path.ends_with("/a.gm") && renamed[1].path.ends_with("/b.gm"),
+            "{renamed:?}"
+        );
+        assert!(renamed[0].id < renamed[1].id);
+        assert!(renamed[0].inode.is_some() && renamed[0].inode == renamed[1].inode);
+        // this test's own rename: the stream marks itself
+        assert!(
+            renamed.iter().all(|e| e.flags & OWN_EVENT != 0),
+            "{renamed:?}"
+        );
     }
 
     #[test]

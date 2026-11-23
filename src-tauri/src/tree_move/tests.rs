@@ -223,3 +223,91 @@ fn adr0100_i2_i5_new_reference_in_read_only_dependency_aborts_before_commit() {
     assert!(plan.from.exists());
     assert!(!plan.to.exists());
 }
+
+// ---- the reference edits of a move made outside (docs/adr/0108) ----
+
+fn written() -> (WritePlan, PathBuf, PathBuf) {
+    let workspace = fresh("outside-move");
+    fs::create_dir_all(workspace.join("ch")).unwrap();
+    let a = workspace.join("ch/01.gm");
+    let b = workspace.join("ch/02.gm");
+    fs::write(&a, "![](img/a.png)").unwrap();
+    fs::write(&b, "![](img/a.png)").unwrap();
+    let plan = WritePlan {
+        documents: vec![Document {
+            path: a.clone(),
+            text: "![](img/a.png)".into(),
+        }],
+        writes: vec![
+            DiskWrite {
+                path: a.clone(),
+                before: Some("![](img/a.png)".into()),
+                after: "![](sub/a.png)".into(),
+            },
+            DiskWrite {
+                path: b.clone(),
+                before: Some("![](img/a.png)".into()),
+                after: "![](sub/a.png)".into(),
+            },
+        ],
+        workspace,
+    };
+    (plan, a, b)
+}
+
+#[test]
+fn adr0108_i6_the_edits_are_written_and_nothing_moves() {
+    let (plan, a, b) = written();
+    let outcome = apply_writes(&plan, std::slice::from_ref(&plan.workspace)).unwrap();
+    assert!(outcome.error.is_none() && !outcome.moved);
+    assert_eq!(fs::read_to_string(a).unwrap(), "![](sub/a.png)");
+    assert_eq!(fs::read_to_string(b).unwrap(), "![](sub/a.png)");
+}
+
+#[test]
+fn adr0108_i6_a_text_changed_since_the_plan_stops_before_any_write() {
+    let (plan, a, b) = written();
+    fs::write(&b, "変えた").unwrap();
+    assert!(apply_writes(&plan, std::slice::from_ref(&plan.workspace)).is_err());
+    assert_eq!(fs::read_to_string(a).unwrap(), "![](img/a.png)");
+    let (mut plan, a, _) = written();
+    plan.documents[0].text = "読んだ本文".into();
+    assert!(apply_writes(&plan, std::slice::from_ref(&plan.workspace)).is_err());
+    assert_eq!(fs::read_to_string(a).unwrap(), "![](img/a.png)");
+    // a write outside the workspace is refused
+    let (mut plan, _, _) = written();
+    plan.writes[1].path = PathBuf::from("/tmp/elsewhere.gm");
+    assert!(apply_writes(&plan, std::slice::from_ref(&plan.workspace)).is_err());
+}
+
+#[test]
+fn adr0108_i6_a_failed_write_puts_back_the_ones_written_in_reverse() {
+    let (plan, a, b) = written();
+    let outcome = write_stages(&plan, std::slice::from_ref(&plan.workspace), |p| {
+        if p == b {
+            return Err("injected failure".into());
+        }
+        Ok(())
+    })
+    .unwrap();
+    assert!(outcome.error.unwrap().contains("injected failure"));
+    assert!(outcome.remaining_writes.is_empty());
+    assert_eq!(fs::read_to_string(a).unwrap(), "![](img/a.png)");
+    assert_eq!(fs::read_to_string(b).unwrap(), "![](img/a.png)");
+}
+
+#[test]
+fn adr0108_i6_a_write_that_cannot_go_back_is_reported() {
+    let (plan, a, b) = written();
+    let outcome = write_stages(&plan, std::slice::from_ref(&plan.workspace), |p| {
+        if p == b {
+            // someone edits the first file after it was written
+            fs::write(&a, "ほかの変更").unwrap();
+            return Err("injected failure".into());
+        }
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(outcome.remaining_writes, vec![a.clone()]);
+    assert_eq!(fs::read_to_string(a).unwrap(), "ほかの変更");
+}
