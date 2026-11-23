@@ -58,3 +58,13 @@ test("ADR 0107 I6: tabs do not shrink", () => {
   const rule = /^\.tab \{([^}]*)\}/m.exec(css);
   assert.ok(rule && /flex-shrink:\s*0/.test(rule[1]), "the .tab rule has flex-shrink: 0");
 });
+
+test("the frame of the tab bar does not take the class of a tab's view, which holds the editor", () => {
+  const panes = readFileSync(new URL("./panes.ts", import.meta.url), "utf8");
+  const strip = /<div class="tabstrip">(.*?)<\/div><div class="ebody">/.exec(panes);
+  assert.ok(strip, "panes.ts builds the .tabstrip");
+  const classes = [...strip[1].matchAll(/class="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/));
+  assert.ok(!classes.includes("tabview"), `the tab strip uses ${classes.join(", ")}`);
+  const css = readFileSync(new URL("../style.css", import.meta.url), "utf8");
+  for (const m of css.matchAll(/^\.tabview \{([^}]*)\}/gm)) assert.ok(!/display:\s*flex/.test(m[1]), "a plain .tabview is not a flex row");
+});
