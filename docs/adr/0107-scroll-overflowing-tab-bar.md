@@ -1,6 +1,6 @@
 # ADR 0107: ペインの幅を越えたタブの並びをスクロールで扱う
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
