@@ -1,0 +1,24 @@
+0000000    a   .   p   n   g  \n   C   H   .   g   m  \n  ぐ  **  **  げ
+0000020   **  **   .   g   m  \n                                        
+0000026
+callback=1 id=1695324606 flags=0x19900 renamed=1 own=0 fileID=415755604 <dir>/img/a.png
+callback=1 id=1695324607 flags=0x10800 renamed=1 own=0 fileID=415755604 <dir>/sub/a.png
+callback=2 id=1695324709 flags=0x19900 renamed=1 own=0 fileID=415755605 <dir>/ch.gm
+callback=2 id=1695324710 flags=0x10800 renamed=1 own=0 fileID=415755605 <dir>/sub/ch.gm
+callback=2 id=1695324716 flags=0x19900 renamed=1 own=0 fileID=415755653 <dir>/.git/index.lock
+callback=2 id=1695324717 flags=0x10800 renamed=1 own=0 fileID=415755653 <dir>/.git/index
+callback=2 id=1695324718 flags=0x10800 renamed=1 own=0 fileID=415755620 <dir>/.git/index
+callback=3 id=1695324766 flags=0x28900 renamed=1 own=0 fileID=415755603 <dir>/sub
+callback=3 id=1695324767 flags=0x20800 renamed=1 own=0 fileID=415755603 <dir>/moved
+callback=4 id=1695324840 flags=0x19100 renamed=0 own=0 fileID=415755660 <dir>/.keep.tmp
+callback=5 id=1695324843 flags=0x19900 renamed=1 own=0 fileID=415755660 <dir>/.keep.tmp
+callback=5 id=1695324844 flags=0x10800 renamed=1 own=0 fileID=415755660 <dir>/keep.gm
+callback=5 id=1695324845 flags=0x19900 renamed=1 own=0 fileID=415755606 <dir>/keep.gm
+callback=6 id=1695324900 flags=0x10800 renamed=1 own=0 fileID=415755660 <dir>/keep.gm
+callback=6 id=1695324910 flags=0x19100 renamed=0 own=0 fileID=415755666 <dir>/keep.gm
+callback=6 id=1695324913 flags=0x10a00 renamed=1 own=0 fileID=415755660 <dir>/keep.gm~
+callback=7 id=1695324986 flags=0x10800 renamed=1 own=0 fileID=415755605 <dir>/moved/ch.gm
+callback=7 id=1695324988 flags=0x10800 renamed=1 own=0 fileID=415755605 <dir>/moved/CH.gm
+callback=8 id=1695325036 flags=0x19100 renamed=0 own=0 fileID=415755674 <dir>/がぎ.gm
+callback=9 id=1695325069 flags=0x19900 renamed=1 own=0 fileID=415755674 <dir>/がぎ.gm
+callback=9 id=1695325070 flags=0x10800 renamed=1 own=0 fileID=415755674 <dir>/moved/ぐげ.gm
