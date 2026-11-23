@@ -93,7 +93,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0087](adr/0087-preview-in-a-tab.md) | プレビューを、エディタの右の領域から、映すタブに従うプレビューのタブに移す（実装済み） |
 | [ADR 0088](adr/0088-diff-tab-and-commit-before-applying.md) | ワークスペースの HEAD との差分を出す差分のタブと、アシスタントの書き換えを適用する前にコミットを促すモーダルのダイアログ（実装済み） |
 | [ADR 0089](adr/0089-revoke-connector-approval.md) | 設定の「アシスタント」の節から、Claude Code と Codex の承認を取り消す（実装済み） |
-| [ADR 0090](adr/0090-editor-composition-settings.md) | エディタの折り返しに、Golem が解決した禁則とぶら下げ組を反映する（Tauri での手の確かめは未了） |
+| [ADR 0090](adr/0090-editor-composition-settings.md) | エディタの折り返しに、Golem が解決した禁則とぶら下げ組を反映する |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
