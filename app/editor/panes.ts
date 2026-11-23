@@ -322,7 +322,9 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
         if (!bar) return void (target = null);
         const toPane = Number(bar.closest<HTMLElement>(".pane")!.dataset.pane);
         const tabs = [...bar.querySelectorAll<HTMLElement>("[data-tab]")];
-        let k = tabs.findIndex((x) => e.clientX < x.getBoundingClientRect().left + x.getBoundingClientRect().width / 2);
+        // on the ＋ the tab goes to the end, past the tabs hidden on the right (docs/adr/0107)
+        const onAdd = !!(document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest("[data-tab-add]");
+        let k = onAdd ? -1 : tabs.findIndex((x) => e.clientX < x.getBoundingClientRect().left + x.getBoundingClientRect().width / 2);
         if (k < 0) k = tabs.length;
         target = { pane: toPane, index: k };
         (tabs[k] ?? bar).classList.add("drop");
