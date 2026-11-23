@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { api, type TreeMoveWritePlan } from "./api.ts";
+import { noteShown, shownOf } from "./docs.ts";
 import type { Ctx } from "./ctx.ts";
 import type { MoveResponse } from "./lsp/file-move.ts";
 import { uriOf } from "./lsp/protocol.ts";
@@ -43,6 +44,10 @@ const world = (docs: Doc[], files: Record<string, string>, opts: { supported?: b
   } as unknown as Ctx;
   api.exists = async (p: string) => disk.has(p);
   api.readText = async (p: string) => disk.get(p) ?? "";
+  api.readBytes = async (p: string) => {
+    if (!disk.has(p)) throw new Error(`no ${p}`);
+    return new TextEncoder().encode(disk.get(p)).buffer as ArrayBuffer;
+  };
   api.treeMoveRead = async (_w: string, p: string) => disk.get(p) ?? null;
   api.treeMoveInventory = async () => ({ projects: ["/w/p"], entries: [] });
   api.treeMoveWrite = async (plan: TreeMoveWritePlan) => {
@@ -109,6 +114,23 @@ test("ADR 0108 I4: an open sheet whose moved file has its saved text follows wit
   assert.deepEqual(d.map((x) => [x.path, x.text, x.saved]), [["/w/p/sub/ch.gm", "本文と編集", "本文"]]);
   assert.ok(w.order.includes("clear:/w/p/ch.gm"));
   assert.ok(!w.notices.some((n) => n.message.includes("ディスクにありません")));
+});
+
+test("ADR 0108 I4: a PDF or image sheet follows only when the moved file has the bytes it shows", async () => {
+  const w = world([doc("/w/p/d/a.png", ""), doc("/w/p/d/b.png", ""), doc("/w/p/d/c.pdf", "")], { "/w/p/d/a.png": "A", "/w/p/d/b.png": "B" });
+  await noteShown("/w/p/d/a.png");
+  await noteShown("/w/p/d/b.png");
+  await noteShown("/w/p/d/c.pdf");
+  for (const n of ["a.png", "b.png"]) w.disk.delete(`/w/p/d/${n}`);
+  w.disk.set("/w/p/e/a.png", "A");
+  w.disk.set("/w/p/e/b.png", "外で変えた");
+  w.disk.set("/w/p/e/c.pdf", "PDF");
+  const done = await followBatch(w.ctx, w.deps, [{ from: "/w/p/d", to: "/w/p/e" }]);
+  assert.deepEqual(done.kept.sort(), ["/w/p/d/b.png", "/w/p/d/c.pdf"]);
+  assert.deepEqual(allDocs(w.ctx.store.get()).map((x) => x.path).sort(), ["/w/p/d/b.png", "/w/p/d/c.pdf", "/w/p/e/a.png"]);
+  assert.ok(shownOf("/w/p/e/a.png"));
+  assert.equal(shownOf("/w/p/d/a.png"), undefined);
+  assert.ok(!w.order.includes("clear:/w/p/d/b.png"));
 });
 
 test("ADR 0108 I3, I4: a sheet whose moved file also changed keeps its tab and is followed as a change; the rest still follows", async () => {

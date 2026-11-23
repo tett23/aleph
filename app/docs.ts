@@ -15,12 +15,42 @@ export const gridOf = async (project: string | null): Promise<Grid> => {
 
 export const forgetGrid = (project: string) => grids.delete(project);
 
+/**
+ * The SHA-256 of the bytes each open PDF or image sheet shows, taken when it is loaded and drawn again.
+ * A moved file is rebound only when its bytes still have it (docs/adr/0108 I4).
+ */
+const shown = new Map<string, string>();
+
+export const fingerprintOf = async (path: string): Promise<string | null> => {
+  try {
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", await api.readBytes(path)));
+    return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return null;
+  }
+};
+
+export const noteShown = async (path: string) => {
+  const f = await fingerprintOf(path);
+  if (f) shown.set(path, f);
+  else shown.delete(path);
+};
+
+export const shownOf = (path: string) => shown.get(path);
+
+export const moveShown = (from: string, to: string) => {
+  const f = shown.get(from);
+  shown.delete(from);
+  if (f) shown.set(to, f);
+};
+
 export const loadDoc = async (path: string, ctx: Ctx): Promise<Doc> => {
   const kind = kindOf(path);
   const workspace = workspaceOf(path, ctx.store.get().workspaces);
   const project = projectOf(path, ctx.projects);
   const binary = kind === "pdf" || IMAGE_KINDS.includes(kind);
   const text = binary ? "" : await api.readText(path);
+  if (binary) await noteShown(path);
   return { path, kind, text, saved: text, project, workspace, grid: await gridOf(project) };
 };
 
