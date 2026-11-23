@@ -6,6 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api.ts";
 import { forgetMeta, freezeMetaForMove } from "./attach.ts";
 import type { Ctx } from "./ctx.ts";
+import { noteShown } from "./docs.ts";
 import { startClient } from "./lsp/client.ts";
 import { merge3, resolve } from "./merge3.ts";
 import { consumed, followBatch, type Move, type OutsideDeps } from "./outside-move.ts";
@@ -97,7 +98,10 @@ export const followChange = async (ctx: Ctx, path: string) => {
   const name = basename(path);
   // a view of a file (PDF, images) is drawn again
   if (!TEXT_KINDS.includes(d.kind)) {
-    if (await api.exists(path)) ctx.editors.get(path)?.reload?.();
+    if (await api.exists(path)) {
+      await noteShown(path);
+      ctx.editors.get(path)?.reload?.();
+    }
     return;
   }
   const disk = await readDisk(path);

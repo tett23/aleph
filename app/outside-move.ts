@@ -2,7 +2,7 @@
 // move that Rust paired from two renames, and the references are updated when the writer chooses.
 import { api } from "./api.ts";
 import type { Ctx } from "./ctx.ts";
-import { forgetGrid, gridOf } from "./docs.ts";
+import { fingerprintOf, forgetGrid, gridOf, moveShown, shownOf } from "./docs.ts";
 import type { Client } from "./lsp/client.ts";
 import { applyFileRenamePlans, type FileEditPlan } from "./lsp/file-rename.ts";
 import { movePathOf, type MoveInventory, type MoveResponse } from "./lsp/file-move.ts";
@@ -82,8 +82,8 @@ const moveMetadata = async (ctx: Ctx, deps: OutsideDeps, workspace: string, move
 };
 
 /**
- * The open sheets follow the moves (I4): a sheet whose file at the new path has its saved text is rebound
- * there with its unsaved edits, the rest stay and are returned to be followed as changes. The rest of the
+ * The open sheets follow the moves (I4): a sheet whose file at the new path has its saved text, or for a PDF
+ * or an image the bytes it shows, is rebound there with its unsaved edits, the rest stay and are returned to be followed as changes. The rest of the
  * rebinding, the metadata and the Golem LSP index follow every move.
  */
 export const followMoves = async (ctx: Ctx, deps: OutsideDeps, moves: Move[]): Promise<string[]> => {
@@ -93,8 +93,13 @@ export const followMoves = async (ctx: Ctx, deps: OutsideDeps, moves: Move[]): P
     const docs = allDocs(ctx.store.get()).filter((d) => withinMove(d.path, m.from));
     const keep: string[] = [];
     for (const d of docs) {
-      if (!TEXT_KINDS.includes(d.kind)) continue;
       const to = movedPath(d.path, m.from, m.to);
+      if (!TEXT_KINDS.includes(d.kind)) {
+        // a PDF or an image: the bytes it shows, by their SHA-256
+        const now = await fingerprintOf(to);
+        if (!now || now !== shownOf(d.path)) keep.push(d.path);
+        continue;
+      }
       const disk = (await api.exists(to)) ? await api.readText(to).catch(() => null) : null;
       if (disk !== d.saved) keep.push(d.path);
     }
@@ -102,7 +107,11 @@ export const followMoves = async (ctx: Ctx, deps: OutsideDeps, moves: Move[]): P
     const projects = ctx.projects.map((p) => movedPath(p, m.from, m.to));
     projects.forEach((root) => (forgetGrid(root), forgetManifest(root)));
     ctx.store.dispatch({ type: "move", from: m.from, to: m.to, projects, grids: {}, keep });
-    for (const d of docs) if (!keep.includes(d.path)) deps.clearStopped(d.path);
+    for (const d of docs) {
+      if (keep.includes(d.path)) continue;
+      deps.clearStopped(d.path);
+      if (!TEXT_KINDS.includes(d.kind)) moveShown(d.path, movedPath(d.path, m.from, m.to));
+    }
     ctx.projects = projects;
   }
   const previous = ctx.renameReferencesHandled;
