@@ -19,6 +19,8 @@ export type Client = {
   legend: () => Legend | null;
   supportsFileRename: () => boolean;
   supportsFileMove: () => boolean;
+  /** Golem root ADR 0426: the reference edits after a move made outside (docs/adr/0108). */
+  supportsMovedReferences: () => boolean;
   request: <T>(method: string, params: unknown) => Promise<T>;
   notify: (method: string, params: unknown) => void;
   notifyAndWait: (method: string, params: unknown) => Promise<void>;
@@ -42,6 +44,7 @@ export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string
   let legend: Legend | null = null;
   let supportsFileRename = false;
   let supportsFileMove = false;
+  let supportsMovedReferences = false;
   const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>();
   const unlisten: (() => void)[] = [];
   let sent = Promise.resolve();
@@ -76,6 +79,7 @@ export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string
     legend: () => legend,
     supportsFileRename: () => supportsFileRename,
     supportsFileMove: () => supportsFileMove,
+    supportsMovedReferences: () => supportsMovedReferences,
     request,
     notify,
     notifyAndWait,
@@ -105,7 +109,7 @@ export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string
       }),
     );
     await api.lspStart(id, root);
-    const init = await request<{ capabilities: { experimental?: { golem?: { planFileMove?: number } }; semanticTokensProvider?: { legend: Legend }; workspace?: { fileOperations?: { willRename?: unknown; didRename?: unknown } } } }>("initialize", {
+    const init = await request<{ capabilities: { experimental?: { golem?: { planFileMove?: number; planMovedReferences?: number } }; semanticTokensProvider?: { legend: Legend }; workspace?: { fileOperations?: { willRename?: unknown; didRename?: unknown } } } }>("initialize", {
       processId: null,
       rootUri: uriOf(root),
       workspaceFolders: [{ uri: uriOf(root), name: root.split("/").pop() }],
@@ -129,6 +133,7 @@ export const startClient = (root: string, h: Handlers, aleph?: { plotCsv: string
     legend = init.capabilities.semanticTokensProvider?.legend ?? null;
     supportsFileRename = !!init.capabilities.workspace?.fileOperations?.willRename && !!init.capabilities.workspace?.fileOperations?.didRename;
     supportsFileMove = init.capabilities.experimental?.golem?.planFileMove === 1;
+    supportsMovedReferences = init.capabilities.experimental?.golem?.planMovedReferences === 1;
     state = "ready";
     void send({ method: "initialized", params: {} }).catch(() => {});
     return true;

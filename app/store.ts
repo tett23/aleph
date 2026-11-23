@@ -77,7 +77,7 @@ export type Action =
   | { type: "saved"; path: string; text: string; pageSave?: "explicit" | "automatic" | "intermediate"; beforeFormat?: string }
   | { type: "projectInitialized"; root: string; grid: Grid }
   | { type: "rename"; from: string; to: string }
-  | { type: "move"; from: string; to: string; projects: string[]; grids: Record<string, Grid> }
+  | { type: "move"; from: string; to: string; projects: string[]; grids: Record<string, Grid>; keep?: string[] }
   | { type: "moveGrids"; grids: Record<string, Grid> }
   | { type: "select"; paths: string[]; anchor?: string | null }
   | { type: "sidebarPanel"; panel: SidebarPanelId }
@@ -382,6 +382,8 @@ const step = (s: State, a: Action): State => {
       const panes = s.panes.map((p) => ({ ...p, tabs: p.tabs.map((t) => ({
         ...t,
         open: t.open.map((d) => {
+          // a sheet whose moved file no longer matches stays where it was (docs/adr/0108)
+          if (a.type === "move" && a.keep?.includes(d.path)) return d;
           const path = moved(d.path, a.from, a.to);
           const project = a.type === "move" && path !== d.path ? projectOf(path, a.projects) : d.project && moved(d.project, a.from, a.to);
           return {

@@ -4,8 +4,11 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api.ts";
+import { forgetMeta, freezeMetaForMove } from "./attach.ts";
 import type { Ctx } from "./ctx.ts";
+import { startClient } from "./lsp/client.ts";
 import { merge3, resolve } from "./merge3.ts";
+import { consumed, followBatch, type Move, type OutsideDeps } from "./outside-move.ts";
 import { basename } from "./path.ts";
 import { allDocs, type Doc } from "./store.ts";
 import { choiceDialog, confirmDialog } from "./ui/dom.ts";
@@ -193,9 +196,26 @@ export const mountWatch = (ctx: Ctx) => {
   let treeTimer = 0;
   let gitTimer = 0;
   const under = (path: string, dirs: string[]) => dirs.some((d) => path === d || path.startsWith(`${d}/`));
-  void listen<{ paths: string[]; git: boolean; rescan: string[] }>("aleph:fs", (e) => {
-    const { paths, git, rescan } = e.payload;
-    for (const d of allDocs(ctx.store.get())) if (paths.includes(d.path) || under(d.path, rescan)) void followChange(ctx, d.path);
+  // moves made outside Aleph (docs/adr/0108)
+  const outside: OutsideDeps = {
+    client: (workspace) => startClient(workspace, { onDiagnostics() {}, onExit() {} }, undefined, workspace),
+    freezeMeta: freezeMetaForMove,
+    forgetMeta,
+    clearStopped: clear,
+  };
+  let batches: Promise<void> = Promise.resolve();
+  void listen<{ paths: string[]; git: boolean; rescan: string[]; moves?: Move[] }>("aleph:fs", (e) => {
+    const { paths, git, rescan, moves = [] } = e.payload;
+    // the batches are taken in turn, the moves before the other changes
+    batches = batches.then(async () => {
+      const done = await followBatch(ctx, outside, moves).catch((error) => {
+        ctx.notify({ level: "error", sticky: true, message: `ほかのアプリでの移動に追従できませんでした\n${error instanceof Error ? error.message : String(error)}` });
+        return { moves: [] as Move[], kept: [] as string[] };
+      });
+      for (const path of done.kept) void followChange(ctx, path);
+      for (const d of allDocs(ctx.store.get()))
+        if ((paths.includes(d.path) || under(d.path, rescan)) && !consumed(done.moves, d.path)) void followChange(ctx, d.path);
+    });
     if (paths.length || rescan.length) {
       clearTimeout(treeTimer);
       treeTimer = window.setTimeout(() => void reloadTree(ctx).then(() => ctx.refresh(["sidebar"])), 500);

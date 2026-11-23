@@ -91,6 +91,8 @@ export type Ctx = {
   renameReferencesHandled?: boolean;
   moveMetadataHandled?: boolean;
   resetLspAfterMove?: (projects: string[]) => void;
+  /** After sheets were rebound to moves made outside (docs/adr/0108): each project's connection hears the moves once, or starts again. */
+  renamedOutside?: (moves: { from: string; to: string }[], before: string[], after: string[]) => Promise<void>;
   moveLocked?: (path: string) => boolean;
   /** Run after a file is renamed in Aleph. */
   onRename: ((from: string, to: string, ctx: Ctx) => void | Promise<void>)[];

@@ -11,6 +11,8 @@ export type TreeMoveDiskPlan = {
   directories: { path: string; entries: { path: string; kind: "file" | "directory" | "symlink" }[] }[];
   writes: { path: string; before: string | null; after: string }[];
 };
+/** The reference edits of a move made outside Aleph (docs/adr/0108): writes only. */
+export type TreeMoveWritePlan = { workspace: string; documents: { path: string; text: string }[]; writes: { path: string; before: string | null; after: string }[] };
 export type TreeMoveOutcome = { moved: boolean; error: string | null; remainingWrites: string[] };
 export type Out = { code: number; stdout: string; stderr: string };
 
@@ -53,6 +55,7 @@ export const api = {
   treeMoveInventory: (workspace: string) => invoke<TreeMoveInventory>("tree_move_inventory", { workspace }),
   treeMoveRead: (workspace: string, path: string) => invoke<string | null>("tree_move_read", { workspace, path }),
   treeMoveApply: (plan: TreeMoveDiskPlan) => invoke<TreeMoveOutcome>("tree_move_apply", { plan }),
+  treeMoveWrite: (plan: TreeMoveWritePlan) => invoke<TreeMoveOutcome>("tree_move_write", { plan }),
   copyFile: (from: string, to: string, newIn?: string) => invoke<void>("copy_file", { from, to, newIn }),
   /** Copies what was dropped on the tree into `target` (docs/adr/0078); progress comes as `aleph:copy-progress` with `id`. */
   copyDropped: (id: number, target: string, paths: string[]) => invoke<Outcome[]>("copy_dropped", { id, target, paths }),
