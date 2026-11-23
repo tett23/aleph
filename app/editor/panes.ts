@@ -21,6 +21,7 @@ import { revealItems, tabTarget } from "../reveal.ts";
 import { menu } from "../ui/dom.ts";
 
 import { bindEditorDoc } from "./binding.ts";
+import { dragScroll, edges, reveal, wheelAmount } from "./tabscroll.ts";
 
 const tabKey = (t: Tab) => String(t.id);
 
@@ -112,11 +113,46 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
           return `<div class="tab ${k === p.active ? "on" : ""}" data-tab="${k}" title="${esc(tip)}"><span class="tl">${esc(tabTitle(ctx, t))}</span>${mark}<span class="iconbtn tx" data-tab-x="${k}" title="閉じる（⌘W）">${icon("x", 11)}</span></div>`;
         })
         .join("");
-      return `${tabs}<span class="iconbtn tadd" data-tab-add title="新しいタブ">${icon("plus", 13)}</span>`;
+      return tabs;
     };
 
     const welcome = (s: State) =>
       `<div class="welcome"><img src="/icon.svg" alt=""><div>${s.workspaces.length ? "左からシートを選んでください。" : "設定の「ワークスペース」で、Git のリポジトリなどのフォルダを足してください。"}</div></div>`;
+
+    // ---- the tab bar's scroll (docs/adr/0107) ----
+
+    /** Shows the side shadows where tabs hide. */
+    const shade = (bar: HTMLElement) => {
+      const e = edges(bar);
+      const view = bar.parentElement!;
+      view.classList.toggle("hide-l", e.left);
+      view.classList.toggle("hide-r", e.right);
+    };
+
+    /** Scrolls the bar the least to show its selected tab whole. */
+    const showActive = (bar: HTMLElement) => {
+      const on = bar.querySelector<HTMLElement>(".tab.on");
+      if (on) {
+        const start = on.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft;
+        bar.scrollLeft = reveal({ start, width: on.getBoundingClientRect().width, view: bar.clientWidth, scroll: bar.scrollLeft });
+      }
+      shade(bar);
+    };
+
+    const watchBar = (bar: HTMLElement) => {
+      bar.addEventListener("scroll", () => shade(bar), { passive: true });
+      bar.addEventListener(
+        "wheel",
+        (e) => {
+          const dx = wheelAmount({ dx: e.deltaX, dy: e.deltaY, mode: e.deltaMode }, bar);
+          if (!dx) return;
+          e.preventDefault();
+          bar.scrollLeft += dx;
+        },
+        { passive: false },
+      );
+      new ResizeObserver(() => showActive(bar)).observe(bar);
+    };
 
     /** Lays out the panes (one, or two with a divider between). */
     const layout = (s: State) => {
@@ -124,7 +160,13 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       // the views are kept across a re-layout; only their panes change
       views.forEach((v) => v.el.remove());
       root.innerHTML = "";
-      paneEls = s.panes.map((_, i) => h(`<div class="pane" data-pane="${i}"><div class="tabbar"></div><div class="ebody"></div></div>`));
+      // the tabs scroll in their bar; the ＋ stays outside it, at the right (docs/adr/0107)
+      paneEls = s.panes.map((_, i) =>
+        h(
+          `<div class="pane" data-pane="${i}"><div class="tabstrip"><div class="tabview"><div class="tabbar"></div><div class="tfade l"></div><div class="tfade r"></div></div><span class="iconbtn tadd" data-tab-add title="新しいタブ">${icon("plus", 13)}</span></div><div class="ebody"></div></div>`,
+        ),
+      );
+      paneEls.forEach((p) => watchBar(p.querySelector<HTMLElement>(".tabbar")!));
       paneEls.forEach((p, i) => {
         if (i > 0) root.append(h(`<div class="ediv" title="ドラッグして幅を変える"></div>`));
         root.append(p);
@@ -140,7 +182,9 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       s.panes.forEach((p, pi) => {
         const pe = paneEls[pi];
         pe.classList.toggle("on", s.panes.length > 1 && pi === s.pane);
-        pe.querySelector(".tabbar")!.innerHTML = tabBar(s, pi);
+        const bar = pe.querySelector<HTMLElement>(".tabbar")!;
+        bar.innerHTML = tabBar(s, pi);
+        showActive(bar);
         const body = pe.querySelector<HTMLElement>(".ebody")!;
         body.querySelector(":scope > .welcome")?.remove();
         if (!p.tabs.length) body.insertAdjacentHTML("beforeend", welcome(s));
@@ -255,20 +299,41 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
     const dragTab = (down: MouseEvent, pane: number, index: number) => {
       down.preventDefault();
       let target: { pane: number; index: number } | null = null;
+      let last: MouseEvent | null = null;
+      let frame = 0;
+      // while the pointer is near an edge of a bar, the bar scrolls toward it (docs/adr/0107)
+      const tick = () => {
+        frame = 0;
+        const bar = last && barAt(last);
+        if (!last || !bar || !target) return;
+        const r = bar.getBoundingClientRect();
+        const dx = dragScroll(last.clientX, { left: r.left, width: r.width });
+        if (!dx) return;
+        bar.scrollLeft += dx;
+        move(last);
+      };
+      const barAt = (e: MouseEvent) =>
+        (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>(".tabstrip")?.querySelector<HTMLElement>(".tabbar") ?? null;
       const move = (e: MouseEvent) => {
         if (Math.abs(e.clientX - down.clientX) < 4 && !target) return;
+        last = e;
         root.querySelectorAll(".tab.drop, .tabbar.drop").forEach((x) => x.classList.remove("drop", "after"));
-        const bar = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>(".tabbar");
+        const bar = barAt(e);
         if (!bar) return void (target = null);
         const toPane = Number(bar.closest<HTMLElement>(".pane")!.dataset.pane);
         const tabs = [...bar.querySelectorAll<HTMLElement>("[data-tab]")];
-        let k = tabs.findIndex((x) => e.clientX < x.getBoundingClientRect().left + x.getBoundingClientRect().width / 2);
+        // on the ＋ the tab goes to the end, past the tabs hidden on the right (docs/adr/0107)
+        const onAdd = !!(document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest("[data-tab-add]");
+        let k = onAdd ? -1 : tabs.findIndex((x) => e.clientX < x.getBoundingClientRect().left + x.getBoundingClientRect().width / 2);
         if (k < 0) k = tabs.length;
         target = { pane: toPane, index: k };
         (tabs[k] ?? bar).classList.add("drop");
         if (!tabs[k]) bar.classList.add("after");
+        if (!frame) frame = requestAnimationFrame(tick);
       };
       const up = () => {
+        cancelAnimationFrame(frame);
+        last = null;
         document.removeEventListener("mousemove", move, true);
         document.removeEventListener("mouseup", up, true);
         root.querySelectorAll(".tab.drop, .tabbar.drop").forEach((x) => x.classList.remove("drop", "after"));

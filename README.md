@@ -78,6 +78,8 @@ A separate press of Escape after conversion ends performs the usual action.
 
 The diff tab and Git panel mark changed characters inline, including in Japanese text. Removed text has a strikethrough, and added text is underlined.
 
+When the tabs of a pane do not fit, the tab bar scrolls sideways instead of shrinking the tabs. Scroll it with the mouse wheel or a sideways trackpad swipe; a shadow shows on the side where tabs are hidden, and the selected tab is always scrolled into view. The “+” button stays at the right end.
+
 Hover over a change marker next to the editor's line numbers to see the before and after text. Click the marker or its “詳細” (details) button to open that sheet's diff, including unsaved edits at the moment of the click. The diff tab's “ワークスペース全体の差分” button returns to the saved workspace changes.
 
 Aleph bundles Git support through libgit2. Its Git panel initializes repositories, shows changes and history, and commits, pushes, and pulls without requiring a Git executable. The Git section of the app settings edits your global author name and email. Use a project's gear button or the Git panel to edit the identity of a particular repository.

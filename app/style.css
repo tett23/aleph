@@ -634,8 +634,15 @@ body.tree-dragging, body.tree-dragging * { user-select: none; -webkit-user-selec
 .panes { display: flex; height: 100%; min-height: 0; }
 .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .ediv { flex: 0 0 5px; cursor: col-resize; border-left: 1px solid var(--border); margin-left: -2px; }
-.tabbar { flex: none; display: flex; align-items: stretch; height: 30px; border-bottom: 1px solid var(--border); background: var(--bg-2); overflow-x: auto; scrollbar-width: none; }
-.tab { display: flex; align-items: center; gap: 4px; padding: 0 4px 0 12px; max-width: 220px; font-size: 12px; color: var(--text-2); border-right: 1px solid var(--border); white-space: nowrap; cursor: default; }
+/* the tabs scroll in their bar, the ＋ stays at the right, and a shadow shows where tabs hide (docs/adr/0107) */
+.tabstrip { flex: none; display: flex; align-items: stretch; height: 30px; border-bottom: 1px solid var(--border); background: var(--bg-2); }
+.tabview { position: relative; flex: 1; min-width: 0; display: flex; }
+.tabbar { flex: 1; min-width: 0; display: flex; align-items: stretch; overflow-x: auto; scrollbar-width: none; }
+.tfade { position: absolute; top: 0; bottom: 0; width: 22px; pointer-events: none; opacity: 0; transition: opacity 0.12s; }
+.tfade.l { left: 0; background: linear-gradient(to right, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0)); }
+.tfade.r { right: 0; background: linear-gradient(to left, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0)); }
+.tabview.hide-l .tfade.l, .tabview.hide-r .tfade.r { opacity: 1; }
+.tab { flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 4px 0 12px; max-width: 220px; font-size: 12px; color: var(--text-2); border-right: 1px solid var(--border); white-space: nowrap; cursor: default; }
 .tab .tl { overflow: hidden; text-overflow: ellipsis; }
 .tab .dirty { color: var(--faint); font-size: 9px; }
 .tab.on { background: var(--bg); color: var(--text); }
