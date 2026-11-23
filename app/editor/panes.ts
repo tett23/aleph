@@ -163,7 +163,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       // the tabs scroll in their bar; the ＋ stays outside it, at the right (docs/adr/0107)
       paneEls = s.panes.map((_, i) =>
         h(
-          `<div class="pane" data-pane="${i}"><div class="tabstrip"><div class="tabview"><div class="tabbar"></div><div class="tfade l"></div><div class="tfade r"></div></div><span class="iconbtn tadd" data-tab-add title="新しいタブ">${icon("plus", 13)}</span></div><div class="ebody"></div></div>`,
+          `<div class="pane" data-pane="${i}"><div class="tabstrip"><div class="tabclip"><div class="tabbar"></div><div class="tfade l"></div><div class="tfade r"></div></div><span class="iconbtn tadd" data-tab-add title="新しいタブ">${icon("plus", 13)}</span></div><div class="ebody"></div></div>`,
         ),
       );
       paneEls.forEach((p) => watchBar(p.querySelector<HTMLElement>(".tabbar")!));
