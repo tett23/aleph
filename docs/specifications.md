@@ -93,7 +93,7 @@ Tauri 2 で作り、画面を TypeScript、ファイルとプロセスを Rust �
 | [ADR 0087](adr/0087-preview-in-a-tab.md) | プレビューを、エディタの右の領域から、映すタブに従うプレビューのタブに移す（実装済み） |
 | [ADR 0088](adr/0088-diff-tab-and-commit-before-applying.md) | ワークスペースの HEAD との差分を出す差分のタブと、アシスタントの書き換えを適用する前にコミットを促すモーダルのダイアログ（実装済み） |
 | [ADR 0089](adr/0089-revoke-connector-approval.md) | 設定の「アシスタント」の節から、Claude Code と Codex の承認を取り消す（実装済み） |
-| [ADR 0090](adr/0090-editor-composition-settings.md) | エディタの折り返しに、Golem が解決した禁則とぶら下げ組を反映する（`strict` とぶら下げは実装した。Tauri での手の確かめと、`loose` は未了） |
+| [ADR 0090](adr/0090-editor-composition-settings.md) | エディタの折り返しに、Golem が解決した禁則とぶら下げ組を反映する（Tauri での手の確かめは未了） |
 
 ADR にする前の、これから検討する機能は [ロードマップ](roadmap.md) に置く。
 
@@ -437,8 +437,7 @@ Markdown のプレビューの改行の扱いを設定で選び、GFM の拡張�
 - 表示は仮想化する。見えている行と前後の余白の行だけを描き、ほかの行は大きさの合計を持つ空きの要素にする。行の大きさ（横書きでは高さ、縦書きでは幅）は描いたときに測り、まだ測っていない行は字数と 1 行の字数から見積もる。選択の両端と変換中の行は、見えていなくても描く。縦書きではスクロールが横の向きになり、開いたときは冒頭（右端）を出す。
 - 本文の列の長さ（横書きでは幅、縦書きでは高さ）は、`style.toml` の `[page.grid] characters` の字数にする。設定の「1 行の字数」があればそれを使う。ほかの形式は 110 字まで広げる。
 - 本文（`.gm`、`.md`、`.txt`）の折り返しは、禁則とぶら下げ組の設定に従う（[ADR 0090](adr/0090-editor-composition-settings.md)）。プロジェクトの `.gm` は、`golem kinsoku` がプロジェクトの `style.toml` から解決した値を使い、`style.toml` を保存すると読み直して、開いているそのプロジェクトのシートに当てる。プロジェクトの外の `.gm` と、`.md`、`.txt` は Golem の既定値（`strict`、ぶら下げない）を使う。コードと設定のファイルには当てない。
-  - `kinsoku = "strict"` は WebKit の `line-break: strict` で、`hanging-punctuation = true` は `hanging-punctuation: allow-end` で表す。ぶら下げるときは、行の外に 1.5 字分（24px より小さければ 24px）の余白を取る。1.5 字分は、ぶら下げた 1 字が余白に収まるように選んだ値である。
-  - `kinsoku = "loose"` は WebKit の `line-break: loose` で表すが、WebKit はこのときも小書きの仮名と長音記号を行頭に置かない。そのため、`loose` では [ADR 0090](adr/0090-editor-composition-settings.md) の I2（Golem の分類に一致する）を満たさず、[ADR 0090](adr/0090-editor-composition-settings.md) は実装を終えていない。
+  - 画面は `lang="ja"` なので、WebKit は `line-break` の日本語の規則を使う。`kinsoku = "strict"` は `line-break: strict` で、`kinsoku = "loose"` は `line-break: auto` で、`hanging-punctuation = true` は `hanging-punctuation: allow-end` で表す。`auto` は、長音記号と小書きの仮名だけを行頭に許し、Golem の `loose` と同じに折り返す（[調査](research/2026-11-23-editor-kinsoku-probe.md)）。WebKit の `normal` と `loose` は、ほかの字も行頭に許すので使わない。ぶら下げるときは、行の外に 1.5 字分（24px より小さければ 24px）の余白を取る。1.5 字分は、ぶら下げた 1 字が余白に収まるように選んだ値である。
   - `golem kinsoku` が値を返さないときは、最後に読めた値を保ち、読めた値が無ければ既定値を使う。
   - `golem kinsoku` が終了コード 1 で終わったとき（`style.toml` の誤り）は、標準エラー出力を通知に出す。ほかの失敗（`kinsoku` を持たない Golem の終了コード 2、出力を読めない、起動できない）では、通知を出さない。同梱の Golem 0.1.0-rc4 は `kinsoku` を持たないので、設定で `kinsoku` を持つ Golem を選ぶまで既定値を使う。
 - 本文は明朝、それ以外（`.emet`、`.toml` など）は等幅で書く。`.gm` の中の命令の頭と引数、式は等幅にし、散文スロットは本文のフォントのままにする。文字サイズは本文とコードで別に、行間は本文に設定する。
