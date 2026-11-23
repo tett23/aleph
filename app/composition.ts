@@ -34,16 +34,16 @@ export const targetOf = (kind: string, project: string | null): "project" | "def
   kind === "gm" && project ? "project" : ["gm", "md", "txt"].includes(kind) ? "default" : null;
 
 /**
- * The CSS of the text. `strict` is WebKit's `line-break: strict`, which kept
- * every prohibition of Golem's strict that was tried
- * (docs/research/2026-11-23-webkit-kinsoku-and-hanging.md). WebKit has no
- * line-break that allows small kana and ー at the line start, so `loose` is
- * WebKit's `loose`, which still keeps them from it (docs/adr/0090 is not done
- * for loose). Hanging is `allow-end`, which hangs 。．、， only when they do
- * not fit, as Golem does.
+ * The CSS of the text. The page is `lang="ja"`, so WebKit applies its
+ * Japanese line-break rules: `strict` keeps every prohibition of Golem's
+ * strict that was tried, and `auto` lets only ー and small kana start a
+ * line, as Golem's loose does; WebKit's `normal` would also let 〜゠ start
+ * one, and its `loose` 々？・ and others
+ * (docs/research/2026-11-23-editor-kinsoku-probe.md). Hanging is
+ * `allow-end`, which hangs 。．、， only when they do not fit, as Golem does.
  */
 export const styleOf = (c: Composition | null) =>
-  c ? { lineBreak: c.kinsoku, hangingPunctuation: c.hanging ? "allow-end" : "none" } : { lineBreak: "", hangingPunctuation: "" };
+  c ? { lineBreak: c.kinsoku === "loose" ? "auto" : "strict", hangingPunctuation: c.hanging ? "allow-end" : "none" } : { lineBreak: "", hangingPunctuation: "" };
 
 /** Gives an editor the values; only its view's style changes (ADR 0090 I4). */
 export const applyTo = (t: Pick<TextEditor, "view">, c: Composition | null) => t.view.setComposition(c);

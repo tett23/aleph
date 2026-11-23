@@ -1,0 +1,43 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><style>
+body{margin:0;font-family:"Hiragino Mincho ProN",serif;font-size:20px}
+.ed-scroll{}
+.vertical .ed-scroll{writing-mode:vertical-rl;block-size:400px}
+.ed-content{outline:none;white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;line-height:1.75;box-sizing:content-box;max-inline-size:calc(var(--chars) * 1em + 2px);padding-inline-end:24px}
+.hang .ed-content{padding-inline-end:max(24px,1.5em)}
+</style><div id=root></div><script>
+// styleOf of app/composition.ts, copied: strict -> strict, loose -> auto, hanging -> allow-end
+const styleOf=c=>c?{lineBreak:c.kinsoku==="loose"?"auto":"strict",hangingPunctuation:c.hanging?"allow-end":"none"}:{lineBreak:"",hangingPunctuation:""};
+const classes={closing:"」）』】",opening:"「（『【",hyphen:"〜゠",dividing:"？！",middleDot:"・：；",fullStop:"。．",comma:"、，",iteration:"々ゝヽ",prolonged:"ー",smallKana:"ぁっゃァッャ"};
+const comps={none:null,strict:{kinsoku:"strict",hanging:false},strictHang:{kinsoku:"strict",hanging:true},loose:{kinsoku:"loose",hanging:false},webkitLoose:"webkitLoose",webkitNormal:"webkitNormal"};
+const root=document.getElementById("root");
+const make=(mode,comp,text)=>{
+  const ed=document.createElement("div");ed.className="ed "+(mode==="v"?"vertical":"")+(comp&&comp.hanging?" hang":"");
+  const sc=document.createElement("div");sc.className="ed-scroll";
+  const ct=document.createElement("div");ct.className="ed-content";ct.contentEditable="true";ct.style.setProperty("--chars","4");
+  const css=comp==="webkitLoose"?{lineBreak:"loose",hangingPunctuation:"none"}:comp==="webkitNormal"?{lineBreak:"normal",hangingPunctuation:"none"}:styleOf(comp);ct.style.setProperty("line-break",css.lineBreak);ct.style.setProperty("hanging-punctuation",css.hangingPunctuation);
+  const line=document.createElement("div");line.className="ed-line";line.textContent=text;
+  ct.appendChild(line);sc.appendChild(ct);ed.appendChild(sc);root.appendChild(ed);return {ed,ct,line};
+};
+const rectOf=(el,i)=>{const r=document.createRange();r.setStart(el.firstChild,i);r.setEnd(el.firstChild,i+1);return r.getClientRects()[0]};
+const lineIdx=(el,i,mode)=>{const b=rectOf(el,i);return mode==="h"?Math.round(b.top):Math.round(-b.right)};
+const out={breaks:{},hang:[]};
+for(const mode of ["h","v"])for(const [name,comp] of Object.entries(comps)){
+  let kept=0,broken=[];
+  for(const [cls,chars] of Object.entries(classes))for(const ch of chars){
+    const open=cls==="opening";const text=open?"あいう"+ch+"かきくけ":"あいうえ"+ch+"かきく";
+    const {ed,line}=make(mode,comp,text);const ls=[...text].map((_,i)=>lineIdx(line,i,mode));
+    const idx=open?3:4;const ok=open?ls[idx+1]===ls[idx]:ls[idx]===ls[idx-1];
+    ok?kept++:broken.push(ch);ed.remove();
+  }
+  out.breaks[mode+":"+name]={kept,broken:broken.join("")};
+}
+for(const mode of ["h","v"])for(const name of ["strict","strictHang"])for(const ch of "。、．，」"){
+  const text="あいうえ"+ch+"かきく";const {ed,ct,line}=make(mode,comps[name],text);
+  const ls=[...text].map((_,i)=>lineIdx(line,i,mode));
+  const c=ct.getBoundingClientRect();const p=rectOf(line,4);
+  const cs=getComputedStyle(ct);const contentEnd=mode==="h"?c.right-parseFloat(cs.paddingRight):c.bottom-parseFloat(cs.paddingBottom);
+  const charEnd=mode==="h"?p.right:p.bottom;const boxEnd=mode==="h"?c.right:c.bottom;
+  out.hang.push({mode,name,ch,hung:ls[4]===ls[3],pastText:Math.round(charEnd-contentEnd),insidePadding:charEnd<=boxEnd+0.5});ed.remove();
+}
+window.webkit.messageHandlers.done.postMessage(JSON.stringify(out));
+</script>
