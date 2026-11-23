@@ -9,9 +9,10 @@ import { argPath, rel } from "../path.ts";
 import { allDocs, type Doc, type State, shownDoc } from "../store.ts";
 import { golem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
+import { movedPath, withinMove } from "../tree-move.ts";
 import { treeEntries, treeReloaded } from "../ui/tree.ts";
 import { sheetsOf } from "../quickopen.ts";
-import { IMAGE_KINDS, kindOf, TEXT_KINDS, workspaceOf } from "../workspace.ts";
+import { IMAGE_KINDS, kindOf, projectOf, TEXT_KINDS, workspaceOf } from "../workspace.ts";
 import { startClient, type Client, type LspDiagnostic } from "./client.ts";
 import { applyFileRenamePlans, openRenameWikiBuffers, pathOfFileUri, planFileRename, type Snapshot, type WorkspaceEdit } from "./file-rename.ts";
 import { completionStart, decodeSemanticTokens, editsToChanges, offsetOf, tokenRanges, uriOf, type TextEdit, type TokenRange } from "./protocol.ts";
@@ -428,6 +429,32 @@ export const mountLsp = (ctx: Ctx) => {
       clearTimeout(idle.get(project));
       idle.delete(project);
     }
+  };
+  // moves made outside Aleph (docs/adr/0108): a move within one project is told to its connection once, one
+  // across projects (or of a project) starts both connections again. The sheets were already reopened at their
+  // new paths by sync.
+  ctx.renamedOutside = async (moves, before, after) => {
+    const told = new Map<string, { oldUri: string; newUri: string }[]>();
+    const reset = new Set<string>();
+    for (const m of moves) {
+      const from = projectOf(m.from, before);
+      const to = projectOf(m.to, after);
+      // a project carried by the move has its connection under the old path
+      const carried = before.filter((p) => withinMove(p, m.from));
+      carried.forEach((p) => (reset.add(p), reset.add(movedPath(p, m.from, m.to))));
+      if (from && to && to === from && !carried.length) told.set(from, [...(told.get(from) ?? []), { oldUri: uriOf(m.from), newUri: uriOf(m.to) }]);
+      else [from, to].forEach((p) => p && reset.add(p));
+    }
+    if (reset.size) ctx.resetLspAfterMove?.([...reset]);
+    await Promise.all([...told].map(async ([project, files]) => {
+      const client = clients.get(project);
+      if (client?.state() !== "ready") return;
+      try {
+        await client.notifyAndWait("workspace/didRenameFiles", { files });
+      } catch {
+        ctx.notify({ message: "移動の後に Golem LSP との接続が切れました。再接続時に索引を作り直します", level: "warning" });
+      }
+    }));
   };
   ctx.onRename.push((from, to) => {
     for (const [path, view] of [...views]) {

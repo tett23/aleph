@@ -76,19 +76,30 @@ fn kept_config(app: &AppHandle) -> serde_json::Value {
 #[derive(Default)]
 struct Watching(std::sync::Mutex<Option<fsevents::Watcher>>);
 
+/// The paths a setting names: a list, or one path.
+fn config_paths(config: &serde_json::Value, k: &str) -> Vec<PathBuf> {
+    match config.get(k) {
+        Some(serde_json::Value::Array(a)) => a
+            .iter()
+            .filter_map(|v| v.as_str())
+            .map(PathBuf::from)
+            .collect(),
+        Some(serde_json::Value::String(s)) if !s.is_empty() => vec![PathBuf::from(s)],
+        _ => vec![],
+    }
+}
+
+/// The registered workspaces that exist, as FSEvents names them (resolved).
+fn watched_workspaces_of(config: &serde_json::Value) -> Vec<PathBuf> {
+    config_paths(config, "workspaces")
+        .into_iter()
+        .filter_map(|p| p.canonicalize().ok())
+        .collect()
+}
+
 /// The folders to watch: the registered workspaces and the shared library that exist.
 fn watch_roots_of(config: &serde_json::Value) -> Vec<PathBuf> {
-    let list = |k: &str| -> Vec<PathBuf> {
-        match config.get(k) {
-            Some(serde_json::Value::Array(a)) => a
-                .iter()
-                .filter_map(|v| v.as_str())
-                .map(PathBuf::from)
-                .collect(),
-            Some(serde_json::Value::String(s)) if !s.is_empty() => vec![PathBuf::from(s)],
-            _ => vec![],
-        }
-    };
+    let list = |k: &str| config_paths(config, k);
     let mut roots: Vec<PathBuf> = list("workspaces")
         .into_iter()
         .chain(list("libraryDir"))
@@ -105,7 +116,9 @@ fn watch_roots_of(config: &serde_json::Value) -> Vec<PathBuf> {
 #[tauri::command]
 async fn watch_roots(app: AppHandle) -> R<bool> {
     blocking(move || {
-        let roots = watch_roots_of(&kept_config(&app));
+        let config = kept_config(&app);
+        let roots = watch_roots_of(&config);
+        let workspaces = watched_workspaces_of(&config);
         let state = app.state::<Watching>();
         let mut w = state.0.lock().map_err(|e| e.to_string())?;
         // the old stream stops before the new one starts
@@ -134,8 +147,16 @@ async fn watch_roots(app: AppHandle) -> R<bool> {
                         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
                     }
                 }
-                let batch = watchfs::gather(&all, &is_project);
-                if !batch.paths.is_empty() || batch.git || !batch.rescan.is_empty() {
+                let batch = watchfs::Batch {
+                    // moves made outside Aleph (docs/adr/0108)
+                    moves: watchfs::moves(&all, &watchfs::RealDisk, &workspaces, &is_project),
+                    ..watchfs::gather(&all, &is_project)
+                };
+                if !batch.paths.is_empty()
+                    || batch.git
+                    || !batch.rescan.is_empty()
+                    || !batch.moves.is_empty()
+                {
                     let _ = emitter.emit("aleph:fs", batch);
                 }
             }
@@ -342,6 +363,20 @@ async fn tree_move_apply(app: AppHandle, plan: tree_move::Plan) -> R<tree_move::
             may(&app, &write.path.to_string_lossy(), WR)?;
         }
         tree_move::apply(&plan, &registered_roots(&app))
+    })
+    .await
+}
+
+/// The reference edits of a move made outside Aleph (docs/adr/0108): writes only, checked and put back on a
+/// failure.
+#[tauri::command]
+async fn tree_move_write(app: AppHandle, plan: tree_move::WritePlan) -> R<tree_move::Outcome> {
+    blocking(move || {
+        tree_move_root(&app, &plan.workspace)?;
+        for write in &plan.writes {
+            may(&app, &write.path.to_string_lossy(), WR)?;
+        }
+        tree_move::apply_writes(&plan, &registered_roots(&app))
     })
     .await
 }
@@ -1740,6 +1775,7 @@ pub fn run_app() {
             tree_move_inventory,
             tree_move_read,
             tree_move_apply,
+            tree_move_write,
             copy_file,
             initialize_workspace_project,
             copy_dropped,

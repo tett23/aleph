@@ -33,6 +33,15 @@ pub struct Plan {
     pub writes: Vec<DiskWrite>,
 }
 
+/// The reference edits after a move made outside Aleph (docs/adr/0108): no move, only writes checked
+/// against the texts the plan read.
+#[derive(Deserialize)]
+pub struct WritePlan {
+    pub workspace: PathBuf,
+    pub documents: Vec<Document>,
+    pub writes: Vec<DiskWrite>,
+}
+
 #[derive(Deserialize)]
 pub struct Document {
     pub path: PathBuf,
@@ -611,6 +620,120 @@ fn stages(
         error: Some(errors.join("\n")),
         remaining_writes,
     })
+}
+
+/// Checks the plan's texts, then writes each edit in turn; on a failure the written ones go back in reverse
+/// (docs/adr/0108 I6). `moved` is always false.
+fn write_stages(
+    plan: &WritePlan,
+    registered: &[PathBuf],
+    mut before_write: impl FnMut(&Path) -> Result<()>,
+) -> Result<Outcome> {
+    if !registered.contains(&plan.workspace)
+        || !fs::symlink_metadata(&plan.workspace)
+            .map_err(|e| at(&plan.workspace, e))?
+            .is_dir()
+    {
+        return Err(at(
+            &plan.workspace,
+            "登録済みのワークスペースではありません",
+        ));
+    }
+    for d in &plan.documents {
+        if inspect_text(&plan.workspace, &d.path)?.as_deref() != Some(d.text.as_str()) {
+            return Err(at(&d.path, "計画取得後に本文が変わりました"));
+        }
+    }
+    let mut paths = HashSet::new();
+    for edit in &plan.writes {
+        if !paths.insert(&edit.path) {
+            return Err(at(&edit.path, "同じファイルを二重に編集できません"));
+        }
+        if owner(&edit.path, registered) != Some(plan.workspace.as_path()) {
+            return Err(at(&edit.path, "ワークスペースの外は編集できません"));
+        }
+        if inspect_text(&plan.workspace, &edit.path)? != edit.before {
+            return Err(at(&edit.path, "計画取得後に本文が変わりました"));
+        }
+    }
+    let mut applied: Vec<&DiskWrite> = Vec::new();
+    let mut dirs = Vec::new();
+    let edit = (|| {
+        for edit in &plan.writes {
+            before_write(&edit.path)?;
+            inside(&plan.workspace, &edit.path, true)?;
+            let parent = edit.path.parent().unwrap();
+            if !parent.is_dir()
+                && edit.before.is_none()
+                && parent.file_name().is_some_and(|n| n == ".aleph")
+            {
+                match fs::create_dir(parent) {
+                    Ok(()) => dirs.push(parent.to_owned()),
+                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+                    Err(e) => return Err(at(parent, e)),
+                }
+            }
+            let mut published = false;
+            let result = write_checked(
+                &edit.path,
+                edit.before.as_deref(),
+                &edit.after,
+                &mut published,
+            );
+            if published {
+                applied.push(edit);
+            }
+            result?;
+        }
+        Ok(())
+    })();
+    let Err(error) = edit else {
+        return Ok(Outcome {
+            moved: false,
+            error: None,
+            remaining_writes: Vec::new(),
+        });
+    };
+    let mut errors = vec![error];
+    let mut remaining_writes = Vec::new();
+    for edit in applied.into_iter().rev() {
+        let r = inside(&plan.workspace, &edit.path, false).and_then(|()| match &edit.before {
+            Some(text) => write_checked(&edit.path, Some(&edit.after), text, &mut false),
+            None => cleanup(&edit.path, Some(&edit.after)),
+        });
+        if let Err(e) = r {
+            remaining_writes.push(edit.path.clone());
+            errors.push(e);
+        }
+    }
+    for dir in dirs.into_iter().rev() {
+        if let Err(e) = fs::remove_dir(&dir) {
+            errors.push(at(&dir, e));
+        }
+    }
+    Ok(Outcome {
+        moved: false,
+        error: Some(errors.join("\n")),
+        remaining_writes,
+    })
+}
+
+/// Writes the reference edits of a move made outside Aleph (docs/adr/0108), one workspace at a time.
+pub fn apply_writes(plan: &WritePlan, registered: &[PathBuf]) -> Result<Outcome> {
+    let root = plan
+        .workspace
+        .canonicalize()
+        .map_err(|e| at(&plan.workspace, e))?;
+    let mut active = ACTIVE
+        .get_or_init(Mutex::default)
+        .lock()
+        .map_err(|e| e.to_string())?;
+    if !active.insert(root.clone()) {
+        return Err(at(&root, "ワークスペースで移動を実行中です"));
+    }
+    drop(active);
+    let _active = Active(root);
+    write_stages(plan, registered, |_| Ok(()))
 }
 
 pub fn apply(plan: &Plan, registered: &[PathBuf]) -> Result<Outcome> {
