@@ -57,6 +57,8 @@ The writing checks for `.gm`, `.md`, and `.txt` skip absolute HTTP and HTTPS URL
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
 The file tree shows each project’s `build/` folder with every file in it, so outputs such as PDFs can be handed to other applications: drag rows out of the window, choose “コピー” (copy) from the right-click menu and paste in Finder, or choose “zip で書き出す…” (export as zip) on a folder or a project. The zip writes its file names in UTF-8, normalized to NFC and flagged as UTF-8, and leaves out `.DS_Store` and `.git`.
 
+Press the error, warning or other count beside the “問題” (Problems) tab in the bottom panel to show only diagnostics of that severity; press the same count again to show them all.
+
 Closing a notification that stays on screen marks it as seen and updates the unread count on the “通知” (Notifications) tab in the bottom panel.
 This also works in separate page preview and plot windows.
 Closed notifications stay in the main window’s history.

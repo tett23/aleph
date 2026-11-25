@@ -759,7 +759,8 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .bottom-panel .phead2 { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 8px 0 12px; flex: none; font-size: 11.5px; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--bg-2); }
 .bottom-panel .phead2 .pt { font-weight: 600; letter-spacing: 0.04em; color: var(--text); }
 .bottom-panel .phead2 .grow { flex: 1; }
-.bottom-panel .pc { display: inline-flex; align-items: center; gap: 3px; }
+.bottom-panel .pc { display: inline-flex; align-items: center; gap: 3px; padding: 0 4px; border-radius: 4px; cursor: pointer; }
+.bottom-panel .pc.on { background: var(--sel); }
 .bottom-panel .pc.sev-error { color: var(--del); }
 .bottom-panel .pc.sev-warning { color: var(--mod); }
 .bottom-panel .pc.sev-info { color: #3d7fd6; }
