@@ -1,6 +1,6 @@
 # ADR 0110: 下部パネルの問題を重大度の数で絞りこむ
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
