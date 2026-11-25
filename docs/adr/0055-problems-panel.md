@@ -1,6 +1,6 @@
 # ADR 0055: 診断を画面の下の「問題」のパネルにまとめる
 
-Status: superseded [{"part":"コマンドの名前「問題のパネル」","by":["docs/adr/0082-ui-names-and-glossary.md"]}]
+Status: superseded [{"part":"コマンドの名前「問題のパネル」","by":["docs/adr/0082-ui-names-and-glossary.md"]},{"part":"実装しないこと の、重大度による絞り込み","by":["docs/adr/0110-filter-problems-by-severity.md"]}]
 
 ## 文脈
 

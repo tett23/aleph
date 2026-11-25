@@ -62,3 +62,22 @@ export const panelHeight = (v: unknown, column: number): number => {
   const h = typeof v === "number" && Number.isFinite(v) ? v : DEFAULT_HEIGHT;
   return Math.max(MIN_HEIGHT, Math.min(h, Math.floor(column * 0.7)));
 };
+
+/** The severity the list is narrowed to (docs/adr/0110); null shows every diagnostic. */
+export type Filter = Problem["severity"] | null;
+
+/** The groups with only the filter's severity, in the same order; a file left with none is dropped (I1–I3). */
+export const filterGroups = (groups: Group[], filter: Filter): Group[] =>
+  filter === null
+    ? groups
+    : groups.flatMap((g) => {
+        const items = g.items.filter((x) => x.severity === filter);
+        return items.length ? [{ ...g, items }] : [];
+      });
+
+/** Pressing a count: its own severity clears the filter, any other sets it (I5). */
+export const nextFilter = (now: Filter, pressed: Problem["severity"]): Filter => (now === pressed ? null : pressed);
+
+/** What the list says when nothing is shown. */
+export const emptyText = (filter: Filter): string =>
+  filter === "error" ? "エラーはありません" : filter === "warning" ? "警告はありません" : filter === "info" ? "そのほかの問題はありません" : "問題はありません";

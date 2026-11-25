@@ -11,7 +11,7 @@ import { renderBuildLog } from "./buildlog.ts";
 import { buildLogs, buildProblems } from "./projectbuildmount.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
-import { countProblems, DEFAULT_HEIGHT, fromGolem, groupProblems, panelHeight, type Problem } from "./problems.ts";
+import { countProblems, DEFAULT_HEIGHT, emptyText, filterGroups, fromGolem, groupProblems, nextFilter, panelHeight, type Filter, type Problem } from "./problems.ts";
 import { allDocs, focused, shownDoc } from "./store.ts";
 import { uiState } from "./uistate.ts";
 import { LEVEL_ICON, notifications } from "./ui/notices.ts";
@@ -48,8 +48,16 @@ const allProblems = (ctx: Ctx): Problem[] => {
   return [...editorProblems(ctx), ...(project ? [...golemResults(project).flatMap((r) => fromGolem(project, r.kind, r.items)), ...buildProblems(project)] : [])];
 };
 
-const countsHtml = (c: ReturnType<typeof countProblems>) =>
-  `<span class="pc sev-error">${icon("circle-x", 12)}${c.errors}</span><span class="pc sev-warning">${icon("triangle-alert", 12)}${c.warnings}</span><span class="pc sev-info">${icon("info", 12)}${c.others}</span>`;
+// the counts beside the tab narrow the list to their severity, and clear it pressed again (docs/adr/0110)
+const COUNTS: [Problem["severity"], string, "errors" | "warnings" | "others", string][] = [
+  ["error", "circle-x", "errors", "エラー"],
+  ["warning", "triangle-alert", "warnings", "警告"],
+  ["info", "info", "others", "そのほか"],
+];
+const countsHtml = (c: ReturnType<typeof countProblems>, filter: Filter) =>
+  COUNTS.map(([sev, ic, key, name]) =>
+    `<span class="pc sev-${sev}${filter === sev ? " on" : ""}" data-sev="${sev}" title="${filter === sev ? "絞りこみを外す" : `${name}だけを出す`}">${icon(ic, 12)}${c[key]}</span>`,
+  ).join("");
 
 const rowHtml = (x: Problem, g: number, i: number) =>
   `<div class="pr sev-${x.severity}" data-g="${g}" data-i="${i}" title="${SEV[x.severity][1]}">${icon(SEV[x.severity][0], 13)}<span class="msg">${esc(x.message)}</span><small>${esc(
@@ -68,6 +76,7 @@ export const mountBottomPanel = (ctx: Ctx) => {
   let el: HTMLElement | null = null;
   const shown = () => uiState().get(SHOW, false);
   let buildSelected = false;
+  let filter: Filter = null;
   const tab = (): Tab => {
     if (buildSelected) return "build-log";
     const kept = uiState().get<string>(TAB, "problems");
@@ -93,6 +102,8 @@ export const mountBottomPanel = (ctx: Ctx) => {
     const s = ctx.store.get();
     const list = allProblems(ctx);
     const groups = groupProblems(list, focused(s)?.path ?? null, s.workspace);
+    // the list shows the filter's severity only; the counts above stay those of every diagnostic
+    const shownGroups = filterGroups(groups, filter);
     const project = focused(s)?.project;
     const log = project && buildLogs.get(project);
     const t = tab() === "build-log" && !log ? "problems" : tab();
@@ -102,7 +113,7 @@ export const mountBottomPanel = (ctx: Ctx) => {
     const un = ns.unseen();
     const badge = un.count ? `<span class="nbadge${un.error ? " err" : ""}">${un.count}</span>` : "";
     const history = ns.history();
-    const head = `<div class="phead2"><span class="bottom-panel-tab${t === "problems" ? " on" : ""}" data-tab="problems">問題</span>${countsHtml(countProblems(groups.flatMap((g) => g.items)))}<span class="bottom-panel-tab${t === "notifications" ? " on" : ""}" data-tab="notifications">通知${badge}</span>${log ? `<span class="bottom-panel-tab${t === "build-log" ? " on" : ""}" data-tab="build-log">ビルドログ</span>` : ""}<span class="bottom-panel-tab${t === "assistant" ? " on" : ""}" data-tab="assistant">アシスタント</span><span class="grow"></span>${
+    const head = `<div class="phead2"><span class="bottom-panel-tab${t === "problems" ? " on" : ""}" data-tab="problems">問題</span>${countsHtml(countProblems(groups.flatMap((g) => g.items)), filter)}<span class="bottom-panel-tab${t === "notifications" ? " on" : ""}" data-tab="notifications">通知${badge}</span>${log ? `<span class="bottom-panel-tab${t === "build-log" ? " on" : ""}" data-tab="build-log">ビルドログ</span>` : ""}<span class="bottom-panel-tab${t === "assistant" ? " on" : ""}" data-tab="assistant">アシスタント</span><span class="grow"></span>${
         t === "notifications" && history.length ? `<span class="btn small" data-clear>履歴を消す</span>` : ""
       }<span class="iconbtn" data-close title="閉じる（⇧⌘M）">${icon("x", 13)}</span></div>`;
     // the assistant's element stays in place: only the head is drawn again
@@ -116,9 +127,9 @@ export const mountBottomPanel = (ctx: Ctx) => {
           ? history.length
             ? history.map(noteRow).join("")
             : `<div class="empty">通知はありません</div>`
-          : groups.length
-            ? groups.map((g, gi) => `<div class="pg"><div class="pf">${esc(g.label)}<small>${g.items.length}</small></div>${g.items.map((x, i) => rowHtml(x, gi, i)).join("")}</div>`).join("")
-            : `<div class="empty">問題はありません</div>`
+          : shownGroups.length
+            ? shownGroups.map((g, gi) => `<div class="pg"><div class="pf">${esc(g.label)}<small>${g.items.length}</small></div>${g.items.map((x, i) => rowHtml(x, gi, i)).join("")}</div>`).join("")
+            : `<div class="empty">${emptyText(filter)}</div>`
       }</div>`;
     if (t === "assistant") host.querySelector(".pbody2")!.append(assistantView(ctx));
 
@@ -130,6 +141,12 @@ export const mountBottomPanel = (ctx: Ctx) => {
       // the assistant's tab takes its own clicks, and its field takes the focus
       if (t.closest(".assistant")) return;
       if (t.closest("[data-grip]")) return drag(e);
+      const sev = t.closest<HTMLElement>("[data-sev]")?.dataset.sev as Problem["severity"] | undefined;
+      if (sev) {
+        e.preventDefault();
+        filter = nextFilter(filter, sev);
+        return setTab("problems");
+      }
       const tb = t.closest<HTMLElement>("[data-tab]")?.dataset.tab;
       if (tb === "problems" || tb === "notifications" || tb === "build-log" || tb === "assistant") return void (e.preventDefault(), setTab(tb));
       if (t.closest("[data-clear]")) return void (e.preventDefault(), notifications().clearHistory());
@@ -140,7 +157,7 @@ export const mountBottomPanel = (ctx: Ctx) => {
       const row = t.closest<HTMLElement>("[data-g]");
       if (!row) return;
       e.preventDefault();
-      const x = groups[Number(row.dataset.g)]?.items[Number(row.dataset.i)];
+      const x = shownGroups[Number(row.dataset.g)]?.items[Number(row.dataset.i)];
       if (x?.file) void ctx.open([x.file], x.line !== null ? { line: x.line, col: Math.max(0, (x.col ?? 1) - 1) } : undefined);
     };
     host.onkeydown = (e) => {
