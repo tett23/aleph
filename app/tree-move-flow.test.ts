@@ -138,7 +138,8 @@ test("ADR 0100 I2, I4, I5, I7: complete cross-project move, cancellation and fai
           return new Set(paths);
         },
       } as unknown as Ctx;
-      await moveTreeItem(ctx, from, "/w/b", async () => {});
+      const moved = await moveTreeItem(ctx, from, "/w/b", async () => {});
+      assert.equal(moved, scenario === "ok" || scenario === "late" || scenario === "leftover", `moved ${scenario}`);
       assert.equal(store.get().panes[0].tabs[0].id, original);
       if (scenario === "ok" || scenario === "late" || scenario === "leftover") {
         const updated = store.get().open.find((d) => d.path === destination);

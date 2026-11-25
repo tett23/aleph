@@ -399,6 +399,8 @@ table.grid td:has(.chips) .cell { height: auto; font-size: 11px; color: var(--fa
 .dropzone { border: 1.5px dashed var(--border); border-radius: 6px; padding: 14px; text-align: center; color: var(--text-2); font-size: 12px; line-height: 1.7; }
 /* where a drop on the tree goes (docs/adr/0078) */
 .file-tree .r.drop-into { background: var(--sel); }
+/* the item cut, until it is pasted (docs/adr/0109) */
+.file-tree .r.cut { opacity: 0.45; }
 .file-tree.drop-into { outline: 2px solid var(--text-2); outline-offset: -2px; border-radius: 6px; }
 .right-sidebar.drop-over .dropzone { border-color: var(--text-2); background: var(--sel); color: var(--text); }
 .item input.field.num { flex: 0 0 72px; width: 72px; min-width: 0; }
