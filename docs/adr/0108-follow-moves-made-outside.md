@@ -1,6 +1,6 @@
 # ADR 0108: Aleph の外で移したシートとフォルダに追従し、参照を更新する
 
-Status: accepted-pending
+Status: accepted
 
 ## 文脈
 
