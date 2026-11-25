@@ -6,6 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { esc } from "../esc.ts";
 import { h, icon } from "../icons.ts";
 import { swallowLatePress } from "./press.ts";
+import { createFolds, foldKey, type Fold } from "../notice-fold.ts";
 import { createNotifications, type Handle, type Level, type Note, type NotificationEvent, type Notifications, type NotifyOpts } from "../notify.ts";
 
 export const LEVEL_ICON: Record<Level, string> = { info: "info", warning: "triangle-alert", error: "circle-x" };
@@ -13,6 +14,10 @@ export const LEVEL_ICON: Record<Level, string> = { info: "info", warning: "trian
 let model: Notifications | null = null;
 let host: HTMLElement | null = null;
 const els = new Map<number, HTMLElement>();
+/** Whether each long text is folded or open (docs/adr/0111). */
+const folds = createFolds();
+const FOLD_LINES = 6;
+let drawnIds = new Set<number>();
 
 const label = () => {
   try {
@@ -53,8 +58,11 @@ const barHtml = (n: Note) =>
     ? `<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(n.progress.value * 100)}"><i style="width:${(n.progress.value * 100).toFixed(1)}%"></i></div><div class="cnt">${esc(n.progress.text)}</div>`
     : "";
 
-const noteHtml = (n: Note) =>
-  `<span class="ic">${icon(LEVEL_ICON[n.level], 16)}</span><div class="msg">${esc(n.message)}</div><span class="x" data-x title="閉じる">${icon("x", 13)}</span>${barHtml(n)}${
+/** A long text folds to six lines; the underlined text below it opens and folds it (docs/adr/0111). */
+const foldHtml = (f: Fold) => (f.long ? `<span class="fold-btn" data-fold>${f.open ? "折りたたむ" : "すべて表示"}</span>` : "");
+
+const noteHtml = (n: Note, f: Fold) =>
+  `<span class="ic">${icon(LEVEL_ICON[n.level], 16)}</span><div class="msg${f.long ? (f.open ? " open" : " fold") : ""}">${esc(n.message)}</div><span class="x" data-x title="閉じる">${icon("x", 13)}</span>${foldHtml(f)}${barHtml(n)}${
     n.actions.length ? `<div class="btns">${n.actions.map((a, i) => `<span class="btn${a.primary ? " pri" : ""}" data-a="${i}">${esc(a.label)}</span>`).join("")}</div>` : ""
   }`;
 
@@ -66,7 +74,7 @@ const elOf = (n: Note) => {
     el.addEventListener("mouseleave", () => notifications().hover(n.id, false));
     els.set(n.id, el);
   }
-  const html = noteHtml(n);
+  const html = noteHtml(n, folds.of(foldKey(n)));
   if (el.dataset.html !== html) {
     el.innerHTML = html;
     el.dataset.html = html;
@@ -87,6 +95,11 @@ function draw() {
       const id = Number(t.closest<HTMLElement>("[data-id]")?.dataset.id);
       if (!id) return;
       if (t.closest("[data-x]")) return (swallowLatePress(), notifications().dismissByUser(id));
+      if (t.closest("[data-fold]")) {
+        const n = notifications().shown().notes.find((x) => x.id === id);
+        if (n) folds.toggle(foldKey(n));
+        return draw();
+      }
       const a = t.closest<HTMLElement>("[data-a]")?.dataset.a;
       if (a !== undefined) {
         swallowLatePress();
@@ -108,4 +121,27 @@ function draw() {
   nodes.forEach((n, i) => {
     if (host!.children[i] !== n) host!.insertBefore(n, host!.children[i] ?? null);
   });
+  fit(notes);
+}
+
+/** Measures the texts drawn, drops the states of the notifications gone, and keeps the stack on the screen (docs/adr/0111). */
+function fit(notes: Note[]) {
+  const stack = host!;
+  const live = new Set([...notifications().history().filter((n) => n.live), ...notes].map(foldKey));
+  folds.keep(live);
+  for (const n of notes) {
+    const el = els.get(n.id);
+    const msg = el?.querySelector<HTMLElement>(":scope > .msg");
+    if (!el || !msg) continue;
+    const line = parseFloat(getComputedStyle(msg).lineHeight) || 18;
+    if (folds.measured(foldKey(n), msg.scrollHeight > line * FOLD_LINES + 1)) elOf(n);
+  }
+  const wasScroll = stack.classList.contains("scroll");
+  const scroll = stack.scrollHeight > stack.clientHeight + 1;
+  stack.classList.toggle("scroll", scroll);
+  const ids = new Set(notes.map((n) => n.id));
+  const added = [...ids].some((id) => !drawnIds.has(id));
+  drawnIds = ids;
+  // the newest is at the bottom: show it when it comes, and when the stack starts to scroll
+  if (scroll && (added || !wasScroll)) stack.scrollTop = stack.scrollHeight;
 }

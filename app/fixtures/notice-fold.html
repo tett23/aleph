@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Notice fold tests</title>
+<link rel="stylesheet" href="../style.css">
+<style>
+  #result { position: absolute; left: 12px; top: 12px; width: 40vw; white-space: pre-wrap; font: 12px monospace; }
+</style>
+<pre id="result"></pre>
+<script>
+  window.addEventListener("error", (event) => {
+    window.webkit?.messageHandlers.report.postMessage(JSON.stringify({ ok: false, error: event.message, line: event.lineno, column: event.colno }));
+  });
+</script>
+<script type="module" src="./notice-fold.ts"></script>
