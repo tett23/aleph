@@ -1,6 +1,6 @@
 # ADR 0109: ファイルツリーの右クリックのメニューで切り取りと貼り付けをする
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
