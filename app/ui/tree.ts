@@ -22,6 +22,7 @@ import { revealItems } from "../reveal.ts";
 import { canRenameTreeItem, renameTarget } from "../tree-rename.ts";
 import { createdPath, SHEET_KINDS } from "../tree-create.ts";
 import { moveProject, orderProjectEntries, projectNeighbors } from "../project-order.ts";
+import { clip, cutItem, pasteInto } from "../tree-paste.ts";
 
 const ICONS: Record<string, string> = {
   gm: "file-text",
@@ -81,12 +82,15 @@ export const reloadTree = async (ctx: Ctx) => {
   for (const f of treeReloaded) await f(ctx);
 };
 
+// the item cut is drawn faint until it is pasted (docs/adr/0109)
+const cutClass = (path: string) => (clip.current()?.path === path ? " cut" : "");
+
 const row = (r: Row, ctx: Ctx) => {
   const s = ctx.store.get();
   const pad = `padding-left:${8 + r.depth * 16}px`;
   if (r.t === "dir") {
     const open = s.expanded.includes(r.entry.path);
-    return `<div class="r ${r.project ? "proj" : ""}" style="${pad}" data-dir="${esc(r.entry.path)}">${icon(open ? "chevron-down" : "chevron-right", 13)}${
+    return `<div class="r ${r.project ? "proj" : ""}${cutClass(r.entry.path)}" style="${pad}" data-dir="${esc(r.entry.path)}">${icon(open ? "chevron-down" : "chevron-right", 13)}${
       r.project ? `<span class="ic book">${icon("book-open", 15)}</span>` : icon("folder", 14)
     }<span class="ttl">${esc(r.entry.name)}</span>${r.project ? `<button type="button" class="iconbtn project-git" data-project-git="${esc(r.entry.path)}" title="Git 設定を開く" aria-label="${esc(r.entry.name)}の Git 設定を開く">${icon("settings", 14)}</button>` : ""}</div>`;
   }
@@ -96,7 +100,7 @@ const row = (r: Row, ctx: Ctx) => {
   // a heading as the name, the file's name small beside it (docs/adr/0004); otherwise the kind
   const fn = r.plot ? "" : ctx.titles.has(p) ? r.entry.name.replace(/\.gm$/, "") : k;
   const on = s.open.some((d) => d.path === p) || s.selected.includes(p) || (r.plot && s.plot === r.project);
-  return `<div class="r ${on ? "on" : ""}" style="${pad}" data-file="${esc(p)}" ${r.plot ? `data-plot="${esc(r.project!)}"` : ""}>${icon(
+  return `<div class="r ${on ? "on" : ""}${cutClass(p)}" style="${pad}" data-file="${esc(p)}" ${r.plot ? `data-plot="${esc(r.project!)}"` : ""}>${icon(
     r.plot ? "table-2" : (ICONS[k] ?? (IMAGE_KINDS.includes(k) ? "image" : "file")),
     14,
   )}<span class="ttl">${esc(title)}</span><span class="fn">${esc(fn)}</span><span class="c">${ctx.decor.map((f) => f(p, ctx)).join("")}</span></div>`;
@@ -130,6 +134,7 @@ const copyFiles = async (ctx: Ctx, pressed: string) => {
   const paths = handedOverFrom(ctx, pressed);
   try {
     await api.copyFiles(paths);
+    clip.copied();
     ctx.toast(paths.length === 1 ? `${basename(paths[0])} をコピーしました` : `${paths.length} 件をコピーしました`);
   } catch (error) {
     notifyError(`コピーできませんでした: ${String(error)}`);
@@ -405,6 +410,9 @@ const exportSelected = async (ctx: Ctx, paths: string[]) => {
 
 export const mountTree = (ctx: Ctx) => {
   let projectOrderSave = Promise.resolve();
+  // a cut cannot move across workspaces, and its faint row follows it (docs/adr/0109)
+  ctx.store.subscribe((s, prev) => { if (s.workspace !== prev.workspace) clip.switched(); });
+  clip.listen(() => ctx.refresh(["sidebar"]));
   ctx.sidebar.files = {
     icon: "files",
     title: "ファイル",
@@ -451,7 +459,16 @@ export const mountTree = (ctx: Ctx) => {
   treeMenus.push((p) => revealItems(p, (x) => void api.revealPath(x).catch((e) => notifyError(String(e))), icon("folder", 14)));
   // the files' URLs on the pasteboard, and a folder's zip (docs/adr/0077)
   treeMenus.push((p, dir) => [
+    // cut and paste (docs/adr/0109): one movable item is cut; folders and projects take a paste
+    ...(canRenameTreeItem(p, ctx.store.get().workspaces, ctx.projects)
+      ? [clip.current()?.path === p
+          ? { label: "切り取りをやめる", icon: icon("x", 14), run: () => clip.cancel() }
+          : { label: "切り取り", icon: icon("scissors", 14), run: () => void cutItem(ctx, p, reloadTree) }]
+      : []),
     { label: "コピー", icon: icon("files", 14), run: () => void copyFiles(ctx, p) },
+    ...(dir && !ctx.store.get().workspaces.includes(p)
+      ? [{ label: "貼り付け", icon: icon("clipboard-paste", 14), run: () => void pasteInto(ctx, p, reloadTree) }]
+      : []),
     ...(dir ? [{ label: "zip で書き出す…", icon: icon("folder", 14), run: () => void zipFolder(ctx, p) }] : []),
   ]);
   treeMenus.push((p) =>

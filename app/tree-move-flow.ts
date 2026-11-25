@@ -19,14 +19,16 @@ const active = new Set<string>();
 
 type Follow = (ctx: Ctx) => Promise<void>;
 
-export const moveTreeItem = async (ctx: Ctx, from: string, dir: string, refreshTree: Follow) => {
+/** Moves `from` into `dir`; true when the path moved on disk (docs/adr/0109), false otherwise. */
+export const moveTreeItem = async (ctx: Ctx, from: string, dir: string, refreshTree: Follow): Promise<boolean> => {
+  let moved = false;
   const initial = ctx.store.get();
   const workspace = initial.workspace;
-  if (!workspace) return;
+  if (!workspace) return false;
   const target = treeDrop(from, dir, workspace, initial.workspaces, ctx.projects);
-  if (target.kind === "noop") return;
-  if (target.kind === "invalid") return ctx.notify({ message: target.reason, level: "warning" });
-  if (active.size) return ctx.notify({ message: `${workspace} で移動を実行中です`, level: "warning" });
+  if (target.kind === "noop") return false;
+  if (target.kind === "invalid") { ctx.notify({ message: target.reason, level: "warning" }); return false; }
+  if (active.size) { ctx.notify({ message: `${workspace} で移動を実行中です`, level: "warning" }); return false; }
   active.add(workspace);
   const { to } = target;
   try {
@@ -34,7 +36,7 @@ export const moveTreeItem = async (ctx: Ctx, from: string, dir: string, refreshT
     const current = treeDrop(from, dir, workspace, ctx.store.get().workspaces, tree.projects);
     if (current.kind !== "move") {
       if (current.kind === "invalid") throw new Error(current.reason);
-      return;
+      return false;
     }
     if (await api.exists(to)) throw new Error(`同じ名前の項目があります：${to}`);
     const save = allDocs(ctx.store.get()).filter((d) => withinMove(d.path, from));
@@ -44,7 +46,7 @@ export const moveTreeItem = async (ctx: Ctx, from: string, dir: string, refreshT
     const changed = save.filter(dirty).map((d) => d.path);
     if (changed.length) {
       const written = await ctx.save(changed, { explicit: true });
-      if (changed.some((p) => !written.has(p)) || allDocs(ctx.store.get()).some((d) => withinMove(d.path, from) && dirty(d))) return;
+      if (changed.some((p) => !written.has(p)) || allDocs(ctx.store.get()).some((d) => withinMove(d.path, from) && dirty(d))) return false;
     }
     for (const before of ctx.beforeRename) await before(from, to, ctx);
 
@@ -58,7 +60,7 @@ export const moveTreeItem = async (ctx: Ctx, from: string, dir: string, refreshT
           if (updated.some((d) => ctx.editors.get(d.path)?.edit?.view.composing()))
             throw new Error("日本語の変換を確定してから移動してください");
           const written = await ctx.save(updated.map((d) => d.path), { explicit: true });
-          if (updated.some((d) => !written.has(d.path))) return;
+          if (updated.some((d) => !written.has(d.path))) return false;
         }
         const freshTree = await api.treeMoveInventory(workspace);
         const inventory = await collectInventory(workspace, freshTree);
@@ -125,10 +127,10 @@ export const moveTreeItem = async (ctx: Ctx, from: string, dir: string, refreshT
               ...(chapters.length ? ["章の登録を変更します。", ...chapters] : ["章の登録は変わりません。"]),
               "移動先のスタイルが適用され、原稿の見た目が変わる場合があります。",
             ].join("\n");
-            if (!(await confirmDialog(message, "移動"))) return;
+            if (!(await confirmDialog(message, "移動"))) return false;
           }
 
-          if (ctx.store.get().workspace !== workspace) return;
+          if (ctx.store.get().workspace !== workspace) return false;
           if (!stable() || !sameInventory(inventory, await collectInventory(workspace, await api.treeMoveInventory(workspace))) || !stable()) continue;
           if ([...live.values()].some(({ edit }) => edit?.view.composing())) throw new Error("日本語の変換を確定してから移動してください");
 
@@ -160,6 +162,7 @@ export const moveTreeItem = async (ctx: Ctx, from: string, dir: string, refreshT
               catch (undo) { rollbackError = `\n${describe(undo)}`; }
             }
             if (receipt.moved) {
+              moved = true;
               // Rebind immediately when the path moved, even if reconciliation
               // later fails or disk rollback left a partial operation.
               const grids: Record<string, Grid> = {};
@@ -199,7 +202,7 @@ export const moveTreeItem = async (ctx: Ctx, from: string, dir: string, refreshT
             }
             if (receipt.error) throw new Error(receipt.error + rollbackError);
             ctx.toast(`${to} に移動しました`);
-            return;
+            return true;
           } finally {
             delete ctx.moveLocked;
           }
@@ -216,4 +219,5 @@ export const moveTreeItem = async (ctx: Ctx, from: string, dir: string, refreshT
   } finally {
     active.delete(workspace);
   }
+  return moved;
 };

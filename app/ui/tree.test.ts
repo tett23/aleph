@@ -75,7 +75,7 @@ test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tr
     const ctx = {
       sidebar: {}, settings: [], beforeRename: [], onRename: [], projects: ["/w/book"], decor: [], titles: new Map(), editors: new Map(),
       config: normalize({}), saveConfig: async () => {},
-      store: { get: () => state, dispatch: () => {} },
+      store: { get: () => state, dispatch: () => {}, subscribe: () => () => {} },
       save: async () => {}, refresh: () => {}, toast: () => {},
     } as unknown as Ctx;
     mountTree(ctx);

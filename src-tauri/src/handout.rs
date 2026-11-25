@@ -12,7 +12,7 @@ mod mac {
     use objc2_app_kit::{
         NSApp, NSDragOperation, NSDraggingContext, NSDraggingItem, NSDraggingSession,
         NSDraggingSource, NSEvent, NSEventModifierFlags, NSEventType, NSPasteboard,
-        NSPasteboardWriting, NSWindow, NSWorkspace,
+        NSPasteboardTypeFileURL, NSPasteboardWriting, NSWindow, NSWorkspace,
     };
     use objc2_foundation::{NSArray, NSPoint, NSRect, NSSize, NSString, NSURL};
     use std::path::{Path, PathBuf};
@@ -58,6 +58,31 @@ mod mac {
             .iter()
             .map(|p| ProtocolObject::from_retained(file_url(p)))
             .collect()
+    }
+
+    /// The general pasteboard's changeCount and the paths of its file URLs (docs/adr/0109).
+    pub fn pasteboard() -> Result<(isize, Vec<PathBuf>), String> {
+        MainThreadMarker::new().ok_or("メインスレッドの外からは読めません")?;
+        let board = NSPasteboard::generalPasteboard();
+        let count = board.changeCount();
+        // SAFETY: a constant AppKit exports
+        let kind = unsafe { NSPasteboardTypeFileURL };
+        let urls: Vec<String> = board
+            .pasteboardItems()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.stringForType(kind).map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok((count, super::file_paths(&urls, resolve)))
+    }
+
+    /// A file URL as a path; a file reference URL (file:///.file/id=...) resolves too.
+    fn resolve(url: &str) -> Option<PathBuf> {
+        let url = NSURL::URLWithString(&NSString::from_str(url))?;
+        Some(PathBuf::from(url.filePathURL()?.path()?.to_string()))
     }
 
     pub fn copy(paths: &[PathBuf]) -> Result<(), String> {
@@ -125,6 +150,29 @@ mod mac {
     }
 }
 
+/// The paths of the file URLs among `urls` (docs/adr/0109 I6): other URLs and text are
+/// skipped, and so is a file URL that `resolve` cannot turn into a path.
+pub fn file_paths(urls: &[String], resolve: impl Fn(&str) -> Option<PathBuf>) -> Vec<PathBuf> {
+    urls.iter()
+        .filter(|u| {
+            u.get(..7)
+                .is_some_and(|s| s.eq_ignore_ascii_case("file://"))
+        })
+        .filter_map(|u| resolve(u))
+        .collect()
+}
+
+/// The general pasteboard's changeCount and its files (main thread only; docs/adr/0109).
+#[cfg(target_os = "macos")]
+pub fn pasteboard() -> Result<(isize, Vec<PathBuf>), String> {
+    mac::pasteboard()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn pasteboard() -> Result<(isize, Vec<PathBuf>), String> {
+    Err("貼り付けは macOS だけで使えます".into())
+}
+
 /// Writes the file URLs of `paths` to the general pasteboard (main thread only).
 #[cfg(target_os = "macos")]
 pub fn copy(paths: &[PathBuf]) -> Result<(), String> {
@@ -145,4 +193,41 @@ pub fn copy(_paths: &[PathBuf]) -> Result<(), String> {
 #[cfg(not(target_os = "macos"))]
 pub fn drag(_ns_window: *mut std::ffi::c_void, _paths: &[PathBuf]) -> Result<(), String> {
     Err("外へのドラッグは macOS だけで使えます".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::file_paths;
+    use std::path::PathBuf;
+
+    fn resolve(url: &str) -> Option<PathBuf> {
+        url.strip_prefix("file://").map(PathBuf::from)
+    }
+
+    #[test]
+    fn adr0109_i6_only_file_urls_give_paths() {
+        let urls = [
+            "file:///w/a.gm".to_string(),
+            "https://example.com/b.gm".to_string(),
+            "FILE:///w/c".to_string(),
+            "plain text".to_string(),
+            "ファイル".to_string(),
+        ];
+        let resolve_any =
+            |url: &str| resolve(url).or_else(|| url.strip_prefix("FILE://").map(PathBuf::from));
+        assert_eq!(
+            file_paths(&urls, resolve_any),
+            vec![PathBuf::from("/w/a.gm"), PathBuf::from("/w/c")]
+        );
+    }
+
+    #[test]
+    fn adr0109_i6_no_urls_give_no_paths() {
+        assert!(file_paths(&[], resolve).is_empty());
+    }
+
+    #[test]
+    fn adr0109_i6_a_file_url_that_does_not_resolve_is_skipped() {
+        assert!(file_paths(&["file:///.file/id=1".to_string()], |_| None).is_empty());
+    }
 }

@@ -450,6 +450,49 @@ async fn copy_dropped(
     .await
 }
 
+/// What a paste in the tree may use (docs/adr/0109): the general pasteboard's changeCount
+/// and how many file URLs it holds.
+#[derive(serde::Serialize)]
+struct Board {
+    count: isize,
+    files: usize,
+}
+
+#[tauri::command]
+async fn pasteboard_state(app: AppHandle) -> R<Board> {
+    let (count, paths) = on_main(&app, handout::pasteboard).await?;
+    Ok(Board {
+        count,
+        files: paths.len(),
+    })
+}
+
+/// Copies the general pasteboard's files into `target` (docs/adr/0109). The paths come from
+/// the pasteboard here, not from the WebView; like dropped paths, they may be read while the
+/// app runs. Progress goes out as `aleph:copy-progress` with `id`, as for a drop.
+#[tauri::command]
+async fn paste_files(app: AppHandle, id: u64, target: String) -> R<Vec<dropcopy::Outcome>> {
+    let (_, paths) = on_main(&app, handout::pasteboard).await?;
+    if let Ok(mut d) = app.state::<Kept>().dropped.lock() {
+        d.extend(paths.iter().cloned());
+    }
+    let reach = reach(&app)?;
+    blocking(move || {
+        let mut gate = dropcopy::throttle(std::time::Duration::from_millis(100));
+        Ok(dropcopy::copy_into(
+            Path::new(&target),
+            &paths,
+            &|p, a| reach.check(p, a),
+            &mut |p| {
+                if let Some(progress) = gate(std::time::Instant::now(), p) {
+                    let _ = app.emit("aleph:copy-progress", CopyProgress { id, progress });
+                }
+            },
+        ))
+    })
+    .await
+}
+
 /// The English words of a sheet that are spelled wrong (docs/adr/0030).
 #[tauri::command]
 fn spell_check(words: Vec<String>) -> Vec<String> {
@@ -1758,6 +1801,8 @@ pub fn run_app() {
             zip_entries,
             zip_folder,
             copy_files,
+            pasteboard_state,
+            paste_files,
             drag_out,
             debug_build,
             config_load,
