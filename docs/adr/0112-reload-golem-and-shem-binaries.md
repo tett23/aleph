@@ -1,6 +1,6 @@
 # ADR 0112: 設定から Golem と shem のバイナリを読み込みなおし、デフォルトに戻す
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
