@@ -1,6 +1,6 @@
 # ADR 0111: 長い通知を画面の中に収め、展開してもスクロールで読めるようにする
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
