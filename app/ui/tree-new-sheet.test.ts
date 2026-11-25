@@ -27,6 +27,8 @@ test("ADR 0093 I1, I2, I3, I4: new-file resolves a name before creating a sheet 
       handlers: new Map(),
       querySelector: (selector: string) => selector === "input" ? input : null,
       dataset: {}, children: [], insertBefore() {},
+      // the notification stack measures itself after drawing (docs/adr/0111)
+      classList: { contains: () => false, toggle() {} }, scrollHeight: 0, clientHeight: 0, scrollTop: 0,
     };
     return {
       set innerHTML(value: string) { dialog.innerHTML = value; },

@@ -64,6 +64,8 @@ Closing a notification that stays on screen marks it as seen and updates the unr
 This also works in separate page preview and plot windows.
 Closed notifications stay in the main window’s history.
 
+A notification with a long message shows its first six lines with “すべて表示” (show all) below them. When opened, a message too tall for the window scrolls inside the notification, and the notifications scroll together when they do not fit the window, so the close button stays on screen.
+
 The assistant in the bottom panel takes a request in plain words, such as "widen the line pitch a little", and proposes edits to the focused sheet (or the selection) with an explanation and a diff. Nothing changes until you press “適用” (apply). If the workspace has uncommitted changes, Aleph first offers to commit them, then applies, saves, and opens the diff tab. The ribbon's “差分” (diff) button shows the workspace's changes against the last commit at any time.
 By default the assistant runs Qwen3.5-4B on your Mac with the bundled `llama-server`, and sends nothing outside. The other three models of the list can be downloaded from the settings. Claude Code and Codex can also be chosen when they are installed; they send the request, the target text and the manual excerpts to Anthropic or OpenAI with your own account, so Aleph asks once before using each. If they fail, Aleph asks the local model instead and says so.
 

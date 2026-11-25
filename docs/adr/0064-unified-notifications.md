@@ -1,6 +1,6 @@
 # ADR 0064: 通知を一つの仕組みにまとめる
 
-Status: superseded [{"part":"通知の履歴の未確認件数","by":["docs/adr/0106-acknowledge-dismissed-sticky-notifications.md"],"kind":"supplement"}]
+Status: superseded [{"part":"通知の履歴の未確認件数","by":["docs/adr/0106-acknowledge-dismissed-sticky-notifications.md"],"kind":"supplement"},{"part":"通知の形 の、文の見せ方と高さ","by":["docs/adr/0111-fit-long-notifications-on-screen.md"],"kind":"supplement"}]
 
 ## 文脈
 
