@@ -530,7 +530,8 @@ table.grid tr.dragged td { opacity: 0.45; }
 .plain.md table { border-collapse: collapse; margin: 0 0 0.8em; }
 .plain.md td, .plain.md th { border: 1px solid var(--border); padding: 2px 8px; }
 .editor-area .pbody > .pbody { height: 100%; }
-.pwin { height: 100vh; display: flex; flex-direction: column; background: var(--bg-2); }
+/* the window's whole width, whatever it shows: as a flex item of #app it would shrink to an error message's longest line */
+.pwin { height: 100vh; flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-2); }
 .pwin .phead { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--text-2); font-size: 12px; border-bottom: 1px solid var(--border); flex: none; }
 .pwin .phead .sp { flex: 1; }
 .pwin .pbody { flex: 1; overflow: auto; min-height: 0; }
