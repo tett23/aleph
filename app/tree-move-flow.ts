@@ -16,6 +16,8 @@ import { confirmDialog } from "./ui/dom.ts";
 import { projectOf } from "./workspace.ts";
 
 const active = new Set<string>();
+/** A tree move is running: a Golem reload waits until it ends (docs/adr/0112 I6). */
+export const movingTree = () => active.size > 0;
 
 type Follow = (ctx: Ctx) => Promise<void>;
 

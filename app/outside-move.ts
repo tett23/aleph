@@ -236,6 +236,7 @@ const apply = async (ctx: Ctx, workspace: string, p: Planned): Promise<"done" | 
 /** Re-plans up to three times while the plan no longer holds, then applies it (I5: only after the answer). */
 const update = async (ctx: Ctx, deps: OutsideDeps, workspace: string, moves: Move[], first: Planned) => {
   let client: PlanClient | null = null;
+  running++;
   try {
     let p = first;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -254,11 +255,17 @@ const update = async (ctx: Ctx, deps: OutsideDeps, workspace: string, moves: Mov
   } catch (error) {
     ctx.notify({ level: "error", sticky: true, message: `参照を更新できませんでした\n${why(error)}` });
   } finally {
+    running--;
     client?.stop();
   }
 };
 
 const unsupported = new Set<string>();
+/** Forgets that the unsupported notice was told: after a Golem reload it may be told again (docs/adr/0112 I4). */
+export const forgetUnsupported = () => unsupported.clear();
+// the reference updates being planned or applied: a Golem reload waits until none is (docs/adr/0112 I6)
+let running = 0;
+export const updatingReferences = () => running > 0;
 let answers: Promise<void> = Promise.resolve();
 /** The answers given so far, done in the order given. */
 export const answered = () => answers;
@@ -270,6 +277,7 @@ export const offerReferences = async (ctx: Ctx, deps: OutsideDeps, workspace: st
     return;
   }
   const client = deps.client(workspace);
+  running++;
   try {
     if (!(await client.ready) || !client.supportsMovedReferences()) {
       const key = JSON.stringify([workspace, ctx.config.golemPath ?? ""]);
@@ -293,6 +301,7 @@ export const offerReferences = async (ctx: Ctx, deps: OutsideDeps, workspace: st
   } catch (error) {
     ctx.notify({ level: "error", sticky: true, message: `移動後の参照の更新を計画できませんでした\n${why(error)}` });
   } finally {
+    running--;
     client.stop();
   }
 };

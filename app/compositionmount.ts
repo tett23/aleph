@@ -56,3 +56,10 @@ export const mountComposition = (ctx: Ctx) => {
     }
   });
 };
+
+/** After a Golem reload (docs/adr/0112 I9): kinsoku read once per project with a .gm editor, the others' values dropped. */
+export const rereadComposition = async (ctx: Ctx) => {
+  const projects = new Set([...editors].map((e) => e.project));
+  for (const p of [...last.keys()]) if (!projects.has(p)) last.delete(p);
+  await Promise.all([...projects].map(async (p) => applyProject(p, await read(ctx, p))));
+};

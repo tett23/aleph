@@ -400,6 +400,9 @@ export const mountLsp = (ctx: Ctx) => {
       throw error;
     }
   };
+  // the Golem reload (docs/adr/0112): every connection stopped, then the open documents synced without waiting for the store
+  ctx.stopAllLsp = () => ctx.resetLspAfterMove?.([...clients.keys()]);
+  ctx.syncLsp = () => sync(ctx, ctx.store.get(), null);
   ctx.resetLspAfterMove = (projects) => {
     const affected = new Set(projects);
     const closing = new Map<string, Promise<void>[]>();
