@@ -271,3 +271,6 @@ export const createNotifications = (clock: Clock, forwarding?: Forwarding) => {
 };
 
 export type Notifications = ReturnType<typeof createNotifications>;
+
+/** The unread badge's text: the count up to 99, then "99+", so the badge stops growing. */
+export const badgeText = (count: number): string => (count > 99 ? "99+" : String(count));
