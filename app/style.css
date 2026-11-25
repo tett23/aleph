@@ -371,9 +371,9 @@ table.grid td:has(.chips) .cell { height: auto; font-size: 11px; color: var(--fa
 .lv-warning > .ic, .nr.lv-warning > svg { color: var(--mod); }
 .lv-error > .ic, .nr.lv-error > svg { color: var(--del); }
 /* the bottom panel's tabs and the notifications' history (docs/adr/0064) */
-.bottom-panel .phead2 .bottom-panel-tab { font-weight: 600; letter-spacing: 0.04em; color: var(--text-2); padding: 0 2px; height: 100%; display: inline-flex; align-items: center; gap: 5px; border-bottom: 2px solid transparent; cursor: default; }
+.bottom-panel .phead2 .bottom-panel-tab { font-weight: 600; letter-spacing: 0.04em; color: var(--text-2); padding: 0 2px; height: 100%; display: inline-flex; align-items: center; gap: 5px; border-top: 2px solid transparent; border-bottom: 2px solid transparent; box-sizing: border-box; cursor: default; }
 .bottom-panel .phead2 .bottom-panel-tab.on { color: var(--text); border-bottom-color: var(--text); }
-.bottom-panel .nbadge { font-weight: 400; font-size: 10.5px; background: var(--bg-3); color: var(--text-2); border-radius: 8px; padding: 0 6px; }
+.bottom-panel .nbadge { font-weight: 400; font-size: 10.5px; line-height: 1; height: 16px; min-width: 16px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; background: var(--bg-3); color: var(--text-2); border-radius: 8px; padding: 0 5px; font-variant-numeric: tabular-nums; }
 .bottom-panel .nbadge.err { background: color-mix(in srgb, var(--del) 18%, var(--bg)); color: var(--del); }
 .bottom-panel .btn.small { font-size: 11px; padding: 0 8px; }
 .bottom-panel .nr { display: grid; grid-template-columns: 14px 62px 1fr; gap: 8px; align-items: start; padding: 4px 12px; font-size: 12px; border-bottom: 1px solid var(--bg-2); }

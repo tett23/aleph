@@ -15,7 +15,7 @@ import { countProblems, DEFAULT_HEIGHT, emptyText, filterGroups, fromGolem, grou
 import { allDocs, focused, shownDoc } from "./store.ts";
 import { uiState } from "./uistate.ts";
 import { LEVEL_ICON, notifications } from "./ui/notices.ts";
-import type { Note } from "./notify.ts";
+import { badgeText, type Note } from "./notify.ts";
 
 const SHOW = "showBottomPanel";
 const HEIGHT = "bottomPanelHeight";
@@ -111,7 +111,7 @@ export const mountBottomPanel = (ctx: Ctx) => {
     // seeing the tab clears its count
     if (t === "notifications") ns.seen();
     const un = ns.unseen();
-    const badge = un.count ? `<span class="nbadge${un.error ? " err" : ""}">${un.count}</span>` : "";
+    const badge = un.count ? `<span class="nbadge${un.error ? " err" : ""}">${badgeText(un.count)}</span>` : "";
     const history = ns.history();
     const head = `<div class="phead2"><span class="bottom-panel-tab${t === "problems" ? " on" : ""}" data-tab="problems">問題</span>${countsHtml(countProblems(groups.flatMap((g) => g.items)), filter)}<span class="bottom-panel-tab${t === "notifications" ? " on" : ""}" data-tab="notifications">通知${badge}</span>${log ? `<span class="bottom-panel-tab${t === "build-log" ? " on" : ""}" data-tab="build-log">ビルドログ</span>` : ""}<span class="bottom-panel-tab${t === "assistant" ? " on" : ""}" data-tab="assistant">アシスタント</span><span class="grow"></span>${
         t === "notifications" && history.length ? `<span class="btn small" data-clear>履歴を消す</span>` : ""
