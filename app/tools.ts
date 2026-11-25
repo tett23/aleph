@@ -48,8 +48,8 @@ export const mountTools = (ctx: Ctx) => {
     label: "Golem と shem",
     group: "Golem",
     render: async (c) =>
-      item("Golem のバイナリ", `${await info("golem")}<br>空なら、同梱のもの、~/.local/bin、Homebrew、PATH の順に探す`, `<input class="field" data-path="golemPath" value="${esc(c.config.golemPath)}" placeholder="同梱">${buttons("golemPath", c.config.golemPath)}`) +
-      item("shem のバイナリ", `${await info("shem")}<br>ページのプレビューで PDF を PNG にする`, `<input class="field" data-path="shemPath" value="${esc(c.config.shemPath)}" placeholder="同梱">${buttons("shemPath", c.config.shemPath)}`),
+      item("Golem のバイナリ", `${await info("golem")}<br>空なら、同梱のもの、~/.local/bin、Homebrew、PATH の順に探す`, `<div class="binctl"><input class="field" data-path="golemPath" value="${esc(c.config.golemPath)}" placeholder="同梱">${buttons("golemPath", c.config.golemPath)}</div>`) +
+      item("shem のバイナリ", `${await info("shem")}<br>ページのプレビューで PDF を PNG にする`, `<div class="binctl"><input class="field" data-path="shemPath" value="${esc(c.config.shemPath)}" placeholder="同梱">${buttons("shemPath", c.config.shemPath)}</div>`),
     onClick: async (el, c) => {
       const d = deps(c);
       const reloaded = el.closest<HTMLElement>("[data-reload]")?.dataset.reload as Key | undefined;
