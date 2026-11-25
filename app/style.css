@@ -345,14 +345,14 @@ table.grid td:has(.chips) .cell { height: auto; font-size: 11px; color: var(--fa
 .item .binctl { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .item .binctl input.field { flex: 1 1 auto; width: auto; min-width: 0; }
 .item .binctl .btn { flex: none; }
+/* a button that cannot be pressed now, such as デフォルトに戻す without a saved path (docs/adr/0112) */
+.btn.disabled { opacity: 0.45; pointer-events: none; }
 .app-ico { width: 56px; height: 56px; }
 .toggle { width: 34px; height: 20px; border-radius: 10px; background: var(--bg-3); position: relative; cursor: default; flex: none; }
 .toggle::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); transition: left 0.12s; }
 .toggle.on { background: var(--accent); }
 .toggle.on::after { left: 16px; }
 /* notifications (docs/adr/0064): stacked at the bottom right, above the status bar */
-/* a button that cannot be pressed now, such as デフォルトに戻す without a saved path (docs/adr/0112) */
-.btn.disabled { opacity: 0.45; pointer-events: none; }
 .toasts { position: fixed; right: 12px; bottom: 34px; width: min(360px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; z-index: 40; pointer-events: none; }
 .toasts > * { pointer-events: auto; }
 .toasts .nt { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16); padding: 10px 10px 10px 12px; display: grid; grid-template-columns: 18px 1fr 16px; gap: 4px 8px; font-size: 12.5px; color: var(--text); }
