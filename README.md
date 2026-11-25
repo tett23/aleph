@@ -68,6 +68,8 @@ Select text in the editor to highlight up to 10,000 other exact, case-sensitive 
 
 In a project's `.gm` sheets, the editor wraps lines with the kinsoku (line-breaking) and hanging punctuation settings that Golem resolves from the project's `style.toml`, and it reads them again when you save `style.toml`. `.gm` sheets outside a project, `.md`, and `.txt` use Golem's defaults. This needs a Golem with the `kinsoku` command. The bundled Golem 0.1.0-rc4 does not have it, so choose a newer Golem in the settings; until then the editor uses the defaults.
 
+In the settings, each of the Golem and shem rows has “選択” (choose), “再読み込み” (reload) and “デフォルトに戻す” (back to default). After installing a new Golem at the same path, press “再読み込み” to use it without restarting Aleph: the language server connections start again with the new binary. “デフォルトに戻す” clears the path, so Aleph searches the bundled copy, `~/.local/bin`, Homebrew and PATH again.
+
 Choose the app's appearance under “一般” (General) → “外観” (Appearance) in the settings: “OS に合わせる” (match the OS, the default), “ライト” (light), or “ダーク” (dark). Light and dark stay fixed when the OS appearance changes. The saved choice applies to the main window and to the separate text preview, page preview, and plot windows. Windows opened later use it too, and it is kept after a restart. It changes only the app's colors, not the manuscript, the typesetting colors, or exported PDFs.
 
 In the text editor, press Escape or Control-E to dismiss suggestions. With suggestions closed, Control-E moves to the end of the logical line. Each shortcut’s context can be changed in the key binding settings.

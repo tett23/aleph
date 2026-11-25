@@ -91,6 +91,9 @@ export type Ctx = {
   renameReferencesHandled?: boolean;
   moveMetadataHandled?: boolean;
   resetLspAfterMove?: (projects: string[]) => void;
+  /** The Golem reload (docs/adr/0112): every project connection stopped, and the open LSP documents synced at once. */
+  stopAllLsp?: () => void;
+  syncLsp?: () => void;
   /** After sheets were rebound to moves made outside (docs/adr/0108): each project's connection hears the moves once, or starts again. */
   renamedOutside?: (moves: { from: string; to: string }[], before: string[], after: string[]) => Promise<void>;
   moveLocked?: (path: string) => boolean;
