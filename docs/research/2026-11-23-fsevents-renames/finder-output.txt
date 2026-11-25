@@ -1,0 +1,11 @@
+# probe.c watching the check workspace ($W) for 240 s, 2026-11-25. callback=3 is the Finder drag of $W/proj/chapters onto $W/proj/assets; callback=4 is the git commit of that state; callback=5 is Aleph writing manifest.toml after the reference update. Lines under $W/proj/build/ (golem build output) are left out.
+callback=1 id=2045802694 flags=0x1b500 renamed=0 own=0 fileID=438473018 $W/.DS_Store
+callback=2 id=2045804218 flags=0x11400 renamed=0 own=0 fileID=438473018 $W/.DS_Store
+callback=3 id=2045805443 flags=0x20800 renamed=1 own=0 fileID=438444555 $W/proj/chapters
+callback=3 id=2045805444 flags=0x20800 renamed=1 own=0 fileID=438444555 $W/proj/assets/chapters
+callback=4 id=2045805954 flags=0x18300 renamed=0 own=0 fileID=438473190 $W/.git/index.lock
+callback=5 id=2045815508 flags=0x1d900 renamed=1 own=0 fileID=438473537 $W/proj/.aleph-move-748-2
+callback=5 id=2045815509 flags=0x10800 renamed=1 own=0 fileID=438473537 $W/proj/manifest.toml
+callback=5 id=2045815510 flags=0x10800 renamed=1 own=0 fileID=438459579 $W/proj/manifest.toml
+callback=5 id=2045815513 flags=0x10800 renamed=1 own=0 fileID=438459579 $W/proj/.aleph-move-748-2
+callback=5 id=2045815517 flags=0x10a00 renamed=1 own=0 fileID=438459579 $W/proj/.aleph-move-748-3
