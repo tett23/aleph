@@ -1,6 +1,6 @@
 # ADR 0120: プラグインの権限をアプリ内で承認し、起動中だけ覚える
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
