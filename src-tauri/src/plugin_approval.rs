@@ -7,7 +7,7 @@ use std::sync::{Mutex, MutexGuard};
 use tauri::async_runtime::{channel, Receiver, Sender};
 use tauri::{AppHandle, Emitter, Manager, Webview};
 
-const SHEET_READ: &str = "シートの情報を読む";
+const SHEET_READ: &str = "シートの本文やパスを読む";
 const CHANGED: &str = "plugin-approval-changed";
 const INACTIVE: &str = "プラグインの通信路は無効です";
 
