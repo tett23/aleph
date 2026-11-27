@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { diffFrameHtml, validDiffOpen } from "./frame.ts";
+import { runInNewContext } from "node:vm";
+import { diffFrameHtml, validDiffKey, validDiffOpen } from "./frame.ts";
 import { diffDestination, openFromDiff } from "../docs.ts";
 import { api } from "../api.ts";
 import { initialState, reduce, type Action, type Doc, type State } from "../store.ts";
@@ -13,6 +14,15 @@ test("ADR 0115 I3, I4: diff frame accepts only a typed open request for an allow
   assert.equal(validDiffOpen({ type: "open-file", path: "chapter.md", newTab: true }, "/w", allowed), "/w/chapter.md");
   for (const request of [{ type: "open-file", path: "../../secret.md", newTab: false }, { type: "open-file", path: "other.md", newTab: false }, { type: "open-file", path: "chapter.md", newTab: "yes" }, { type: "run", path: "chapter.md", newTab: false }])
     assert.equal(validDiffOpen(request, "/w", allowed), null);
+});
+
+
+test("ADR 0115 I3, I4: diff keyboard messages have a typed, bounded shape", () => {
+  const key = { type: "app-key", key: "s", code: "KeyS", metaKey: true, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, isComposing: false };
+  assert.deepEqual(validDiffKey(key), key);
+  assert.equal(validDiffKey({ ...key, key: "x".repeat(1000) }), null);
+  assert.equal(validDiffKey({ ...key, metaKey: "yes" }), null);
+  assert.equal(validDiffKey({ ...key, type: "open-file" }), null);
 });
 
 test("ADR 0115 I1: diff content is rendered inside a restrictive document", () => {
@@ -32,6 +42,33 @@ test("ADR 0115 I3: the diff runtime hash matches the sandbox policy", () => {
   assert.match(config.app.security.csp, new RegExp(`sha256-${hash.replace(/[+/=]/g, "\\$&")}`));
   assert.match(config.app.security.devCsp, new RegExp(`sha256-${hash.replace(/[+/=]/g, "\\$&")}`));
   assert.doesNotMatch(runtime, /<\/script/i);
+});
+
+test("ADR 0115 I3: frame relays app keys while keeping copy, select all, arrows, and link Enter local", () => {
+  const source = readFileSync(new URL("./frame.ts", import.meta.url), "utf8");
+  const runtime = /const runtime = `([\s\S]*?)`;/m.exec(source)![1];
+  const windowHandlers = new Map<string, (event: any) => void>();
+  const documentHandlers = new Map<string, (event: any) => void>();
+  const parent = {};
+  const messages: unknown[] = [];
+  const window = { parent, addEventListener: (name: string, handler: (event: any) => void) => windowHandlers.set(name, handler) };
+  const document = { addEventListener: (name: string, handler: (event: any) => void) => documentHandlers.set(name, handler), querySelector: () => null, hasFocus: () => false };
+  runInNewContext(runtime, { window, document });
+  windowHandlers.get("message")!({ source: parent, data: { type: "init" }, ports: [{ postMessage: (message: unknown) => messages.push(message) }] });
+  const send = (key: string, link = false) => {
+    let prevented = false;
+    documentHandlers.get("keydown")!({ key, code: key === "s" ? "KeyS" : "", metaKey: true, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, isComposing: false, keyCode: 0, target: { closest: () => link ? { dataset: { open: "a.md" } } : null }, preventDefault: () => { prevented = true; } });
+    return prevented;
+  };
+  assert.equal(send("s"), true);
+  assert.equal(send("a"), false);
+  assert.equal(send("c"), false);
+  assert.equal(send("ArrowLeft"), false);
+  assert.equal(send("Enter", true), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(messages)), [
+    { type: "app-key", key: "s", code: "KeyS", metaKey: true, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, isComposing: false },
+    { type: "open-file", path: "a.md", newTab: false },
+  ]);
 });
 
 const sheet = (path: string): Doc => ({ path, kind: "md", text: "", saved: "", project: null, workspace: "/w", grid: { chars: 40, lines: 16, vertical: false } });

@@ -10,7 +10,7 @@ import { mountDiffFrame } from "./frame.ts";
 
 export const activeSnapshot = (s: State) => s.panes.flatMap((p) => p.tabs).find((t) => t.diff)?.snapshot;
 
-export const drawSnapshot = (ctx: Pick<Ctx, "store" | "editors" | "baseText">, head: HTMLElement, body: HTMLElement, snapshot: SheetSnapshot) => {
+export const drawSnapshot = (ctx: Pick<Ctx, "store" | "editors" | "baseText">, head: HTMLElement, body: HTMLElement, snapshot: SheetSnapshot, onRequest: (message: unknown) => void = () => {}) => {
   const { path, workspace } = snapshot;
   const name = workspace ? rel(workspace, path) : path;
   const timing = snapshot.reloaded ? "再読み込み時点" : "クリック時点";
@@ -31,7 +31,7 @@ export const drawSnapshot = (ctx: Pick<Ctx, "store" | "editors" | "baseText">, h
   const content = lines.length
     ? `<section class="dfile snapshot-diff">${omitted(omittedBefore, "前")}<pre>${html}</pre>${omitted(omittedAfter, "後")}</section>`
     : '<div class="muted dline">HEAD との差分はありません</div>';
-  mountDiffFrame(body, content, () => {});
+  mountDiffFrame(body, content, onRequest);
   head.append(note);
   head.onclick = null;
   let request = 0;
