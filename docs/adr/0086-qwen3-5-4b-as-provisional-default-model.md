@@ -1,6 +1,6 @@
 # ADR 0086: Qwen3.5-4B を、アシスタントの仮の既定のモデルにする
 
-Status: accepted
+Status: superseded [{"part":"利用時のコンテキスト長と資料上限","by":["docs/adr/0117-expand-assistant-context.md"]}]
 
 ## 文脈
 
