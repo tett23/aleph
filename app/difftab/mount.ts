@@ -5,6 +5,7 @@ import { activeSnapshot, drawSnapshot } from "./snapshot-view.ts";
 // exported for the assistant's tab of docs/adr/0081, which will call it before its "適用".
 import { addCommands } from "../commands.ts";
 import type { Ctx } from "../ctx.ts";
+import { diffDestination, openFromDiff } from "../docs.ts";
 import { esc } from "../esc.ts";
 import { commit, committed } from "../gitpanel.ts";
 import { icon } from "../icons.ts";
@@ -15,6 +16,7 @@ import { opensOnClick } from "../workspace.ts";
 import { applyDecision, commitMessage, hasChanges } from "./apply.ts";
 import { commitBeforeApplyDialog, irreversibleApplyDialog } from "./modal.ts";
 import { diffTextHtml } from "./text.ts";
+import { mountDiffFrame, revokeDiffFrame, validDiffOpen } from "./frame.ts";
 import { MAX_FILES, diffFiles, folderEntry, type DiffFile } from "./read.ts";
 
 /** The diffs read at the same time, at most. */
@@ -51,24 +53,23 @@ const headHtml = (ws: string, count: number | null, noHead: boolean) =>
     noHead ? `<small>コミットはまだありません</small>` : ""
   }<span class="sp"></span><span class="btn small" data-diff-reload title="読みなおす">${icon("refresh-cw", 12)} 再読み込み</span>`;
 
-/** The latest reading: a reading started later makes the results of the one before it thrown away. */
-let generation = 0;
+/** A newer reading of the same body makes its preceding result stale. */
+const generations = new WeakMap<HTMLElement, number>();
+const nextGeneration = (body: HTMLElement) => {
+  const value = (generations.get(body) ?? 0) + 1;
+  generations.set(body, value);
+  return value;
+};
 
 /** Reads the workspace's diff against HEAD and draws the diff tab's head and body. */
 const load = async (ctx: Ctx, head: HTMLElement, body: HTMLElement) => {
-  const mine = ++generation;
+  const mine = nextGeneration(body);
   head.classList.remove("snapshot-head");
-  const stale = () => mine !== generation;
+  const stale = () => mine !== generations.get(body) || !body.isConnected || !!body.closest<HTMLElement>(".tabview")?.hidden;
   const ws = ctx.store.get().workspace;
-  const line = (text: string) => void (body.innerHTML = `<div class="muted dline">${esc(text)}</div>`);
+  const line = (text: string) => void mountDiffFrame(body, `<div class="muted dline">${esc(text)}</div>`, () => {});
   head.onclick = (e) => {
     if (e.button === 0 && (e.target as HTMLElement).closest("[data-diff-reload]")) void load(ctx, head, body);
-  };
-  body.onclick = (e) => {
-    const p = (e.target as HTMLElement).closest<HTMLElement>("[data-open]")?.dataset.open;
-    const w = ctx.store.get().workspace;
-    // opened as from the tree: ⌥ for a new tab (docs/adr/0024)
-    if (e.button === 0 && p && w) void ctx.open([`${w}/${p}`], undefined, { newTab: e.altKey });
   };
   if (!ws) return void ((head.innerHTML = ""), line("ワークスペースがありません。"));
   const result = await (async () => {
@@ -91,7 +92,19 @@ const load = async (ctx: Ctx, head: HTMLElement, body: HTMLElement) => {
   const { files, moreFiles, entries, repo } = result;
   head.innerHTML = headHtml(ws, entries.length, !repo.hasHead);
   if (!files.length) return line("HEAD との差分はありません");
-  body.innerHTML = files.map(fileHtml).join("") + (moreFiles ? `<div class="muted dmore">ほか ${moreFiles} ファイル</div>` : "");
+  const allowed = new Set(files.filter((file) => file.openable && opensOnClick(file.path)).map((file) => file.path));
+  mountDiffFrame(body, files.map(fileHtml).join("") + (moreFiles ? `<div class="muted dmore">ほか ${moreFiles} ファイル</div>` : ""), (request) => {
+    const owner = body.closest<HTMLElement>(".tabview.diff-tab");
+    const current = () => !stale() && body.isConnected && !!owner && !owner.hidden && ctx.store.get().workspace === ws;
+    if (!current()) return;
+    const path = validDiffOpen(request, ws, allowed);
+    if (!path) return;
+    const sourcePane = Number(owner!.dataset.pane);
+    const sourceId = Number(owner!.dataset.tabId);
+    const plot = path.endsWith("/plot.csv") && ctx.projects.includes(path.slice(0, -"/plot.csv".length));
+    const destination = diffDestination(ctx.store.get(), sourcePane, sourceId, path, plot);
+    if (destination) void openFromDiff(ctx, path, ws, destination, (request as { newTab: boolean }).newTab, current);
+  });
 };
 
 /** The diff tab shown in its pane, read again; nothing when it is not shown. */
@@ -102,10 +115,12 @@ const reloadShown = (ctx: Ctx) => {
 };
 
 export const mountDiffTab = (ctx: Ctx) => {
+  ctx.view.pauseDiffTab = revokeDiffFrame;
+  ctx.view.closeDiffTab = revokeDiffFrame;
   ctx.view.diffTab = (head, body) => {
     const snapshot = activeSnapshot(ctx.store.get());
     if (snapshot) {
-      generation++;
+      nextGeneration(body);
       drawSnapshot(ctx, head, body, snapshot);
     } else {
       void load(ctx, head, body);

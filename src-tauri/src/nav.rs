@@ -11,7 +11,7 @@ pub fn navigation_allowed(url: &str, dev: Option<&str>) -> bool {
     own.iter().any(|b| under(b, url))
         || dev.is_some_and(|d| under(d, url))
         || url.starts_with("blob:")
-        || url == "about:blank"
+        || matches!(url, "about:blank" | "about:srcdoc")
 }
 
 /// The URL to give the browser: http and https with a host, nothing else.
@@ -24,6 +24,13 @@ pub fn web_url(s: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn adr0115_i3_allows_srcdoc_but_no_other_about_url() {
+        assert!(navigation_allowed("about:srcdoc", None));
+        assert!(!navigation_allowed("about:srcdoc?remote", None));
+        assert!(!navigation_allowed("about:config", None));
+    }
 
     #[test]
     fn only_the_apps_pages_and_the_dev_server_are_allowed() {

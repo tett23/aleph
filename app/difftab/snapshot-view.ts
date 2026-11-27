@@ -6,6 +6,7 @@ import { rel } from "../path.ts";
 import { allDocs, type State } from "../store.ts";
 import { snapshotDiff, type SheetSnapshot } from "./snapshot.ts";
 import { diffLineHtml } from "./text.ts";
+import { mountDiffFrame } from "./frame.ts";
 
 export const activeSnapshot = (s: State) => s.panes.flatMap((p) => p.tabs).find((t) => t.diff)?.snapshot;
 
@@ -27,18 +28,11 @@ export const drawSnapshot = (ctx: Pick<Ctx, "store" | "editors" | "baseText">, h
     const text = diffLineHtml(line);
     return i === target ? `<span data-snapshot-target>${text}</span>` : text;
   }).join("\n");
-  body.onclick = null;
-  body.innerHTML = lines.length
+  const content = lines.length
     ? `<section class="dfile snapshot-diff">${omitted(omittedBefore, "前")}<pre>${html}</pre>${omitted(omittedAfter, "後")}</section>`
     : '<div class="muted dline">HEAD との差分はありません</div>';
-  body.prepend(note);
-  body.scrollTop = 0;
-  const mark = body.querySelector("[data-snapshot-target]");
-  if (mark) {
-    const top = mark.getBoundingClientRect().top;
-    const view = body.getBoundingClientRect();
-    if (omittedBefore || top >= view.bottom) body.scrollTop = Math.max(0, top - view.top - body.clientHeight / 3);
-  }
+  mountDiffFrame(body, content, () => {});
+  head.append(note);
   head.onclick = null;
   let request = 0;
   const showNote = (message: string) => {
@@ -54,7 +48,7 @@ export const drawSnapshot = (ctx: Pick<Ctx, "store" | "editors" | "baseText">, h
     if (!editor || !doc) return closed();
     showNote("比較元を読み込み中…");
     const base = await ctx.baseText(doc).catch(() => false as const);
-    if (!note.isConnected || mine !== request || activeSnapshot(ctx.store.get()) !== snapshot) return;
+    if (!note.isConnected || head.closest<HTMLElement>(".tabview")?.hidden || mine !== request || activeSnapshot(ctx.store.get()) !== snapshot) return;
     if (ctx.editors.get(path) !== editor) return closed();
     if (base === false) return showNote("比較元を取得できません。");
     const text = editor.text();

@@ -9,20 +9,12 @@ import { basename } from "../path.ts";
 import { allDocs, focused, type State, shownDoc } from "../store.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { API_VERSION, createHost, type Current, type LoadResult } from "./host.ts";
-
-const importer = async (source: string) => {
-  const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
-  try {
-    return await import(/* @vite-ignore */ url);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-};
+import { spawnPlugin } from "./sandbox.ts";
 
 const current = (s: State, d = focused(s)): Current => (d ? { path: d.path, kind: d.kind, text: d.text, project: d.project } : null);
 
 export const mountPlugins = async (ctx: Ctx) => {
-  const host = createHost(ctx.toast, (m) => void ctx.notify({ message: m, level: "error", sticky: true }));
+  const host = createHost(ctx.toast, (m) => void ctx.notify({ message: m, level: "error", sticky: true }), spawnPlugin, () => ctx.refresh(["status"]));
   let dir = "";
   let results: LoadResult[] = [];
   let mine: Command[] = [];
@@ -31,7 +23,7 @@ export const mountPlugins = async (ctx: Ctx) => {
     dir = await api.pluginsDir().catch(() => "");
     const files = dir ? (await api.listDir(dir)).filter((p) => p.endsWith(".js")).sort() : [];
     const sources = await Promise.all(files.map(async (p) => ({ name: basename(p), source: await api.readText(p).catch(() => "") })));
-    results = await host.load(sources, ctx.config.disabledPlugins, importer);
+    results = await host.load(sources, ctx.config.disabledPlugins);
     // the menu's items follow what is loaded now
     for (const c of mine) ctx.commands.splice(ctx.commands.indexOf(c), 1);
     // ids plugin.<name>.<n> (docs/adr/0023); the name is the file's without .js, other characters as "-"
@@ -48,9 +40,10 @@ export const mountPlugins = async (ctx: Ctx) => {
 
   ctx.status.push((s) => host.status(current(s, shownDoc(s))).map((t) => `<span class="plg">${esc(t)}</span>`).join(""));
   ctx.store.subscribe((s, prev) => {
+    const shown = shownDoc(s);
     for (const d of allDocs(s)) {
       const before = allDocs(prev).find((x) => x.path === d.path);
-      if (before && before.saved !== d.saved) host.saved({ path: d.path, kind: d.kind, text: d.saved, project: d.project });
+      if (before && before.saved !== d.saved && shown?.path === d.path) host.saved({ path: d.path, kind: d.kind, text: d.saved, project: d.project });
     }
   });
 
@@ -65,7 +58,7 @@ export const mountPlugins = async (ctx: Ctx) => {
         `${esc(dir)}<br>.js（ES モジュール、activate(aleph) を書き出す）を「追加…」で選んで入れる。フォルダに置いたものも読みなおすと読む。API の版は ${API_VERSION}`,
         `<span class="btn" data-plg="install">追加…</span><span class="btn" data-plg="open">フォルダを開く</span><span class="btn" data-plg="reload">読みなおす</span>`,
       ) +
-      `<div class="warn-note">プラグインは Aleph と同じ権限で動き、ファイルを読み書きできます。自分で書いたか、読んで信頼したものだけを入れてください。</div>` +
+      `<div class="warn-note">プラグインは隔離した画面で動き、登録したコマンド、ステータス、保存通知だけを使います。</div>` +
       (results.length
         ? results
             .map((r) =>
