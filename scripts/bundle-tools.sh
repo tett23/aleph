@@ -12,6 +12,11 @@
 #   manual <file> <repo> <sha256>
 #       manual/chapters/<file> of <repo> at the tag of the golem row, checked
 #       against <sha256>; installs manual/<file>.
+#   manual-manifest <repo> <sha256>
+#   manual-label <label> <sha256> [<legacy-name>]
+#       Find the heading label in the pinned manual's chapters. Verify the
+#       manifest and selected original; install manual/labels/<label>.gm.
+#       An optional alias is also installed under manual/ for older readers.
 #   model <file> <repo> <revision> <sha256>
 #       <file> of the Hugging Face repository <repo> at <revision>, checked
 #       against <sha256>; installs models/<file>. A file already installed
@@ -63,7 +68,7 @@ mkdir -p "$stage"
 
 grep -v '^[[:space:]]*#' "$versions" | grep -v '^[[:space:]]*$' > "$work/rows" || true
 golem_tag=$(awk '$1 == "golem" { print $2; exit }' "$work/rows")
-if grep -q '^[[:space:]]*manual[[:space:]]' "$work/rows" && [ -z "$golem_tag" ]; then
+if grep -Eq '^[[:space:]]*manual(-manifest|-label)?[[:space:]]' "$work/rows" && [ -z "$golem_tag" ]; then
   echo "bundle-tools: manual rows need a golem row for the tag" >&2
   exit 64
 fi
@@ -129,6 +134,90 @@ chapter() { # file repo sha256
   echo "checked manual $1 $golem_tag"
 }
 
+# The manual's pinned manifest uses a top-level array of literal source paths.
+# Read that array and reject unsupported or non-relative source paths.
+manual_chapters() {
+  awk '
+    !active {
+      if ($0 ~ /^[[:space:]]*\[/) exit 1
+      if (!sub(/^[[:space:]]*chapters[[:space:]]*=[[:space:]]*\[/, "")) next
+      active = 1
+    }
+    active {
+      sub(/#.*/, "")
+      sub(/[[:space:]]*$/, "")
+      while (1) {
+        sub(/^[[:space:]]*/, "")
+        if ($0 == "") break
+        if ($0 == "]") { closed = 1; exit }
+        if (!match($0, /^"[^"]+"|^\047[^\047]+\047/)) exit 1
+        file = substr($0, 2, RLENGTH - 2)
+        $0 = substr($0, RLENGTH + 1)
+        if (file !~ /^[a-zA-Z0-9_.-]+(\/[a-zA-Z0-9_.-]+)*\.gm$/ ||
+            file ~ /(^|\/)\.\.?\// || seen[file]++) exit 1
+        print file
+        if (!sub(/^[[:space:]]*,/, "") && $0 !~ /^[[:space:]]*\]/) exit 1
+      }
+    }
+    END { if (!closed) exit 1 }
+  ' "$1"
+}
+
+bundle_labels() (
+  awk '$1 == "manual-label" { if (NF < 3 || NF > 4) exit 1; print $2, $3, $4 }' "$work/rows" > "$work/manual-pins" ||
+    fail "manual-label rows need a label, SHA-256 and optional legacy name"
+  [ -s "$work/manual-pins" ] || exit 0
+  manifest=$(awk '$1 == "manual-manifest" { if (NF != 3 || ++count > 1) exit 1; print $2, $3 }' "$work/rows") ||
+    fail "manual-label rows need exactly one manual-manifest repo SHA-256 row"
+  set -- $manifest
+  [ "$#" -eq 2 ] || fail "manual-label rows need one manual-manifest repo SHA-256 row"
+  manual_url="$raw/$1/$golem_tag/manual"
+  fetch "$manual_url/manifest.toml" "$work/manual-manifest"
+  check "$work/manual-manifest" "$2" "manual/manifest.toml"
+  manual_chapters "$work/manual-manifest" > "$work/manual-chapters" ||
+    fail "cannot read chapters in manual/manifest.toml"
+
+  mkdir -p "$work/manual-originals" "$stage/manual/labels"
+  i=0
+  while IFS= read -r source; do
+    i=$((i + 1))
+    file="$work/manual-originals/$i"
+    fetch "$manual_url/$source" "$file"
+    awk -v i="$i" '
+      /^[ ]*```/ {
+        match($0, /^ */)
+        if (!fenced) { fenced = 1; indent = RLENGTH; label = "" }
+        else if (RLENGTH == indent && $0 ~ /^ *```[[:blank:]]*$/) fenced = 0
+        next
+      }
+      fenced { next }
+      /^@label[[:space:]]/ && NF == 2 { label = $2; next }
+      /^#+[[:space:]]/ && label != "" && !seen[label]++ { print label, i }
+      !/^[[:space:]]*($|%%)|^@[a-z-]+/ { label = "" }
+    ' "$file"
+  done < "$work/manual-chapters" > "$work/manual-labels"
+
+  while read -r label digest alias; do
+    case "$label" in ""|*[!a-zA-Z0-9_-]*) fail "invalid manual label: $label";; esac
+    source=$(awk -v label="$label" '$1 == label { print $2 }' "$work/manual-labels")
+    set -- $source
+    case $# in
+      0) fail "manual label $label is missing";;
+      1) ;;
+      *) fail "manual label $label occurs in multiple originals";;
+    esac
+    check "$work/manual-originals/$1" "$digest" "manual label $label"
+    cp "$work/manual-originals/$1" "$stage/manual/labels/$label.gm"
+    case "$alias" in
+      "") ;;
+      .*|*[!a-zA-Z0-9_.-]*) fail "invalid manual alias: $alias";;
+      *.gm) cp "$work/manual-originals/$1" "$stage/manual/$alias";;
+      *) fail "invalid manual alias: $alias";;
+    esac
+    echo "checked manual label $label $golem_tag"
+  done < "$work/manual-pins"
+)
+
 # <file> of the Hugging Face repository <repo> at <revision>, checked against
 # the SHA-256 given; the installed copy when it matches
 model() { # file repo revision sha256
@@ -149,11 +238,13 @@ model() { # file repo revision sha256
 while read -r first second rest; do
   set -f; set -- $rest; set +f
   if [ "$first" = manual ]; then chapter "$second" "$@"
+  elif [ "$first" = manual-label ] || [ "$first" = manual-manifest ]; then :
   elif [ "$first" = model ]; then
     if [ -n "$skip_models" ]; then echo "skipped model $second"; else model "$second" "$@"; fi
   elif [ $# -eq 1 ]; then released "$first" "$second" "$1"
   else pinned "$first" "$second" "$@"; fi
 done < "$work/rows"
+bundle_labels
 
 # all checked: install them together, replacing the directories; moved, not
 # copied, as the stage goes anyway and a model is large

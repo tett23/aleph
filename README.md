@@ -76,6 +76,8 @@ The assistant in the bottom panel takes a request in plain words, such as "widen
 Choose “原稿全体” (Whole manuscript) to review the chapters in manifest order. Aleph splits manuscripts that exceed the available context and reports any passages it could not process. The local connector selects its context length automatically, within the limit you set.
 By default the assistant runs Qwen3.5-4B on your Mac with the bundled `llama-server`, and sends nothing outside. The other three models of the list can be downloaded from the settings. Claude Code and Codex can also be chosen when they are installed; they send the request, the target text and the manual excerpts to Anthropic or OpenAI with your own account, so Aleph asks once before using each. If they fail, Aleph asks the local model instead and says so.
 
+Choose “ローカルを準備” (Prepare local) to load the bundled Golem material, including Emet and the diagnostic-code index, before the first request. Local Qwen can reference text files in the project of the selected sheet. The response shows the relative paths and line ranges it used.
+
 Select text in the editor to highlight up to 10,000 other exact, case-sensitive matches in the same sheet. Matches can occur inside words, and selections can include spaces and line breaks. The match outlines update without moving or rewrapping the text.
 
 In a project's `.gm` sheets, the editor wraps lines with the kinsoku (line-breaking) and hanging punctuation settings that Golem resolves from the project's `style.toml`, and it reads them again when you save `style.toml`. `.gm` sheets outside a project, `.md`, and `.txt` use Golem's defaults. This needs a Golem with the `kinsoku` command. The bundled Golem 0.1.0-rc4 does not have it, so choose a newer Golem in the settings; until then the editor uses the defaults.
@@ -118,7 +120,7 @@ npm ci
 npx tauri dev
 ```
 
-To build the app with golem, shem, llama-server and the default model of the assistant (Qwen3.5-4B, about 2.7 GB to download), and the chapters of the Golem manual inside it:
+To build the app with golem, shem, llama-server, the default assistant model (Qwen3.5-4B, about 2.7 GB to download), and the Golem manual inside it:
 
 ```sh
 sh scripts/bundle-tools.sh

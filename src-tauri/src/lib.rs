@@ -2,6 +2,10 @@
 //! needs (docs/adr/0003). Each concern is a module with its own tests.
 
 mod assistant;
+mod assistant_manual;
+mod assistant_project;
+#[cfg(test)]
+mod assistant_trial;
 mod chapter_export;
 mod connectors;
 mod dropcopy;
@@ -1177,6 +1181,73 @@ fn assistant_manual(app: AppHandle, chapter: String) -> R<String> {
     std::fs::read_to_string(dir.join("manual").join(file)).map_err(err)
 }
 
+fn local_manual(app: &AppHandle) -> R<assistant_manual::Manual> {
+    let resources = roots(app)
+        .resources
+        .ok_or("アプリのリソースのフォルダがありません")?;
+    assistant_manual::Manual::load(&resources)
+}
+
+fn local_context_cap(app: &AppHandle) -> u32 {
+    kept_config(app)
+        .get("assistantContextLimit")
+        .and_then(|v| v.as_u64())
+        .and_then(|n| u32::try_from(n).ok())
+        .filter(|n| llama::CONTEXT_CHOICES.contains(n))
+        .unwrap_or(llama::CONTEXT_CHOICES[5])
+}
+
+fn assistant_project_for(
+    app: &AppHandle,
+    target: &Path,
+    snapshots: Vec<assistant_project::Snapshot>,
+) -> R<Option<assistant_project::Project>> {
+    let config = kept_config(app);
+    let workspace_roots: Vec<PathBuf> = config
+        .get("workspaces")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .map(PathBuf::from)
+        .collect();
+    assistant_project::Project::for_sheet(&workspace_roots, target, snapshots)
+}
+
+#[tauri::command]
+async fn assistant_prepare_local(app: AppHandle, webview: tauri::Webview) -> R<()> {
+    tab_ipc::host(&webview)?;
+    blocking(move || {
+        let (_, model, bin) = local_paths(&app)?;
+        let manual = local_manual(&app)?;
+        app.state::<llama::Local>().prepare_manual(
+            &bin,
+            &model,
+            &std::env::temp_dir(),
+            local_context_cap(&app),
+            manual.fixed(),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+async fn assistant_project_source(
+    app: AppHandle,
+    webview: tauri::Webview,
+    target: PathBuf,
+    name: String,
+    snapshots: Vec<assistant_project::Snapshot>,
+) -> R<String> {
+    tab_ipc::host(&webview)?;
+    blocking(move || {
+        assistant_project_for(&app, &target, snapshots)?
+            .ok_or("対象シートに Golem プロジェクトがありません")?
+            .read_source(&name)
+    })
+    .await
+}
+
 /// golem check --format json of each text in place of `file`, in a copy of
 /// `project` in the cache; the project is not touched, and nothing goes to the
 /// problems tab. Off the main thread (docs/adr/0062).
@@ -1286,18 +1357,41 @@ fn assistant_revoke(app: AppHandle, connector: String) -> R<()> {
     write_config(&app, next).map(|_| ())
 }
 
-/// Asks the connector `connector` with the messages of app/assistant/prompt.ts.
-/// Claude Code and Codex run only after the writer approves them (I6); when
-/// they fail, the local connector is asked once and the answer says why (I8).
-/// Off the main thread (docs/adr/0062).
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistantReference {
+    target: PathBuf,
+    snapshots: Vec<assistant_project::Snapshot>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistantResponse {
+    #[serde(flatten)]
+    answered: connectors::Answered,
+    references: Vec<String>,
+    reference_notes: Vec<String>,
+    manual_full: Option<bool>,
+    manual_note: Option<String>,
+}
+
+/// Asks the connector with the messages of app/assistant/prompt.ts.
+/// External connectors still use the approval and fallback of ADR 0081.
 #[tauri::command]
 async fn assistant_ask(
     app: AppHandle,
+    webview: tauri::Webview,
     connector: connectors::Connector,
     messages: Vec<llama::Message>,
     material: Option<Vec<String>>,
     manuscript: Option<bool>,
-) -> R<connectors::Answered> {
+    source_file: Option<String>,
+    reference: Option<AssistantReference>,
+    preparation: tauri::ipc::Channel<bool>,
+) -> R<AssistantResponse> {
+    if reference.is_some() {
+        tab_ipc::host(&webview)?;
+    }
     blocking(move || {
         let bin = connector_path(&app, connector);
         if connector != connectors::Connector::Local && bin.is_none() {
@@ -1311,7 +1405,11 @@ async fn assistant_ask(
         } else {
             connectors::TIMEOUT
         };
-        connectors::ask_with_material(
+        let mut references = Vec::new();
+        let mut reference_notes = Vec::new();
+        let mut manual_full = None;
+        let mut manual_note = None;
+        let answered = connectors::ask_with_material(
             connector,
             approved,
             bin.as_deref(),
@@ -1324,32 +1422,117 @@ async fn assistant_ask(
             },
             |_| {
                 let (model, path, server) = local_paths(&app)?;
-                let cap = kept_config(&app)
-                    .get("assistantContextLimit")
-                    .and_then(|v| v.as_u64())
-                    .and_then(|n| u32::try_from(n).ok())
-                    .filter(|n| llama::CONTEXT_CHOICES.contains(n))
-                    .unwrap_or(llama::CONTEXT_CHOICES[5]);
-                let answer = app.state::<llama::Local>().ask_sized(
+                let file = source_file.as_deref().unwrap_or_default();
+                let manual = if golem_assistant_file(file) {
+                    match local_manual(&app) {
+                        Ok(manual) => Some(manual),
+                        Err(error) => {
+                            manual_note = Some(format!(
+                                "Golem の先読み資料を開けませんでした。利用できる資料で回答しました。 {error}"
+                            ));
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+                let project = match reference
+                    .filter(|_| allows_assistant_project_reference(connector, &model.id))
+                    .map(|reference| {
+                        assistant_project_for(&app, &reference.target, reference.snapshots)
+                    })
+                    .transpose()
+                {
+                    Ok(project) => project.flatten(),
+                    Err(error) => {
+                        reference_notes.push(format!(
+                            "対象プロジェクトの資料を開けませんでした。 {error}"
+                        ));
+                        None
+                    }
+                };
+                let query = messages
+                    .last()
+                    .map_or("", |message| message.content.as_str());
+                let mut supplemental: Vec<_> = sections.iter().take(1).cloned().collect();
+                let mut fallback = supplemental.clone();
+                if let Some(manual) = &manual {
+                    supplemental.extend(manual.supplemental(file, query));
+                    fallback.extend(manual.relevant(file, query));
+                } else {
+                    fallback = sections.clone();
+                }
+                let local = app.state::<llama::Local>();
+                let answer = local.ask_local_with_progress(
                     &server,
                     &path,
                     &std::env::temp_dir(),
-                    cap,
+                    local_context_cap(&app),
                     llama::SizedRequest {
                         messages: &messages,
-                        sections: &sections,
+                        sections: &fallback,
                         manuscript,
                     },
+                    llama::LocalMaterial {
+                        fixed: manual.as_ref().map_or("", assistant_manual::Manual::fixed),
+                        supplemental: &supplemental,
+                    },
+                    project.as_ref(),
+                    |preparing| {
+                        let _ = preparation.send(preparing);
+                    },
                 )?;
-                Ok((answer, model.name))
+                references = answer.references;
+                reference_notes.extend(answer.reference_notes);
+                if answer.manual_note.is_some() {
+                    manual_note = answer.manual_note;
+                }
+                manual_full = manual.map(|_| answer.manual_full);
+                Ok((answer.answer, model.name))
             },
-        )
+        )?;
+        Ok(AssistantResponse {
+            answered,
+            references,
+            reference_notes,
+            manual_full,
+            manual_note,
+        })
     })
     .await
 }
 
+fn allows_assistant_project_reference(connector: connectors::Connector, model_id: &str) -> bool {
+    connector == connectors::Connector::Local && model_id.starts_with("qwen")
+}
+
+fn golem_assistant_file(file: &str) -> bool {
+    let name = file
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    name.ends_with(".gm")
+        || name.ends_with(".emet")
+        || matches!(
+            name.as_str(),
+            "manifest.toml" | "style.toml" | "preflight.toml"
+        )
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn adr0122_i3_project_reads_require_a_direct_local_qwen_request() {
+        use crate::connectors::Connector;
+
+        let allowed = super::allows_assistant_project_reference;
+        assert!(allowed(Connector::Local, "qwen3.5-4b"));
+        assert!(!allowed(Connector::Local, "another-model"));
+        assert!(!allowed(Connector::Codex, "qwen3.5-4b"));
+        assert!(!allowed(Connector::Claude, "qwen3.5-4b"));
+    }
+
     #[test]
     fn work_off_the_main_thread_gives_what_it_gave_before() {
         // docs/adr/0062: a program run in spawn_blocking returns the same Out, and errors stay errors
@@ -1945,6 +2128,8 @@ pub fn run_app() {
             assistant_revoke,
             assistant_ask,
             assistant_manual,
+            assistant_prepare_local,
+            assistant_project_source,
             assistant_golem_check
         ])
         .build(tauri::generate_context!())

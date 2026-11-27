@@ -4,7 +4,7 @@
 // files. An answer shows its explanation, the changed lines, 「適用」 and 「捨てる」, and the connector,
 // the model and the time it took. 「適用」 runs the step of docs/adr/0088 before changing the editor;
 // nothing touches the sheet or its file before it (I4).
-import { api, type Answered, type ConnectorId, type ConnectorInfo } from "../api.ts";
+import { api, type Answered, type AssistantReference, type ConnectorId, type ConnectorInfo } from "../api.ts";
 import { addCommands } from "../commands.ts";
 import type { Ctx } from "../ctx.ts";
 import { prepareApply } from "../difftab/mount.ts";
@@ -40,6 +40,7 @@ type Entry = {
   outcome: Outcome<Answered> | null;
   /** Why 「適用」 did not apply, shown under the buttons. */
   note: string;
+  preparing?: boolean;
   requireVersion?: boolean;
 };
 
@@ -50,6 +51,8 @@ let chosen: ConnectorId = "local";
 let wholeManuscript = false;
 let connectors: ConnectorInfo[] = [];
 let root: HTMLElement | null = null;
+let preparing = false;
+let localStatus = "";
 
 /** The chapters of the manual, split into sections once; none when the chapter is not bundled. */
 const chapters = new Map<string, Promise<Section[]>>();
@@ -89,6 +92,8 @@ const diffHtml = (lines: DiffLine[]) =>
   `<pre class="as-diff" data-response-text>${lines.map((l) => (l.op === "…" ? `<span class="d-gap">…</span>` : `<span class="${l.op === "+" ? "d-add" : l.op === "-" ? "d-del" : ""}">${esc(l.op + l.text)}</span>`)).join("\n")}</pre>`;
 
 const copyAnswerButton = '<button type="button" class="btn small copy-text" data-copy-answer>応答をコピー</button>';
+const manualNoteOf = (answer: Answered) =>
+  answer.manualNote ?? (answer.manualFull === false ? "コンテキストに収まるマニュアルの節を使いました。" : "");
 
 const checkHtml = (o: Outcome<Answered>) => {
   const c = o.check;
@@ -115,14 +120,18 @@ const answerHtml = (e: Entry) => {
   const done = e.state === "applied" ? `<div class="as-note muted">適用しました。</div>` : e.state === "discarded" ? `<div class="as-note muted">捨てました。</div>` : "";
   const note = e.note ? `<div class="as-note as-warn" data-response-text>${esc(e.note)}</div>` : "";
   const meta = `<small class="as-meta">${esc(connectorName(a.connector))}${a.model ? ` · ${esc(a.model)}` : ""} · ${seconds(a.ms)}</small>`;
-  const content = explanation + fallback + reason + checkHtml(o) + diff;
+  const manualNote = manualNoteOf(a);
+  const manual = manualNote ? `<div class="as-note muted" data-response-text>${esc(manualNote)}</div>` : "";
+  const references = a.references?.length ? `<div class="as-note muted" data-response-text>参照したファイル ${a.references.map(esc).join("、")}</div>` : "";
+  const referenceNotes = a.referenceNotes?.map((note) => `<div class="as-note muted" data-response-text>${esc(note)}</div>`).join("") ?? "";
+  const content = explanation + fallback + manual + references + referenceNotes + reason + checkHtml(o) + diff;
   return content + buttons + done + note + meta + (content || note ? `<div class="as-btns">${copyAnswerButton}</div>` : "");
 };
 
 const entryHtml = (e: Entry) =>
   `<div class="as-entry" data-e="${e.id}"><div class="as-req"><div class="as-text">${esc(e.request)}</div><small>${esc(e.file)} · ${esc(e.target)} · ${esc(connectorName(e.connector))}</small></div><div class="as-ans">${
     e.state === "asking"
-      ? `<div class="muted">${esc(e.note || "答えを待っています…")}</div>`
+      ? `<div class="muted" role="status">${esc(e.preparing ? "Golem の資料を読み込み中…" : e.note || "答えを待っています…")}</div>`
       : e.state === "failed"
         ? `<div class="as-note as-warn" data-response-text>${icon("circle-x", 12)}${esc(e.error)}</div>${e.error.trim() ? `<div class="as-btns">${copyAnswerButton}</div>` : ""}`
         : answerHtml(e)
@@ -152,15 +161,62 @@ const drawForm = () => {
   sel.innerHTML = connectorChoices(connectors)
     .map((c) => `<option value="${c.id}" ${c.id === chosen ? "selected" : ""}>${esc(c.name)}${c.approved ? "" : "（初めて使うときに承認を求めます）"}</option>`)
     .join("");
+  drawLocalStatus();
   drawTarget();
+};
+
+const drawLocalStatus = () => {
+  const local = chosen === "local";
+  const button = root?.querySelector<HTMLButtonElement>("[data-prepare-local]");
+  const status = root?.querySelector<HTMLElement>("[data-local-status]");
+  if (button) {
+    button.hidden = !local;
+    button.disabled = preparing;
+  }
+  if (status) {
+    status.hidden = !local || localStatus === "";
+    status.textContent = localStatus;
+  }
+};
+
+const prepareLocal = async () => {
+  if (preparing) return;
+  preparing = true;
+  localStatus = "Golem の資料を読み込み中…";
+  drawLocalStatus();
+  try {
+    await api.assistantPrepareLocal();
+    localStatus = "Golem の資料を読み込みました。";
+  } catch (error) {
+    localStatus = String(error);
+  } finally {
+    preparing = false;
+    drawLocalStatus();
+  }
+};
+
+const projectReference = (ctx: Ctx, target: Doc, connector: ConnectorId): AssistantReference | undefined =>
+  connector === "local"
+    ? { target: target.path, snapshots: target.project === null ? [] : allDocs(ctx.store.get()).filter((d) => d.project === target.project)
+      .map((d) => ({ path: d.path, text: ctx.editors.get(d.path)?.text() ?? d.text })) }
+    : undefined;
+
+const preparationOf = (entry: Entry) => (preparing: boolean) => {
+  if (entry.state !== "asking" || (entry.preparing ?? false) === preparing) return;
+  entry.preparing = preparing;
+  drawHistory();
 };
 
 const answerForManuscript = async (ctx: Ctx, entry: Entry, doc: Doc) => {
   const loaded = new Map(allDocs(ctx.store.get()).map((sheet) => [sheet.path, ctx.editors.get(sheet.path)?.text() ?? sheet.text]));
+  const reference = projectReference(ctx, doc, entry.connector);
+  const read = (path: string) => reference && doc.project
+    ? api.assistantProjectSource(reference.target, rel(doc.project, path), reference.snapshots.filter((snapshot) => snapshot.path === path))
+    : loaded.has(path) ? Promise.resolve(loaded.get(path)!) : api.readText(path);
   let paths = [doc.path];
   if (doc.project) {
     const project = doc.project;
-    const chapterNames = manifestChapters(loaded.get(`${project}/manifest.toml`) ?? await api.readText(`${project}/manifest.toml`));
+    const chapterNames = manifestChapters(await read(`${project}/manifest.toml`));
     paths = [...new Set(chapterNames.map((name) => {
       const path = within(project, project, name);
       if (!path) throw new Error(`プロジェクト内の章を指定してください。 ${name}`);
@@ -171,7 +227,7 @@ const answerForManuscript = async (ctx: Ctx, entry: Entry, doc: Doc) => {
   const fileToPath = new Map(paths.map((path) => [doc.project ? rel(doc.project, path) : entry.file, path]));
   const unavailable: string[] = [];
   const candidates = await Promise.all([...fileToPath].map(async ([file, path]) => {
-    try { return { file, text: loaded.get(path) ?? await api.readText(path) }; }
+    try { return { file, text: await read(path) }; }
     catch (error) { return { file, error: String(error) }; }
   }));
   const chapters = candidates.flatMap((chapter) => {
@@ -182,6 +238,9 @@ const answerForManuscript = async (ctx: Ctx, entry: Entry, doc: Doc) => {
   if (!chapters.length) throw new Error(unavailable.join("\n"));
   const started = performance.now();
   let answered: Answered | undefined;
+  const references = new Set<string>();
+  const referenceNotes = new Set<string>();
+  const manualNotes = new Set<string>();
   const result = await runManuscript(chapters, async (ranges, reconciliation) => {
     const file = ranges[0]?.file ?? chapters[0].file;
     const body = reconciliation
@@ -190,7 +249,11 @@ const answerForManuscript = async (ctx: Ctx, entry: Entry, doc: Doc) => {
     const request = reconciliation ? `${entry.request}\n章ごとの結果を照合し、章をまたぐ違いと比較できた範囲を説明してください。元の原稿にあったと確かめられない文字の編集案は出さないでください。` : entry.request;
     const prompt = messages("", request, file, body);
     prompt[0].content += "\n\n原稿の各章は、章のパスと本文で示す。編集案では file、find、replace を返し、file には対象の章のパスをそのまま書く。";
-    const answer = await api.assistantAsk(entry.connector, prompt, await materialOf(ctx, request, file, body), true);
+    const answer = await api.assistantAsk(entry.connector, prompt, await materialOf(ctx, request, file, body), true, file, reference, preparationOf(entry));
+    answer.references?.forEach((path) => references.add(path));
+    answer.referenceNotes?.forEach((note) => referenceNotes.add(note));
+    const manualNote = manualNoteOf(answer);
+    if (manualNote) manualNotes.add(manualNote);
     const parsed = parseManuscriptAnswer(answer.answer);
     answered = answer;
     return parsed;
@@ -204,7 +267,7 @@ const answerForManuscript = async (ctx: Ctx, entry: Entry, doc: Doc) => {
     ...result.rejected,
   ].filter(Boolean).join("\n\n");
   if (!answered) throw new Error(explanation);
-  const base = { ...answered, ms: Math.round(performance.now() - started) };
+  const base = { ...answered, references: [...references], referenceNotes: [...referenceNotes], manualNote: [...manualNotes].join(" "), ms: Math.round(performance.now() - started) };
   entry.outcome = { answered: base, answer: { explanation, edits: [] }, after: null, reason: null, check: null };
   entry.note = "";
   const childEntries = result.chapters.flatMap((chapter): Entry[] => {
@@ -235,17 +298,20 @@ const send = async (ctx: Ctx) => {
   const project = doc.project;
   try {
     if (whole) await answerForManuscript(ctx, e, doc);
-    else e.outcome = await askChecked({
-      ask: async (r) => {
-        const body = targetText(target, sheet);
-        return api.assistantAsk(connector, messages("", r, file, body), await materialOf(ctx, r, file, body));
-      },
-      request,
-      sheet,
-      target,
-      file: checkedFile(doc),
-      check: async (texts) => (project ? api.assistantGolemCheck(project, doc.path, texts).then((outs) => outs.map(checkDiagnostics), () => texts.map(() => null)) : texts.map(() => null)),
-    });
+    else {
+      const reference = projectReference(ctx, doc, connector);
+      e.outcome = await askChecked({
+        ask: async (r) => {
+          const body = targetText(target, sheet);
+          return api.assistantAsk(connector, messages("", r, file, body), await materialOf(ctx, r, file, body), false, file, reference, preparationOf(e));
+        },
+        request,
+        sheet,
+        target,
+        file: checkedFile(doc),
+        check: async (texts) => (project ? api.assistantGolemCheck(project, doc.path, texts).then((outs) => outs.map(checkDiagnostics), () => texts.map(() => null)) : texts.map(() => null)),
+      });
+    }
     e.state = "answered";
   } catch (err) {
     e.state = "failed";
@@ -302,7 +368,8 @@ const build = (ctx: Ctx) => {
     <div class="as-form">
       <div class="as-target muted"></div>
       <textarea class="field wide" rows="3" placeholder="頼みを書く（⌘↩ で送る）"></textarea>
-      <div class="row"><select class="field" data-assistant-target aria-label="対象"><option value="sheet">選択中のシート</option><option value="manuscript">原稿全体</option></select><span class="muted">コネクタ</span><select class="field" data-connector title="コネクタ"></select><span class="grow"></span><span class="btn pri" data-send title="送る（⌘↩）">送る</span></div>
+      <div class="row"><select class="field" data-assistant-target aria-label="対象"><option value="sheet">選択中のシート</option><option value="manuscript">原稿全体</option></select><span class="muted">コネクタ</span><select class="field" data-connector title="コネクタ"></select><button type="button" class="btn" data-prepare-local>ローカルを準備</button><span class="grow"></span><span class="btn pri" data-send title="送る（⌘↩）">送る</span></div>
+      <div class="muted" data-local-status role="status" hidden></div>
     </div>`;
   const field = el.querySelector("textarea")!;
   field.addEventListener("keydown", (k) => {
@@ -314,7 +381,10 @@ const build = (ctx: Ctx) => {
   field.addEventListener("focus", drawTarget);
   el.addEventListener("change", (k) => {
     const t = k.target as HTMLSelectElement;
-    if (t.dataset.connector !== undefined) chosen = t.value as ConnectorId;
+    if (t.dataset.connector !== undefined) {
+      chosen = t.value as ConnectorId;
+      drawLocalStatus();
+    }
     if (t.dataset.assistantTarget !== undefined) {
       wholeManuscript = t.value === "manuscript";
       drawTarget();
@@ -327,8 +397,9 @@ const build = (ctx: Ctx) => {
       void copyText(displayedSections(blocks.map((block) => block.innerText)));
       return;
     }
-    const t = (k.target as HTMLElement).closest<HTMLElement>("[data-send],[data-apply],[data-discard]");
+    const t = (k.target as HTMLElement).closest<HTMLElement>("[data-send],[data-apply],[data-discard],[data-prepare-local]");
     if (!t) return;
+    if (t.dataset.prepareLocal !== undefined) return void prepareLocal();
     if (t.dataset.send !== undefined) return void send(ctx);
     const e = history.find((x) => x.id === Number(t.dataset.apply ?? t.dataset.discard));
     if (!e || e.state !== "answered") return;

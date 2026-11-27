@@ -6,6 +6,8 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+mod local_request;
+
 /// The context length of the local connector (docs/adr/0086).
 pub const CONTEXT: u32 = 4096;
 /// The tokens left for the answer (docs/adr/0081, アシスタントに渡す資料).
@@ -325,7 +327,7 @@ fn ask_with_limit(
     .and_then(|b| answer_with_limit(&b, limit))
 }
 
-fn tokenize(socket: &Path, content: &str, special: bool) -> Result<usize, String> {
+fn token_ids(socket: &Path, content: &str, special: bool) -> Result<Vec<u32>, String> {
     let body =
         serde_json::json!({ "content": content, "add_special": special, "parse_special": special });
     let b = ok_body(call(
@@ -335,21 +337,30 @@ fn tokenize(socket: &Path, content: &str, special: bool) -> Result<usize, String
         Some(&body.to_string()),
         ANSWER_TIMEOUT,
     )?)?;
-    let v: serde_json::Value = serde_json::from_str(&b).map_err(|e| e.to_string())?;
-    v["tokens"]
-        .as_array()
-        .map(|t| t.len())
-        .ok_or_else(|| "llama-server の /tokenize の答えに tokens がありません".into())
+    #[derive(serde::Deserialize)]
+    struct Tokens {
+        tokens: Vec<u32>,
+    }
+    serde_json::from_str::<Tokens>(&b)
+        .map(|result| result.tokens)
+        .map_err(|e| format!("llama-server の /tokenize の答えが不正です：{e}"))
 }
 
 /// The tokens of each text, as the material counts them (docs/adr/0081).
 pub fn count(socket: &Path, texts: &[String]) -> Result<Vec<usize>, String> {
-    texts.iter().map(|t| tokenize(socket, t, false)).collect()
+    texts
+        .iter()
+        .map(|t| token_ids(socket, t, false).map(|ids| ids.len()))
+        .collect()
 }
 
 /// The tokens of the messages rendered with the chat template: the fixed part
 /// when the material is empty (docs/adr/0086).
 pub fn template_count(socket: &Path, messages: &[Message]) -> Result<usize, String> {
+    template_tokens(socket, messages).map(|ids| ids.len())
+}
+
+fn template_tokens(socket: &Path, messages: &[Message]) -> Result<Vec<u32>, String> {
     let body = serde_json::json!({ "messages": messages, "chat_template_kwargs": { "enable_thinking": false } });
     let b = ok_body(call(
         socket,
@@ -362,7 +373,7 @@ pub fn template_count(socket: &Path, messages: &[Message]) -> Result<usize, Stri
     let prompt = v["prompt"]
         .as_str()
         .ok_or("llama-server の /apply-template の答えに prompt がありません")?;
-    tokenize(socket, prompt, true)
+    token_ids(socket, prompt, true)
 }
 
 /// A running llama-server.
@@ -372,6 +383,7 @@ struct Running {
     socket: PathBuf,
     model: PathBuf,
     context: u32,
+    manual_digest: Option<String>,
 }
 
 #[derive(Default)]
@@ -435,6 +447,7 @@ fn start(bin: &Path, model: &Path, tmp: &Path, context: u32) -> Result<Running, 
         socket,
         model: model.to_path_buf(),
         context,
+        manual_digest: None,
     };
     let deadline = Instant::now() + START_TIMEOUT;
     loop {
@@ -519,6 +532,8 @@ impl Local {
         out
     }
 
+    // Baseline inference kept for comparisons with the preloaded manual.
+    #[cfg(test)]
     pub fn ask_sized(
         &self,
         bin: &Path,
@@ -628,6 +643,19 @@ pub struct SizedRequest<'a> {
     pub messages: &'a [Message],
     pub sections: &'a [String],
     pub manuscript: bool,
+}
+
+pub struct LocalMaterial<'a> {
+    pub fixed: &'a str,
+    pub supplemental: &'a [String],
+}
+
+pub struct LocalAnswer {
+    pub answer: String,
+    pub references: Vec<String>,
+    pub reference_notes: Vec<String>,
+    pub manual_full: bool,
+    pub manual_note: Option<String>,
 }
 
 #[cfg(test)]

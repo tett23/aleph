@@ -173,6 +173,59 @@ test("manual rows without a golem row are a usage error", () => {
   assert.match(r.stderr, /golem row/);
 });
 
+const labeledManual = (base: string, files: Record<string, string>, entries: string[]) => {
+  const folder = join(base, "tett23", "golem", "v1", "manual");
+  mkdirSync(folder, { recursive: true });
+  const manifest = join(folder, "manifest.toml");
+  writeFileSync(manifest, `chapters = [${entries.map((entry) => JSON.stringify(entry)).join(",\n")}] # manual\n`);
+  for (const [name, body] of Object.entries(files)) {
+    const file = join(folder, name);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, body);
+  }
+  return `manual-manifest tett23/golem ${sha256(manifest)}\n`;
+};
+
+test("ADR 0121 I6: the pinned manual is selected by label after moving and renaming a chapter", () => {
+  const base = mkdtempSync(join(tmpdir(), "aleph-base-"));
+  const raw = mkdtempSync(join(tmpdir(), "aleph-raw-"));
+  const wanted = "@nonumber\n@label app-emet\n# Emet\n";
+  const digest = createHash("sha256").update(wanted).digest("hex");
+  const manifest = labeledManual(raw, {
+    "moved/other-name.gm": wanted,
+    "first.gm": "@label another\n# First\n```text\n```not-a-closing-fence\n@label app-emet\n# Not a manual heading\n```\n",
+    "unlisted.gm": "@label app-emet\n# Unlisted\n",
+  }, ["first.gm", "moved/other-name.gm"]);
+  const result = run(release(base, "golem", "v1", "golem-1") + manifest + `manual-label app-emet ${digest} 03-emet.gm\n`, base, { raw });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(join(result.res, "manual", "labels", "app-emet.gm"), "utf8"), wanted);
+  assert.equal(readFileSync(join(result.res, "manual", "03-emet.gm"), "utf8"), wanted);
+});
+
+test("ADR 0121 I6: an absent or duplicate label aborts the entire bundle with its name", () => {
+  for (const multiplicity of [0, 2]) {
+    const base = mkdtempSync(join(tmpdir(), "aleph-base-"));
+    const raw = mkdtempSync(join(tmpdir(), "aleph-raw-"));
+    const names = ["a.gm", "b.gm"];
+    const body = `@label ${multiplicity ? "app-emet" : "another"}\n# Testing\n`;
+    const manifest = labeledManual(raw, Object.fromEntries(names.map((name) => [name, body])), names);
+    const result = run(release(base, "golem", "v1", "golem-1") + manifest + `manual-label app-emet ${"0".repeat(64)}\n`, base, { raw });
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /app-emet.*(?:missing|multiple)/);
+    assert.ok(!existsSync(join(result.res, "golem")));
+  }
+});
+
+test("ADR 0121 I6: both the chapter map and selected text must match their pins", () => {
+  const base = mkdtempSync(join(tmpdir(), "aleph-base-"));
+  const raw = mkdtempSync(join(tmpdir(), "aleph-raw-"));
+  const manifest = labeledManual(raw, { "x.gm": "@label app-emet\n# Emet\n" }, ["x.gm"]);
+  const releaseRow = release(base, "golem", "v1", "golem-1");
+  const labelRow = `manual-label app-emet ${"0".repeat(64)}\n`;
+  assert.match(run(releaseRow + manifest + labelRow, base, { raw }).stderr, /app-emet.*does not match its SHA-256/);
+  assert.match(run(releaseRow + manifest.replace(/[a-f0-9]{64}/, "0".repeat(64)) + labelRow, base, { raw }).stderr, /manifest\.toml.*does not match its SHA-256/);
+});
+
 test("a file that tools.versions lists but the llama.cpp archive lacks stops the script", () => {
   const s = fullSet();
   const row = llama(s.github, "b8", "llama-8").replace("LICENSE", "libmissing.dylib LICENSE");

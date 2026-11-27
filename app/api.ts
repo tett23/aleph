@@ -1,5 +1,5 @@
 // Thin wrappers over the Rust commands (docs/adr/0003).
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import type { Outcome } from "./dropin.ts";
 import type { ModelInfo } from "./assistant/models.ts";
 import type { Block, Inline } from "./md.ts";
@@ -36,7 +36,9 @@ export type ConnectorInfo = { id: ConnectorId; name: string; found: boolean; app
 /** Why Claude Code or Codex failed and the local connector answered instead (I8). */
 export type FallbackReason = { from: ConnectorId; kind: "start" | "exit" | "schema" | "timeout"; message: string };
 /** An answer's JSON, the connector that gave it, the local model's name, the time it took, and why it fell back. */
-export type Answered = { answer: string; connector: ConnectorId; model: string | null; ms: number; fallbackReason: FallbackReason | null };
+export type Answered = { answer: string; connector: ConnectorId; model: string | null; ms: number; fallbackReason: FallbackReason | null; references?: string[]; referenceNotes?: string[]; manualFull?: boolean | null; manualNote?: string | null };
+export type AssistantSnapshot = { path: string; text: string };
+export type AssistantReference = { target: string; snapshots: AssistantSnapshot[] };
 export type Tool = "golem" | "shem";
 
 export const api = {
@@ -138,7 +140,9 @@ export const api = {
   /** Revokes the approval of Claude Code or Codex (docs/adr/0089); the next request asks again. */
   assistantRevoke: (connector: ConnectorId) => invoke<void>("assistant_revoke", { connector }),
   /** Asks a connector; Rust asks for the approval in a native dialog the first time (I6) and falls back to the local connector once (I8). */
-  assistantAsk: (connector: ConnectorId, messages: ChatMessage[], material: string[], manuscript = false) => invoke<Answered>("assistant_ask", { connector, messages, material, manuscript }),
+  assistantAsk: (connector: ConnectorId, messages: ChatMessage[], material: string[], manuscript = false, sourceFile?: string, reference?: AssistantReference, onPreparation?: (preparing: boolean) => void) => invoke<Answered>("assistant_ask", { connector, messages, material, manuscript, sourceFile, reference, preparation: new Channel(onPreparation) }),
+  assistantPrepareLocal: () => invoke<void>("assistant_prepare_local"),
+  assistantProjectSource: (target: string, name: string, snapshots: AssistantSnapshot[]) => invoke<string>("assistant_project_source", { target, name, snapshots }),
   /** A bundled chapter of the Golem manual for the material: "03-markup", "04-manifest" or "05-style". */
   assistantManual: (chapter: string) => invoke<string>("assistant_manual", { chapter }),
   /** golem check --format json of each text in place of `file`, in a copy of `project` in the cache. */
