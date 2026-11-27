@@ -120,7 +120,11 @@ test("ADR 0070 invariants 1-3, ADR 0066 invariants 1-2, ADR 0074 invariant 1: tr
       { path: "/w/book/b.gm", name: "b.gm", dir: false, children: [] },
     ] }];
     api.readText = async (path: string) => path.endsWith("manifest.toml") ? manifest : "# Sheet\n";
-    api.writeText = async (path: string, text: string) => { if (path.endsWith("manifest.toml")) manifest = text; };
+    api.updateManifestChapter = async (project: string, chapter: string, mode: string) => {
+      assert.deepEqual([project, chapter, mode], ["/w/book", "/w/book/a.gm", "toggle"]);
+      manifest = "chapters = []\n";
+      return { text: manifest, registered: false };
+    };
     api.exportChapters = async (parts: typeof exported) => { exported = parts; return true; };
     (state as { selected: string[]; expanded: string[] }).selected = ["/w/book/b.gm", "/w/book/a.gm"];
     (state as { expanded: string[] }).expanded = ["/w/book"];

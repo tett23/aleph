@@ -12,6 +12,7 @@ mod guard;
 mod handout;
 mod llama;
 mod lsp;
+mod mdconvert;
 mod mdgm;
 mod models;
 mod nav;
@@ -1818,7 +1819,12 @@ pub fn run_app() {
             spell_check,
             write_bytes,
             read_text,
-            mdgm::markdown_blocks_to_gm,
+            mdgm::parse_markdown,
+            mdgm::parse_markdown_table,
+            mdgm::count_markdown,
+            mdconvert::plan_markdown_conversion,
+            mdconvert::finish_markdown_conversion,
+            mdconvert::update_manifest_chapter,
             read_bytes,
             write_text,
             exists,

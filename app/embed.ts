@@ -1,11 +1,9 @@
 // Embeds in Markdown sheets (docs/adr/0029): a whole line ![[target#heading]]
 // is drawn in the preview as the target's text (or the heading's section),
 // nested up to three levels, without loops, within a total of 200,000
-// characters. Reading files is done by the caller; this is pure.
+// characters. Reading files is done by the caller.
 import { esc } from "./esc.ts";
 import { markdownHtml, wikiText, type Breaks } from "./md.ts";
-
-export { embedOf } from "./md.ts";
 
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 const DEPTH = 3;
@@ -72,7 +70,7 @@ const titleOf = (io: EmbedIo, target: string, heading: string | null, to: string
 };
 
 /** A Markdown sheet's HTML with its embeds drawn in place. */
-export const expandEmbeds = (src: string, path: string, io: EmbedIo): string => {
+export const expandEmbeds = async (src: string, path: string, io: EmbedIo): Promise<string> => {
   let left = BUDGET;
   const take = (text: string): [string, boolean] => {
     if (text.length <= left) return (left -= text.length), [text, false];
@@ -80,11 +78,11 @@ export const expandEmbeds = (src: string, path: string, io: EmbedIo): string => 
     left = 0;
     return [part, true];
   };
-  const draw = (text: string, at: string, stack: string[]): string =>
+  const draw = (text: string, at: string, stack: string[]): Promise<string> =>
     markdownHtml(text, {
       breaks: io.breaks,
       base: io.root ? { dir: at.slice(0, at.lastIndexOf("/")), root: io.root } : undefined,
-      embed: (target, heading) => {
+      embed: async (target, heading) => {
       const to = target ? io.resolve(target, at) : at;
       const title = titleOf(io, target, heading, to);
       if (!to) return frame(null, title, heading, note(`（見つかりません：${target}）`));
@@ -97,7 +95,7 @@ export const expandEmbeds = (src: string, path: string, io: EmbedIo): string => 
       const part = heading ? sectionOf(whole, kind, heading) : whole;
       if (part === null) return frame(to, title, heading, note(`（見出しが見つかりません：${heading}）`));
       const [body, cut] = take(part);
-      const html = kind === "md" ? draw(body, to, [...stack, to]) : kind === "gm" ? io.plain(body) : `<pre>${esc(body)}</pre>`;
+      const html = kind === "md" ? await draw(body, to, [...stack, to]) : kind === "gm" ? io.plain(body) : `<pre>${esc(body)}</pre>`;
       return frame(to, title, heading, html + (cut ? note("（長すぎるため省きました）") : ""));
       },
     });

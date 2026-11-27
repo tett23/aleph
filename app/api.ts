@@ -2,8 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Outcome } from "./dropin.ts";
 import type { ModelInfo } from "./assistant/models.ts";
-import type { Separator } from "./manifest.ts";
-import type { Block } from "./md.ts";
+import type { Block, Inline } from "./md.ts";
 
 export type Entry = { path: string; name: string; dir: boolean; children: Entry[] };
 export type TreeMoveInventory = { entries: Entry[]; projects: string[] };
@@ -45,7 +44,13 @@ export const api = {
   configSave: (json: string) => invoke<void>("config_save", { json }),
   listTree: (root: string, options?: { showHidden: boolean; showIgnored: boolean }) => invoke<Entry[]>("list_tree", { root, showHidden: options?.showHidden ?? false, showIgnored: options?.showIgnored ?? true }),
   readText: (path: string) => invoke<string>("read_text", { path }),
-  markdownBlocksToGm: (blocks: Block[], separator: Separator) => invoke<string>("markdown_blocks_to_gm", { blocks, separator }),
+  parseMarkdown: (text: string) => invoke<Block[]>("parse_markdown", { text }),
+  parseMarkdownTable: (rows: string[]) => invoke<{ head: Inline[][]; body: Inline[][][]; aligns: ("left" | "center" | "right" | null)[] }>("parse_markdown_table", { rows }),
+  countMarkdown: (text: string) => invoke<string[]>("count_markdown", { text }),
+  planMarkdownConversion: (source: string, project: string | null) => invoke<{ destination: string; overwrite: boolean; revision: string }>("plan_markdown_conversion", { source, project }),
+  finishMarkdownConversion: (source: string, project: string | null, revision: string, overwrite: boolean, text: string | null) =>
+    invoke<{ destination: string; project: string | null; chapterRegistered: boolean }>("finish_markdown_conversion", { source, project, revision, overwrite, text }),
+  updateManifestChapter: (project: string, chapter: string, mode: "add" | "toggle") => invoke<{ text: string; registered: boolean }>("update_manifest_chapter", { project, chapter, mode }),
   /** The English words spelled wrong, by macOS (docs/adr/0030). */
   spellCheck: (words: string[]) => invoke<string[]>("spell_check", { words }),
   readBytes: (path: string) => invoke<ArrayBuffer>("read_bytes", { path }),

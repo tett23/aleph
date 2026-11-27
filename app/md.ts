@@ -1,6 +1,6 @@
-// A small Markdown reader shared by the preview (docs/adr/0010) and the
-// conversion to .gm (docs/adr/0016): CommonMark's common parts and GFM's
-// strikethrough, task lists, autolinks and tables (docs/adr/0035), no HTML.
+// Markdown AST types and preview HTML rendering. Rust parses the source into
+// these blocks and inlines (docs/adr/0116); HTML in the source stays text.
+import { api } from "./api.ts";
 import { esc } from "./esc.ts";
 import { within } from "./path.ts";
 
@@ -34,292 +34,6 @@ export type Block =
   | { t: "image"; src: string; alt: string }
   /** A whole line `![[target#heading]]` (docs/adr/0029). */
   | { t: "embed"; target: string; heading: string | null };
-
-// ---- inline ----
-
-const PUNCT = /[!-/:-@[-`{-~]/;
-
-/** The index of the delimiter `d` closing a run that starts at `from`, skipping code spans and escapes. */
-const closing = (s: string, from: number, d: string): number => {
-  for (let i = from; i < s.length; i++) {
-    if (s[i] === "\\") {
-      i++;
-      continue;
-    }
-    if (s[i] === "`") {
-      const run = /^`+/.exec(s.slice(i))![0];
-      const end = s.indexOf(run, i + run.length);
-      if (end > 0) i = end + run.length - 1;
-      continue;
-    }
-    if (s.startsWith(d, i) && i > from && s[i - 1] !== " " && (d.length === 2 || s[i + 1] !== d[0])) return i;
-    if (d.length === 1 && s.startsWith(d + d, i)) {
-      // a strong run inside an emphasis: skip it whole
-      const end = closing(s, i + 2, d + d);
-      if (end > 0) i = end + 1;
-    }
-  }
-  return -1;
-};
-
-/** The index of the `]` matching the `[` at `open`. */
-const bracket = (s: string, open: number): number => {
-  let depth = 0;
-  for (let i = open; i < s.length; i++) {
-    if (s[i] === "\\") i++;
-    else if (s[i] === "[") depth++;
-    else if (s[i] === "]" && --depth === 0) return i;
-  }
-  return -1;
-};
-
-/** A URL at the start of `s` (https://, http://, www.), without trailing punctuation or an unmatched ")". */
-const bareUrl = (s: string): string | null => {
-  const m = /^(?:https?:\/\/|www\.)[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+/i.exec(s);
-  if (!m) return null;
-  let u = m[0];
-  for (;;) {
-    if (/[?!.,:*_~'";]$/.test(u)) u = u.slice(0, -1);
-    else if (u.endsWith(")") && (u.match(/\)/g) ?? []).length > (u.match(/\(/g) ?? []).length) u = u.slice(0, -1);
-    else break;
-  }
-  return /^(?:https?:\/\/|www\.)[^/]*[A-Za-z0-9]/i.test(u) ? u : null;
-};
-
-export const parseInline = (s: string): Inline[] => {
-  const out: Inline[] = [];
-  let text = "";
-  const flush = () => {
-    if (text) out.push({ t: "text", v: text });
-    text = "";
-  };
-  const wordBefore = (i: number) => i > 0 && /[\p{L}\p{N}]/u.test(s[i - 1]);
-  for (let i = 0; i < s.length; ) {
-    const c = s[i];
-    if (c === "\\" && i + 1 < s.length && PUNCT.test(s[i + 1])) {
-      text += s[i + 1];
-      i += 2;
-      continue;
-    }
-    if (c === "`") {
-      const run = /^`+/.exec(s.slice(i))![0];
-      const end = s.indexOf(run, i + run.length);
-      if (end > 0) {
-        flush();
-        const v = s.slice(i + run.length, end);
-        out.push({ t: "code", v: /^ .* $/.test(v) && v.trim() ? v.slice(1, -1) : v });
-        i = end + run.length;
-        continue;
-      }
-      text += run;
-      i += run.length;
-      continue;
-    }
-    // a wikilink (docs/adr/0027)
-    if (c === "[" && s[i + 1] === "[") {
-      const close = s.indexOf("]]", i + 2);
-      const inner = close < 0 ? "" : s.slice(i + 2, close);
-      if (inner.trim() && !/[[\]]/.test(inner)) {
-        const bar = inner.indexOf("|");
-        const dest = bar < 0 ? inner : inner.slice(0, bar);
-        const hash = dest.indexOf("#");
-        const heading = hash < 0 ? null : dest.slice(hash + 1).trim() || null;
-        const target = (hash < 0 ? dest : dest.slice(0, hash)).trim();
-        if (target || heading) {
-          flush();
-          out.push({ t: "wikilink", target, heading, text: bar < 0 ? null : inner.slice(bar + 1).trim() || null });
-          i = close + 2;
-          continue;
-        }
-      }
-    }
-    if (c === "!" && s[i + 1] === "[") {
-      const close = bracket(s, i + 1);
-      const m = close > 0 ? /^\(([^)\s]*)(?:\s+"[^"]*")?\)/.exec(s.slice(close + 1)) : null;
-      if (m) {
-        flush();
-        out.push({ t: "image", src: m[1], alt: s.slice(i + 2, close) });
-        i = close + 1 + m[0].length;
-        continue;
-      }
-    }
-    if (c === "[") {
-      const close = bracket(s, i);
-      const m = close > 0 ? /^\(([^)\s]*)(?:\s+"[^"]*")?\)/.exec(s.slice(close + 1)) : null;
-      if (m) {
-        flush();
-        out.push({ t: "link", href: m[1], c: parseInline(s.slice(i + 1, close)) });
-        i = close + 1 + m[0].length;
-        continue;
-      }
-    }
-    if ((c === "*" || c === "_") && s[i + 1] === c && s[i + 2] && s[i + 2] !== " " && !(c === "_" && wordBefore(i))) {
-      const end = closing(s, i + 2, c + c);
-      if (end > 0) {
-        flush();
-        out.push({ t: "strong", c: parseInline(s.slice(i + 2, end)) });
-        i = end + 2;
-        continue;
-      }
-    }
-    // GFM: strikethrough with two tildes
-    if (c === "~" && s[i + 1] === "~" && s[i + 2] !== "~") {
-      const end = s.indexOf("~~", i + 2);
-      if (end > i + 2) {
-        flush();
-        out.push({ t: "del", c: parseInline(s.slice(i + 2, end)) });
-        i = end + 2;
-        continue;
-      }
-    }
-    // GFM: autolinks, <scheme:...> and URLs in the text
-    if (c === "<") {
-      const m = /^<((?:https?|mailto):[^\s<>]+)>/i.exec(s.slice(i));
-      if (m) {
-        flush();
-        out.push({ t: "link", href: m[1], c: [{ t: "text", v: m[1] }] });
-        i += m[0].length;
-        continue;
-      }
-    }
-    if ((c === "h" || c === "H" || c === "w" || c === "W") && (i === 0 || !/[A-Za-z0-9]/.test(s[i - 1]))) {
-      const url = bareUrl(s.slice(i));
-      if (url) {
-        flush();
-        out.push({ t: "link", href: /^www\./i.test(url) ? `http://${url}` : url, c: [{ t: "text", v: url }] });
-        i += url.length;
-        continue;
-      }
-    }
-    if ((c === "*" || c === "_") && s[i + 1] && s[i + 1] !== " " && s[i + 1] !== c && !(c === "_" && wordBefore(i))) {
-      const end = closing(s, i + 1, c);
-      if (end > 0) {
-        flush();
-        out.push({ t: "em", c: parseInline(s.slice(i + 1, end)) });
-        i = end + 1;
-        continue;
-      }
-    }
-    text += c;
-    i++;
-  }
-  flush();
-  return out;
-};
-
-// ---- blocks ----
-
-const HR = /^ {0,3}([-*_])( *\1){2,} *$/;
-const HEADING = /^ {0,3}(#{1,6})(?: +(.*?))?(?: +#+)? *$/;
-const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([^`\s]*)/;
-const ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
-const QUOTE = /^ {0,3}> ?(.*)$/;
-const IMAGE_LINE = /^\s*!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)\s*$/;
-const EMBED_LINE = /^\s*!\[\[([^[\]|]+)\]\]\s*$/;
-
-/** A line that is a whole embed, read into its target and heading (docs/adr/0029). */
-export const embedOf = (line: string): { target: string; heading: string | null } | null => {
-  const m = EMBED_LINE.exec(line);
-  if (!m) return null;
-  const hash = m[1].indexOf("#");
-  const target = (hash < 0 ? m[1] : m[1].slice(0, hash)).trim();
-  const heading = hash < 0 ? null : m[1].slice(hash + 1).trim() || null;
-  return target || heading ? { target, heading } : null;
-};
-const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
-
-const lineOf = (raw: string): Line => {
-  const hard = / {2,}$/.test(raw) || /\\$/.test(raw);
-  const body = raw.replace(/ {2,}$/, "").replace(/\\$/, "").trim();
-  return { c: parseInline(body), hard };
-};
-
-export const parseMarkdown = (src: string): Block[] => {
-  const lines = src.replace(/\r\n?/g, "\n").split("\n");
-  const out: Block[] = [];
-  let i = 0;
-  const blank = (l: string | undefined) => l === undefined || !l.trim();
-  // a line that starts another block ends a paragraph
-  const starts = (l: string) => HR.test(l) || HEADING.test(l) || FENCE.test(l) || ITEM.test(l) || QUOTE.test(l) || IMAGE_LINE.test(l) || !!embedOf(l);
-  while (i < lines.length) {
-    const l = lines[i];
-    if (blank(l)) {
-      i++;
-      continue;
-    }
-    const fence = FENCE.exec(l);
-    if (fence) {
-      const body: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i].trimStart().startsWith(fence[1])) body.push(lines[i++]);
-      i++;
-      out.push({ t: "code", lang: fence[2], text: body.join("\n") });
-      continue;
-    }
-    if (HR.test(l)) {
-      out.push({ t: "hr" });
-      i++;
-      continue;
-    }
-    const h = HEADING.exec(l);
-    if (h) {
-      out.push({ t: "heading", level: h[1].length, c: parseInline(h[2] ?? "") });
-      i++;
-      continue;
-    }
-    if (l.includes("|") && TABLE_SEP.test(lines[i + 1] ?? "") && lines[i + 1].includes("-")) {
-      const rows: string[] = [];
-      while (i < lines.length && !blank(lines[i]) && lines[i].includes("|")) rows.push(lines[i++]);
-      out.push({ t: "table", rows });
-      continue;
-    }
-    if (ITEM.test(l)) {
-      const items: ListItem[] = [];
-      const indents: number[] = [];
-      while (i < lines.length && ITEM.test(lines[i])) {
-        const m = ITEM.exec(lines[i])!;
-        const indent = m[1].replace(/\t/g, "    ").length;
-        while (indents.length && indent < indents[indents.length - 1]) indents.pop();
-        if (!indents.length || indent > indents[indents.length - 1]) indents.push(indent);
-        const task = /^\[([ xX])\]\s+(.*)$/.exec(m[3].trim());
-        items.push(
-          task
-            ? { depth: indents.length - 1, ordered: /\d/.test(m[2]), c: parseInline(task[2]), checked: task[1] !== " " }
-            : { depth: indents.length - 1, ordered: /\d/.test(m[2]), c: parseInline(m[3].trim()) },
-        );
-        i++;
-      }
-      out.push({ t: "list", items });
-      continue;
-    }
-    if (QUOTE.test(l)) {
-      const q: Line[] = [];
-      while (i < lines.length && QUOTE.test(lines[i])) {
-        const body = QUOTE.exec(lines[i++])![1];
-        if (body.trim()) q.push(lineOf(body));
-      }
-      out.push({ t: "quote", lines: q });
-      continue;
-    }
-    // an image alone on its line is a block of its own (docs/adr/0016)
-    const em = embedOf(l);
-    if (em) {
-      out.push({ t: "embed", ...em });
-      i++;
-      continue;
-    }
-    const img = IMAGE_LINE.exec(l);
-    if (img) {
-      out.push({ t: "image", alt: img[1], src: img[2] });
-      i++;
-      continue;
-    }
-    const para: Line[] = [];
-    while (i < lines.length && !blank(lines[i]) && (para.length === 0 || !starts(lines[i]))) para.push(lineOf(lines[i++]));
-    out.push({ t: "para", lines: para });
-  }
-  return out;
-};
 
 // ---- HTML, for the preview ----
 
@@ -370,14 +84,6 @@ const linesHtml = (ls: Line[], breaks: Breaks) =>
     })
     .join("");
 
-const cells = (row: string) =>
-  row
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/(?<!\\)\|$/, "")
-    .split(/(?<!\\)\|/)
-    .map((c) => c.trim().replace(/\\\|/g, "|"));
-
 const listHtml = (items: ListItem[]): string => {
   let html = "";
   const stack: boolean[] = [];
@@ -399,16 +105,12 @@ const listHtml = (items: ListItem[]): string => {
 const embedLink = (target: string, heading: string | null) =>
   `<p><a class="wikilink" data-wikilink="${esc(target)}"${heading ? ` data-heading="${esc(heading)}"` : ""} href="#">${esc(wikiText({ target, heading, text: null }))}</a></p>`;
 
-/** A table's column alignments from its separator row. */
-const aligns = (row: string) =>
-  cells(row).map((c) => (/^:-+:$/.test(c) ? "center" : /^:-+$/.test(c) ? "left" : /^-+:$/.test(c) ? "right" : null));
-
 const alignAttr = (a: string | null | undefined) => (a ? ` style="text-align:${a}"` : "");
 
 /** Where a sheet is and the workspace its images must stay in (docs/adr/0047). */
 export type ImageBase = { dir: string; root: string };
 
-export type HtmlOptions = { embed?: (target: string, heading: string | null) => string; breaks?: Breaks; base?: ImageBase };
+export type HtmlOptions = { embed?: (target: string, heading: string | null) => string | Promise<string>; breaks?: Breaks; base?: ImageBase };
 
 const unesc = (s: string) => s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" })[e]!);
 
@@ -420,35 +122,47 @@ const imageHtml = (src: string, alt: string, base: ImageBase | undefined) => {
   return p ? `<img data-src="${esc(p)}" alt="${esc(alt)}">` : `<span class="img-note">${esc(alt)}（ワークスペースの外の画像は読み込みません）</span>`;
 };
 
-export const markdownHtml = (src: string, { embed = embedLink, breaks = "blank-line", base }: HtmlOptions = {}): string =>
-  parseMarkdown(src)
-    .map((b) => {
-      switch (b.t) {
-        case "heading":
-          return `<h${b.level}>${inlineHtml(b.c)}</h${b.level}>`;
-        case "para":
-          return `<p>${linesHtml(b.lines, breaks)}</p>`;
-        case "quote":
-          return `<blockquote><p>${linesHtml(b.lines, breaks)}</p></blockquote>`;
-        case "list":
-          return listHtml(b.items);
-        case "code":
-          return `<pre><code${b.lang ? ` class="language-${esc(b.lang)}"` : ""}>${esc(b.text)}</code></pre>`;
-        case "table": {
-          const [head, sep, ...body] = b.rows;
-          const al = aligns(sep);
-          return `<table><thead><tr>${cells(head).map((c, k) => `<th${alignAttr(al[k])}>${inlineHtml(parseInline(c))}</th>`).join("")}</tr></thead><tbody>${body
-            .map((r) => `<tr>${cells(r).map((c, k) => `<td${alignAttr(al[k])}>${inlineHtml(parseInline(c))}</td>`).join("")}</tr>`)
-            .join("")}</tbody></table>`;
-        }
-        case "hr":
-          return "<hr>";
-        case "image":
-          return `<p><img src="${esc(safeUrl(b.src))}" alt="${esc(b.alt)}"></p>`;
-        case "embed":
-          return embed(b.target, b.heading);
+/** Renders the AST supplied by Rust's Markdown parser. */
+export const markdownHtmlBlocks = async (blocks: Block[], { embed = embedLink, breaks = "blank-line", base }: HtmlOptions = {}): Promise<string> => {
+  const parts: string[] = [];
+  for (const b of blocks) {
+    switch (b.t) {
+      case "heading":
+        parts.push(`<h${b.level}>${inlineHtml(b.c)}</h${b.level}>`);
+        break;
+      case "para":
+        parts.push(`<p>${linesHtml(b.lines, breaks)}</p>`);
+        break;
+      case "quote":
+        parts.push(`<blockquote><p>${linesHtml(b.lines, breaks)}</p></blockquote>`);
+        break;
+      case "list":
+        parts.push(listHtml(b.items));
+        break;
+      case "code":
+        parts.push(`<pre><code${b.lang ? ` class="language-${esc(b.lang)}"` : ""}>${esc(b.text)}</code></pre>`);
+        break;
+      case "table": {
+        const table = await api.parseMarkdownTable(b.rows);
+        const row = (cells: Inline[][], tag: "th" | "td") =>
+          `<tr>${cells.map((cell, k) => `<${tag}${alignAttr(table.aligns[k])}>${inlineHtml(cell)}</${tag}>`).join("")}</tr>`;
+        parts.push(`<table><thead>${row(table.head, "th")}</thead><tbody>${table.body.map((cells) => row(cells, "td")).join("")}</tbody></table>`);
+        break;
       }
-    })
-    .join("\n")
-    // the images this function wrote (inline and alone on a line), and only those
-    .replace(/<img src="([^"]*)" alt="([^"]*)">/g, (_, s: string, a: string) => imageHtml(unesc(s), unesc(a), base));
+      case "hr":
+        parts.push("<hr>");
+        break;
+      case "image":
+        parts.push(`<p><img src="${esc(safeUrl(b.src))}" alt="${esc(b.alt)}"></p>`);
+        break;
+      case "embed":
+        parts.push(await embed(b.target, b.heading));
+        break;
+    }
+  }
+  return parts.join("\n").replace(/<img src="([^"]*)" alt="([^"]*)">/g, (_, s: string, a: string) => imageHtml(unesc(s), unesc(a), base));
+};
+
+/** Markdown rendering uses the Rust parser for blocks and table cells. */
+export const markdownHtml = async (src: string, options: HtmlOptions = {}): Promise<string> =>
+  markdownHtmlBlocks(await api.parseMarkdown(src), options);

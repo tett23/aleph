@@ -15,7 +15,6 @@ import { reloadTree, treeEntries, treeReloaded } from "./ui/tree.ts";
 import { backlinks, buildIndex, completeAt, findHeading, groupBacklinks, markMissing, outlinks, parseWikilinks, renameEdits, resolveLink, type Index, type Sheet, type Wikilink } from "./wikilink.ts";
 import { IMAGE_KINDS, kindOf, TEXT_KINDS, workspaceOf } from "./workspace.ts";
 import { expandEmbeds } from "./embed.ts";
-import { parseMarkdown } from "./md.ts";
 import { markdownHook, plainHtml } from "./preview/render.ts";
 
 let index: Index = { links: [] };
@@ -138,8 +137,8 @@ const drawPanel = (el: HTMLElement, ctx: Ctx) => {
 };
 
 /** The embeds' targets of a Markdown text, resolved. */
-const embedTargets = (ctx: Ctx, src: string, from: string) =>
-  parseMarkdown(src).flatMap((b) => (b.t === "embed" ? [b.target ? resolveLink(b.target, from, sheets, wsOf(ctx)).path : from] : [])).filter((p): p is string => !!p);
+const embedTargets = async (ctx: Ctx, src: string, from: string) =>
+  (await api.parseMarkdown(src)).flatMap((b) => (b.t === "embed" ? [b.target ? resolveLink(b.target, from, sheets, wsOf(ctx)).path : from] : [])).filter((p): p is string => !!p);
 
 /** A Markdown sheet's HTML with its embeds (docs/adr/0029): the targets read first, three levels deep. */
 const expand = async (ctx: Ctx, src: string, path: string) => {
@@ -147,7 +146,7 @@ const expand = async (ctx: Ctx, src: string, path: string) => {
   for (let depth = 0; depth < 4 && frontier.length; depth++) {
     const next: { src: string; path: string }[] = [];
     for (const f of frontier)
-      for (const to of embedTargets(ctx, f.src, f.path)) {
+      for (const to of await embedTargets(ctx, f.src, f.path)) {
         if (/\.(png|jpe?g|gif|webp|svg)$/i.test(to)) continue;
         const known = textOf(ctx, to) !== null;
         const text = await readText(ctx, to);
@@ -155,7 +154,7 @@ const expand = async (ctx: Ctx, src: string, path: string) => {
       }
     frontier = next;
   }
-  const html = expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml, breaks: ctx.config.markdownBreaks, name: (p) => ctx.titles.get(p) ?? null, root: workspaceOf(path, ctx.store.get().workspaces) });
+  const html = await expandEmbeds(src, path, { resolve: (t, from) => resolveLink(t, from, sheets, wsOf(ctx)).path, read: (p) => textOf(ctx, p), plain: plainHtml, breaks: ctx.config.markdownBreaks, name: (p) => ctx.titles.get(p) ?? null, root: workspaceOf(path, ctx.store.get().workspaces) });
   // links to targets not found are drawn apart (docs/adr/0027)
   return markMissing(html, (t) => resolveLink(t, path, sheets, wsOf(ctx)).path !== null);
 };
