@@ -90,9 +90,10 @@ const urlOut = (line: string): Segment[] => {
 };
 
 /** The ranges of a sheet that are checked, in the document's UTF-16 positions. */
-export const segments = (kind: string, text: string): Segment[] => {
+export const segments = (kind: string, text: string, numberRanges: readonly Segment[] = []): Segment[] => {
   const out: Segment[] = [];
   let offset = 0;
+  let nextNumber = 0;
   let gm = startState();
   let fence = false;
   for (const line of text.split("\n")) {
@@ -101,6 +102,11 @@ export const segments = (kind: string, text: string): Segment[] => {
       const r = tokenizeLine(line, gm);
       gm = r.state;
       skip = r.tokens.filter((t) => t.type !== "heading").map((t) => ({ from: t.from, to: t.to }));
+      // Rust returns ordered, single-line spans in the same UTF-16 coordinates.
+      while (nextNumber < numberRanges.length && numberRanges[nextNumber].from < offset + line.length) {
+        const { from, to } = numberRanges[nextNumber++];
+        skip.push({ from: from - offset, to: to - offset });
+      }
     } else if (kind === "md") {
       if (/^\s*(```|~~~)/.test(line)) {
         fence = !fence;
@@ -182,9 +188,9 @@ const RULE_FNS: [RuleId, Rule, Diag["severity"]][] = [
 ];
 
 /** The diagnostics of the rules that need no spelling checker; a vertical sheet writes letters and digits in full width, so it is not checked for them (docs/adr/0057). */
-export const checkText = (kind: string, text: string, cfg: ProofreadConfig, opts: { vertical?: boolean } = {}): Diag[] => {
+export const checkText = (kind: string, text: string, cfg: ProofreadConfig, opts: { vertical?: boolean; prose?: Segment[] } = {}): Diag[] => {
   if (!cfg.enabled) return [];
-  const segs = segments(kind, text);
+  const segs = opts.prose ?? segments(kind, text);
   return RULE_FNS.filter(([id]) => cfg.rules[id] && !(id === "fullwidth" && opts.vertical)).flatMap(([id, f, severity]) => f(text, segs).map((h) => ({ ...h, severity, source: id })));
 };
 

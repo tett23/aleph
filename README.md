@@ -59,6 +59,7 @@ If the preview shows an error message in place of the content, drag to select th
 Select text and press ⌘C to copy individual passages from Problems, the text preview, or an assistant response. The copy buttons copy the filtered Problems list, the displayed preview text, or a single assistant response as plain text.
 
 The writing checks for `.gm`, `.md`, and `.txt` skip absolute HTTP and HTTPS URLs with a host, including URLs enclosed in angle brackets.
+In `.gm`, the writing checks also skip Golem's number shorthand, such as `##1##`.
 
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
 The file tree shows each project’s `build/` folder with every file in it, so outputs such as PDFs can be handed to other applications: drag rows out of the window, choose “コピー” (copy) from the right-click menu and paste in Finder, or choose “zip で書き出す…” (export as zip) on a folder or a project. The zip writes its file names in UTF-8, normalized to NFC and flagged as UTF-8, and leaves out `.DS_Store` and `.git`.

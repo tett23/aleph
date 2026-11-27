@@ -23,7 +23,7 @@ const vertical = new Map<string, boolean>();
 const verticalOf = (doc: Doc) => (doc.project ? (vertical.get(doc.project) ?? doc.grid.vertical) : false);
 const tooLong = new Set<TextEditor>();
 
-const check = async (ctx: Ctx, t: TextEditor, kind: string, isVertical: boolean) => {
+const check = async (ctx: Ctx, t: TextEditor, kind: string, isVertical: boolean, isCurrent: () => boolean) => {
   const cfg = ctx.config.proofread;
   const text = t.core.text();
   const was = tooLong.has(t);
@@ -35,16 +35,23 @@ const check = async (ctx: Ctx, t: TextEditor, kind: string, isVertical: boolean)
   }
   tooLong.delete(t);
   if (was) ctx.refresh(["status"]);
-  const diags = checkText(kind, text, cfg, { vertical: isVertical });
+  if (!cfg.enabled) {
+    t.setDiagnostics([], SOURCE);
+    return;
+  }
+  const numberRanges = kind === "gm" && text.includes("##") ? await api.proofreadNumberRanges(text).catch(() => []) : [];
+  if (!isCurrent() || t.core.text() !== text) return;
+  const prose = segments(kind, text, numberRanges);
+  const diags = checkText(kind, text, cfg, { vertical: isVertical, prose });
   t.setDiagnostics(diags, SOURCE);
-  if (!cfg.enabled || !cfg.rules.spelling) return;
-  const words = englishWords(segments(kind, text), text);
+  if (!cfg.rules.spelling) return;
+  const words = englishWords(prose, text);
   const ask = toAsk(words.map((w) => w.word), known);
   if (ask.length) {
     const wrong = new Set(await api.spellCheck(ask).catch(() => []));
     for (const w of ask) known.set(w, wrong.has(w));
     // the text may have changed while asking: the next run uses the answers
-    if (t.core.text() !== text) return;
+    if (!isCurrent() || t.core.text() !== text) return;
   }
   const misspelled = new Set(words.filter((w) => known.get(w.word)).map((w) => w.word));
   t.setDiagnostics([...diags, ...spellDiags(words, misspelled, cfg.ignoreWords)], SOURCE);
@@ -58,7 +65,11 @@ export const mountProofread = (ctx: Ctx) => {
     return {
       attach: (t) => {
         let timer = 0;
-        const run = () => void check(c, t, doc.kind, verticalOf(doc));
+        let generation = 0;
+        const run = () => {
+          const current = ++generation;
+          void check(c, t, doc.kind, verticalOf(doc), () => generation === current);
+        };
         const entry = { t, kind: doc.kind, project: doc.project, run };
         editors.add(entry);
         const off = t.core.listen(() => {
@@ -67,6 +78,7 @@ export const mountProofread = (ctx: Ctx) => {
         });
         queueMicrotask(run);
         return () => {
+          generation++;
           clearTimeout(timer);
           off();
           editors.delete(entry);
@@ -103,7 +115,7 @@ export const mountProofread = (ctx: Ctx) => {
     render: (c) => {
       const p = c.config.proofread;
       return (
-        item("文章を検査する", ".gm、.md、.txt の本文を検査し、診断として出す（命令、式、コード、URL は除く）", toggle("proofread", p.enabled)) +
+        item("文章を検査する", ".gm、.md、.txt の本文を検査し、診断として出す（命令、式、コード、URL、.gm の数の糖衣構文は除く）", toggle("proofread", p.enabled)) +
         RULES.map(([id, label, note]) => item(label, esc(note), toggle(`proofread.${id}`, p.rules[id]))).join("") +
         item(
           "英語の綴りで無視する語",

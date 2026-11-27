@@ -27,6 +27,23 @@ test("rules do not cross a left-out range, and positions are the document's (UTF
   assert.deepEqual(checkText("txt", src, only("punctuation")).map((d) => [d.from, d.to]), [[2, 4]]);
 });
 
+test("ADR 0123 I1/ADR 0123 I2: number ranges separate the prose and retain UTF-16 offsets", () => {
+  const src = "𠮷見れる##1##食べれる\n、##10##、";
+  const first = src.indexOf("##1##");
+  const second = src.indexOf("##10##");
+  const prose = segments("gm", src, [{ from: first, to: first + 5 }, { from: second, to: second + 6 }]);
+  assert.deepEqual(prose.map(({ from, to }) => src.slice(from, to)), ["𠮷見れる", "食べれる", "、", "、"]);
+  assert.deepEqual(checkText("gm", src, all, { prose }).map(({ from, to }) => [from, src.slice(from, to)]), [
+    [2, "見れる"], [first + 5, "食べれる"],
+  ]);
+});
+
+test("ADR 0123 I3: the Rust Golem ranges do not change Markdown or plain text", () => {
+  for (const kind of ["md", "txt"]) {
+    assert.deepEqual(segments(kind, "x##1##y", [{ from: 1, to: 6 }]), [{ from: 0, to: 7 }]);
+  }
+});
+
 test("ら抜き言葉: listed verbs with their endings; not the right form, nor other verbs", () => {
   assert.deepEqual(found("txt", "見れる。来れない。食べれます。出れた。寝れて", "raNuki"), ["見れる", "来れな", "食べれま", "出れた", "寝れて"].map((s) => s));
   assert.deepEqual(found("txt", "見られる。入れる。晴れる。見れば", "raNuki"), []);

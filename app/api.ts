@@ -54,6 +54,7 @@ export const api = {
   updateManifestChapter: (project: string, chapter: string, mode: "add" | "toggle") => invoke<{ text: string; registered: boolean }>("update_manifest_chapter", { project, chapter, mode }),
   /** The English words spelled wrong, by macOS (docs/adr/0030). */
   spellCheck: (words: string[]) => invoke<string[]>("spell_check", { words }),
+  proofreadNumberRanges: (text: string) => invoke<{ from: number; to: number }[]>("proofread_number_ranges", { text }),
   readBytes: (path: string) => invoke<ArrayBuffer>("read_bytes", { path }),
   writeText: (path: string, content: string, createNew = false) => invoke<void>("write_text", { path, content, createNew }),
   exists: (path: string) => invoke<boolean>("exists", { path }),

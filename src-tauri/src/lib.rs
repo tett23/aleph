@@ -21,6 +21,7 @@ mod plugin_approval;
 mod plugin_approval_tests;
 mod process;
 mod project_init;
+mod proofread_numbers;
 mod replace;
 mod search;
 mod sha256;
@@ -503,6 +504,11 @@ async fn paste_files(app: AppHandle, id: u64, target: String) -> R<Vec<dropcopy:
 #[tauri::command]
 fn spell_check(words: Vec<String>) -> Vec<String> {
     spell::misspelled(&words)
+}
+
+#[tauri::command]
+async fn proofread_number_ranges(text: String) -> R<Vec<proofread_numbers::Range>> {
+    blocking(move || Ok(proofread_numbers::ranges(&text))).await
 }
 
 /// Writes the raw body of the request to the path in its `path` header (percent-encoded):
@@ -1878,6 +1884,7 @@ pub fn run_app() {
             config_save,
             list_tree,
             spell_check,
+            proofread_number_ranges,
             write_bytes,
             read_text,
             mdgm::parse_markdown,
