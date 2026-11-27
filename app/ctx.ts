@@ -61,6 +61,8 @@ export type Ctx = {
   statusActions: Record<string, (ctx: Ctx) => void>;
   /** Run after a repository change. */
   gitChanged: (() => void)[];
+  /** The preview also reads watched inputs that have no open editor. */
+  previewInputsChanged?: (paths: string[], rescan: string[]) => void;
   settings: SettingsSection[];
   commands: Command[];
   /** The sheets for the ⌘P box (docs/adr/0022); null until that finder is mounted. */

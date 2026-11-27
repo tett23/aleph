@@ -1,5 +1,7 @@
 // The page preview's resolution: the page's width from style.toml, and the dpi
 // that fills the pane on this screen at this zoom (docs/adr/0010).
+import { manifestChapters } from "../manifest.ts";
+import { readGrid } from "../workspace.ts";
 
 const UNIT: Record<string, number> = { mm: 1 / 25.4, pt: 1 / 72, Q: 0.25 / 25.4, H: 0.25 / 25.4, in: 1 };
 
@@ -42,6 +44,12 @@ export const pageInches = (styleToml: string): number => {
   const bleed = lengthInches(/^"([^"]+)"$/.exec(value(page, "bleed") ?? "")?.[1] ?? "") ?? 0;
   return (width ?? NAMED.A5) + 2 * bleed;
 };
+
+export const pdfPreviewInput = (project: string, manifest: string, style: string) => ({
+  paths: manifestChapters(manifest).map((path) => `${project}/${path}`),
+  vertical: readGrid(style).vertical,
+  inches: pageInches(style),
+});
 
 export type DpiInput = {
   /** The pane's width in CSS pixels. */

@@ -2,6 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sanitize, xhtmlPath, type XNode } from "./xhtml.ts";
 
+test("ADR 0113 A1: the chapter path follows the HTML build's output extension", () => {
+  assert.equal(xhtmlPath("/w/p", "/w/p/chapters/01.gm", "html"), "/w/p/build/html/chapters/01.html");
+  assert.equal(xhtmlPath("/w/p", "/w/p/chapters/01.gm", "xhtml"), "/w/p/build/html/chapters/01.xhtml");
+});
+
 // A small reader of tags for the tests (the app reads with DOMParser): enough
 // to give the sanitizer the trees a browser would give it.
 const decode = (s: string) =>

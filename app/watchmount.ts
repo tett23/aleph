@@ -219,6 +219,7 @@ export const mountWatch = (ctx: Ctx) => {
       for (const path of done.kept) void followChange(ctx, path);
       for (const d of allDocs(ctx.store.get()))
         if ((paths.includes(d.path) || under(d.path, rescan)) && !consumed(done.moves, d.path)) void followChange(ctx, d.path);
+      ctx.previewInputsChanged?.(paths, rescan);
     });
     if (paths.length || rescan.length) {
       clearTimeout(treeTimer);
@@ -233,7 +234,10 @@ export const mountWatch = (ctx: Ctx) => {
   // without the watch, the open sheets are checked when the window comes back to the front
   void getCurrentWindow()
     .onFocusChanged(({ payload }) => {
-      if (payload && !watching) for (const d of allDocs(ctx.store.get())) void followChange(ctx, d.path);
+      if (payload && !watching) {
+        for (const d of allDocs(ctx.store.get())) void followChange(ctx, d.path);
+        ctx.previewInputsChanged?.([], ctx.config.workspaces);
+      }
     })
     .catch(() => {});
 };

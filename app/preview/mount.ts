@@ -12,7 +12,6 @@ import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { argPath, basename, dirname, stem } from "../path.ts";
 import { manifestChapters } from "../manifest.ts";
-import { readGrid } from "../workspace.ts";
 import { previewKey, type PreviewTarget } from "./update.ts";
 import { allDocs, shown, shownDoc, type Doc, type PreviewMode, type State } from "../store.ts";
 import { previewLabel, previewsFor, verticalOn } from "../toolbar.ts";
@@ -20,7 +19,7 @@ import { previewMessage, previewShows, rebuildPagesOnSave } from "./tab.ts";
 import { golem, shem } from "../tools.ts";
 import { item, toggle } from "../ui/settings.ts";
 import { IMAGE_KINDS } from "../workspace.ts";
-import { autoDpi, pageInches } from "./pages.ts";
+import { autoDpi, pageInches, pdfPreviewInput, type DpiInput } from "./pages.ts";
 import { createPageSaves } from "./page-saves.ts";
 import { createWaiter } from "./wait.ts";
 import { withBuildDir } from "../buildlock.ts";
@@ -43,24 +42,26 @@ import {
   zoomByClick,
   zoomControls,
 } from "./render.ts";
-import { xhtmlPath } from "./xhtml.ts";
+import { readChapterXhtml, xhtmlPath } from "./xhtml.ts";
 import { chapterBody } from "./xhtmldom.ts";
+import { createProjectInputWatch, previewInput, type InputChange, type InputContent } from "./project-inputs.ts";
 
 // ---- builds ----
 
 /** Golem's HTML of a chapter, with its images as absolute paths in data-src. */
 const html = new Map<string, string | null>();
-type HtmlBuild = { busy: boolean; queued: string[] | null; error: string };
+type HtmlBuild = { busy: boolean; queued: string[] | null; error: string; revision: number };
 const htmlBuilds = new Map<string, HtmlBuild>();
 
 /** The pages of a project: PNG files drawn by shem from the PDF golem built. */
 export type Pages = { pdf: string; pngs: string[]; dpi: number; ok: boolean; log: string };
 export type PreviewNotice = { target: PreviewTarget; generation: number };
 export type PlainNotice = PreviewNotice & { sections?: ReturnType<typeof sectionsOf>; error?: string };
-export type PagesNotice = PreviewNotice & { pages?: Pages; error?: string };
+export type PagesNotice = PreviewNotice & { pages?: Pages & { inches: number }; error?: string };
 const pages = new Map<string, PagesNotice>();
-const lastGoodPages = new Map<string, { pages: Pages; slot: number }>();
-type PageRequest = { redraw: boolean; dpi: number; onlyChanged: boolean; generation: number; workspace: string };
+const lastGoodPages = new Map<string, { pages: NonNullable<PagesNotice["pages"]>; slot: number; target: PreviewTarget }>();
+export type PagesWant = { project: string; workspace: string; viewport: Omit<DpiInput, "inches" | "fixed"> };
+type PageRequest = { redraw: boolean; dpi?: number; onlyChanged: boolean; generation: number; workspace: string; viewport?: PagesWant["viewport"] };
 type PageBuild = { running: boolean; queued: PageRequest | null; generation: number; published: number };
 const pageBuilds = new Map<string, PageBuild>();
 let generation = 0;
@@ -68,36 +69,60 @@ const nextGeneration = () => ++generation;
 
 const out = (o: { stdout: string; stderr: string }) => (o.stderr || o.stdout).trim();
 
+const readInput = async (path: string) => {
+  try {
+    return await api.readText(path);
+  } catch {
+    return await api.exists(path).catch(() => true) ? undefined : null;
+  }
+};
+
+const projectInputs = createProjectInputWatch(async (project) => {
+  const paths: string[] = [];
+  const visit = (entries: Awaited<ReturnType<typeof api.listTree>>) => {
+    for (const entry of entries) {
+      if (entry.dir) {
+        if (entry.path !== project + "/build" && entry.name !== ".git") visit(entry.children);
+      } else if (previewInput(project, entry.path)) paths.push(entry.path);
+    }
+  };
+  visit(await api.listTree(project, { showHidden: true, showIgnored: true }));
+  return paths;
+}, readInput);
+
 const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
-  const b = htmlBuilds.get(project) ?? { busy: false, queued: null, error: "" };
+  const b = htmlBuilds.get(project) ?? { busy: false, queued: null, error: "", revision: 0 };
   htmlBuilds.set(project, b);
   if (b.busy) {
-    b.queued = paths;
+    b.queued = [...new Set([...(b.queued ?? []), ...paths])];
     return;
   }
   b.busy = true;
   b.error = "";
+  const revision = b.revision;
+  const current = () => !b.queued && b.revision === revision;
   ctx.refresh(["previewTab"]);
   void sendPlain(ctx);
   try {
     const result = await withBuildDir(project, async () => {
+      await projectInputs.start(project);
+      if (!current()) return [];
+      const manifest = await api.readText(`${project}/manifest.toml`);
       const o = await golem(ctx, project, ["build", "--target", "html"]);
       if (o.code !== 0) throw new Error(out(o) || "golem build に失敗しました");
-      const manifest = await api.readText(`${project}/manifest.toml`);
       const chapters = new Set(manifestChapters(manifest).map((path) => `${project}/${path}`));
+      // Golem builds the index and the chapters into the same freshly generated site.
+      const extension = await api.exists(`${project}/build/html/index.html`) ? "html" : "xhtml";
       return Promise.all(paths.map(async (p) => {
-        const x = xhtmlPath(project, p);
-        const source = await api.readText(x).catch((error) => {
-          if (chapters.has(p)) throw error;
-          return null;
-        });
+        const x = xhtmlPath(project, p, extension);
+        const source = await readChapterXhtml(chapters, p, () => api.readText(x));
         const body = source === null ? null : chapterBody(source, { dir: dirname(x), root: `${project}/build/html` });
         return [p, body?.html ?? null] as const;
       }));
     });
-    if (!b.queued) for (const [path, content] of result) html.set(path, content);
+    if (current()) for (const [path, content] of result) html.set(path, content);
   } catch (e) {
-    b.error = String(e);
+    if (current()) b.error = String(e);
   }
   b.busy = false;
   if (b.queued) {
@@ -111,9 +136,9 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
 };
 
 /** The dpi the preview tab wants now: by its body's width, or 500 px when it has none (absent or hidden). */
-const wantedDpi = (ctx: Ctx, project: string) => {
+const wantedDpi = (ctx: Ctx, inches: number) => {
   const body = document.querySelector<HTMLElement>(".preview-tab .pbody");
-  return autoDpi({ width: body?.clientWidth || 500, ratio: devicePixelRatio, zoom, inches: styles.get(project) ?? 148 / 25.4, fixed: ctx.config.dpi });
+  return autoDpi({ width: body?.clientWidth || 500, ratio: devicePixelRatio, zoom, inches, fixed: ctx.config.dpi });
 };
 
 const hash = (value: string) => Math.abs([...value].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7));
@@ -137,14 +162,14 @@ const waiter = createWaiter({ now: () => Date.now(), set: (fn, ms) => window.set
 const pageSaves = createPageSaves(waiter);
 
 /** golem build --target pdf, then shem; with redraw, only shem on the last built PDF. */
-const buildPages = (ctx: Ctx, project: string, redraw = false, dpi = wantedDpi(ctx, project), onlyChanged = false, workspace = "") => {
+const buildPages = (ctx: Ctx, project: string, redraw = false, dpi?: number, onlyChanged = false, workspace = "", viewport?: PagesWant["viewport"]) => {
   if (!redraw) waiter.cancel(project);
   const existing = pageBuilds.get(project);
   if (existing?.running && redraw) return;
   if (existing?.queued && !existing.queued.redraw && onlyChanged) return;
   if (onlyChanged && !pageSaves.inputsFor(project).changed()) return;
   const request: PageRequest = {
-    redraw, dpi, onlyChanged, generation: nextGeneration(),
+    redraw, dpi, onlyChanged, viewport, generation: nextGeneration(),
     workspace: workspace || allDocs(ctx.store.get()).find((doc) => doc.project === project)?.workspace || ctx.store.get().workspace || "",
   };
   const b = existing ?? { running: false, queued: null, generation: 0, published: 0 };
@@ -166,7 +191,7 @@ const buildPages = (ctx: Ctx, project: string, redraw = false, dpi = wantedDpi(c
 const runPages = async (ctx: Ctx, project: string, b: PageBuild, request: PageRequest) => {
   b.running = true;
   ctx.refresh(["previewTab"]);
-  const { workspace, generation, redraw, dpi, onlyChanged } = request;
+  const { workspace, generation, redraw, dpi, onlyChanged, viewport } = request;
   const target: PreviewTarget = { workspace, project, paths: [], mode: "pages", vertical: false };
   const current = () => b.generation === generation;
   let noticeGeneration: number | undefined;
@@ -178,38 +203,51 @@ const runPages = async (ctx: Ctx, project: string, b: PageBuild, request: PageRe
   };
   const inputs = pageSaves.inputsFor(project);
   try {
-    const [manifest, style] = await Promise.all([api.readText(`${project}/manifest.toml`), api.readText(`${project}/style.toml`).catch(() => "")]);
-    target.paths = manifestChapters(manifest).map((path) => `${project}/${path}`);
-    target.vertical = readGrid(style).vertical;
-    notify({});
-    let snapshot: Map<string, string> | undefined;
-    let pdf = redraw ? lastGoodPages.get(project)?.pages.pdf : undefined;
-    if (!pdf) {
-      const result = await withBuildDir(project, async () => {
-        if (!current()) return null;
-        if (onlyChanged && !inputs.changed()) return false;
+    await withBuildDir(project, async () => {
+      if (!current()) return;
+      let snapshot: Map<string, InputContent> | undefined;
+      const prior = lastGoodPages.get(project);
+      let pdf = redraw ? prior?.pages.pdf : undefined;
+      let inches = prior?.pages.inches ?? pageInches("");
+      if (prior && (pdf || (onlyChanged && !inputs.changed()))) {
+        target.paths = prior.target.paths;
+        target.vertical = prior.target.vertical;
+      }
+      if (onlyChanged && !inputs.changed()) {
+        if (prior) notify({ pages: prior.pages });
+        return;
+      }
+      if (pdf) notify({});
+      else {
+        await projectInputs.start(project);
+        if (!current()) return;
+        const readSettings = () => Promise.all([api.readText(`${project}/manifest.toml`), api.readText(`${project}/style.toml`).catch(() => "")]);
+        const [manifest, style] = await readSettings();
+        const metadata = pdfPreviewInput(project, manifest, style);
+        target.paths = metadata.paths;
+        target.vertical = metadata.vertical;
+        inches = metadata.inches;
+        notify({});
         snapshot = inputs.snapshot();
         const o = await golem(ctx, project, ["build", "--target", "pdf"]);
         if (o.code !== 0) throw new Error(out(o) || "golem build に失敗しました");
-        return (await api.listDir(`${project}/build/pdf`)).find((p) => p.endsWith(".pdf"));
-      });
-      if (result === null) return;
-      if (result === false) {
-        const previous = lastGoodPages.get(project);
-        if (previous) notify({ pages: previous.pages });
-        return;
+        if (!current()) return;
+        const [afterManifest, afterStyle] = await readSettings();
+        if (afterManifest !== manifest || afterStyle !== style) throw new Error("組版中にマニフェストかスタイルが変わりました");
+        pdf = (await api.listDir(`${project}/build/pdf`)).find((p) => p.endsWith(".pdf"));
+        if (!pdf) throw new Error("build/pdf に PDF がありません");
       }
-      if (!result) throw new Error("build/pdf に PDF がありません");
-      pdf = result;
-    }
-    if (!current()) return;
-    const slot = lastGoodPages.get(project)?.slot === 0 ? 1 : 0;
-    const result = await rasterize(ctx, project, pdf, dpi, slot);
-    if (!result.ok) throw new Error(result.log || "ページ画像がありません");
-    if (!current()) return;
-    lastGoodPages.set(project, { pages: result, slot });
-    if (snapshot) inputs.publish(snapshot);
-    notify({ pages: result });
+      if (!current()) return;
+      const slot = prior?.slot === 0 ? 1 : 0;
+      const auto = viewport ? autoDpi({ ...viewport, inches, fixed: ctx.config.dpi }) : wantedDpi(ctx, inches);
+      const result = await rasterize(ctx, project, pdf, dpi ?? auto, slot);
+      if (!result.ok) throw new Error(result.log || "ページ画像がありません");
+      if (!current()) return;
+      const rendered = { ...result, inches };
+      lastGoodPages.set(project, { pages: rendered, slot, target: { ...target } });
+      if (snapshot) inputs.publish(snapshot);
+      notify({ pages: rendered });
+    });
   } catch (e) {
     notify({ error: String(e) });
   } finally {
@@ -251,13 +289,6 @@ const tabPreview = (head: HTMLElement, body: HTMLElement, ctx: Ctx): TabPreview 
   tabs.set(body, tab);
   return tab;
 };
-const styles = new Map<string, number>();
-
-const inchesOf = async (project: string) => {
-  if (!styles.has(project)) styles.set(project, pageInches(await api.readText(`${project}/style.toml`).catch(() => "")));
-  return styles.get(project)!;
-};
-
 /** The chapters of the shown tab: the text of all of them is shown together. */
 const chaptersShown = (s: State) => shown(s).open.filter((d) => d.kind === "gm");
 
@@ -417,7 +448,7 @@ const setZoom = (ctx: Ctx, project: string, z: number) => {
 const sharpen = (ctx: Ctx, project: string) => {
   const p = pages.get(project)?.pages;
   if (pageBuilds.get(project)?.running || !p?.ok || ctx.config.dpi > 0) return;
-  const want = wantedDpi(ctx, project);
+  const want = wantedDpi(ctx, p.inches);
   if (want > p.dpi) void buildPages(ctx, project, true, want);
 };
 
@@ -497,11 +528,7 @@ const imageView = (el: HTMLElement, doc: Doc): Editor => {
 };
 
 export const mountPreview = (ctx: Ctx) => {
-  ctx.view.previewTab = (head, body) => {
-    const d = shownDoc(ctx.store.get());
-    if (d?.project && !styles.has(d.project)) void inchesOf(d.project).then(() => ctx.refresh(["previewTab"]));
-    drawTab(head, body, ctx);
-  };
+  ctx.view.previewTab = (head, body) => drawTab(head, body, ctx);
   ctx.view.pausePreviewTab = (body) => {
     const tab = tabs.get(body);
     if (!tab) return;
@@ -519,15 +546,48 @@ export const mountPreview = (ctx: Ctx) => {
   ctx.kindViews.pdf = pdfView;
   for (const k of IMAGE_KINDS) ctx.kindViews[k] = (el, doc) => imageView(el, doc);
 
+  const rebuildInput = (project: string, changes: InputChange[], kind: "explicit" | "automatic") => {
+    const s = ctx.store.get();
+    const pending = pageBuilds.get(project);
+    const focused = shownDoc(s);
+    const eligible = rebuildPagesOnSave({
+      setting: ctx.config.rebuildOnSave, kind: "", input: true,
+      hasPages: lastGoodPages.has(project), initialBuild: pending?.running,
+      previewTab: s.panes.some((p) => p.tabs.some((t) => t.preview)), mode: s.previewMode,
+      followsProject: focused?.kind === "gm" && focused.project === project,
+    });
+    pageSaves.change(project, changes, eligible ? (kind === "explicit" ? "now" : "wait") : null,
+      () => void buildPages(ctx, project, false, undefined, true));
+    if (!changes.length) return;
+    for (const path of html.keys()) if (path.startsWith(project + "/")) html.delete(path);
+    const htmlBuild = htmlBuilds.get(project);
+    if (htmlBuild) htmlBuild.revision++;
+    const paths = allDocs(s).filter((doc) => doc.kind === "gm" && doc.project === project).map((doc) => doc.path);
+    if (paths.length) void buildHtml(ctx, project, [...new Set(paths)]);
+    else if (htmlBuild?.busy) htmlBuild.queued = null;
+    else htmlBuilds.delete(project);
+    if (waiter.waiting(project)) ctx.refresh(["previewTab"]);
+  };
+  ctx.previewInputsChanged = (paths, rescan) =>
+    projectInputs.changed(paths, rescan, (project, changes) => rebuildInput(project, changes, "automatic"));
+
   // after a save: the text is built again; the pages too when the setting says so, once the input has stopped (docs/adr/0056)
   ctx.store.subscribe((s, prev, action) => {
     if (action.type === "saved") {
       const before = allDocs(prev).find((d) => d.path === action.path);
       if (before?.project) {
         const project = before.project;
-        const previewTab = s.panes.some((p) => p.tabs.some((t) => t.preview));
-        const eligible = rebuildPagesOnSave({ setting: ctx.config.rebuildOnSave, kind: before.kind, hasPages: lastGoodPages.has(project), previewTab, mode: s.previewMode });
-        pageSaves.saved(project, action, before.saved, eligible, () => void buildPages(ctx, project, false, undefined, true));
+        if (previewInput(project, action.path)) {
+          const old = action.beforeFormat ?? before.saved;
+          const kind = action.pageSave ?? "automatic";
+          const result = projectInputs.saved(project, action.path, old, action.text, kind);
+          if (result === "changed") rebuildInput(project, [{ path: action.path, before: old, after: action.text }], kind === "explicit" ? "explicit" : "automatic");
+          if (result === "promote" && waiter.waiting(project)) rebuildInput(project, [], "explicit");
+        } else {
+          const previewTab = s.panes.some((p) => p.tabs.some((t) => t.preview));
+          const eligible = rebuildPagesOnSave({ setting: ctx.config.rebuildOnSave, kind: before.kind, hasPages: lastGoodPages.has(project), previewTab, mode: s.previewMode });
+          pageSaves.saved(project, action, before.saved, eligible, () => void buildPages(ctx, project, false, undefined, true));
+        }
         if (waiter.waiting(project)) ctx.refresh(["previewTab"]);
       }
     }
@@ -535,7 +595,6 @@ export const mountPreview = (ctx: Ctx) => {
       const before = allDocs(prev).find((x) => x.path === d.path);
       if (before && d.project && before.text !== d.text) waiter.edited(d.project);
       if (!before || before.saved === d.saved) continue;
-      if (d.path.endsWith("/style.toml")) styles.delete(d.project ?? "");
       if (!d.project) continue;
       if (d.kind === "gm") {
         const paths = chaptersShown(s).filter((x) => x.project === d.project).map((x) => x.path);
@@ -547,8 +606,8 @@ export const mountPreview = (ctx: Ctx) => {
 
   // the preview windows ask for what they show, and for a sharper drawing
   void listen("aleph:plain-want", () => void sendPlain(ctx, true));
-  void listen<{ project: string; workspace: string; dpi?: number }>("aleph:pages-want", (e) => {
-    const { project, workspace, dpi } = e.payload;
+  void listen<PagesWant>("aleph:pages-want", (e) => {
+    const { project, workspace, viewport } = e.payload;
     const notice = pages.get(project);
     const p = notice?.pages;
     const building = pageBuilds.get(project);
@@ -557,8 +616,9 @@ export const mountPreview = (ctx: Ctx) => {
         void emit("aleph:pages", notice).catch(() => {});
       return;
     }
-    if (!notice || notice.target.workspace !== workspace) return buildPages(ctx, project, false, dpi, false, workspace);
-    if (notice.pages && dpi && p && dpi > p.dpi && ctx.config.dpi === 0) return buildPages(ctx, project, true, dpi, false, workspace);
+    if (!notice || notice.target.workspace !== workspace) return buildPages(ctx, project, false, undefined, false, workspace, viewport);
+    const dpi = p && autoDpi({ ...viewport, inches: p.inches, fixed: ctx.config.dpi });
+    if (p && dpi && dpi > p.dpi && ctx.config.dpi === 0) return buildPages(ctx, project, true, dpi, false, workspace);
     void emit("aleph:pages", notice).catch(() => {});
   });
 

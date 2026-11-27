@@ -3,6 +3,7 @@
 // hover, completion and formatting, in horizontal and vertical writing alike.
 import { api } from "../api.ts";
 import { withBuildDir } from "../buildlock.ts";
+import { withPreviewInputFormatting } from "../preview/project-inputs.ts";
 import type { Ctx } from "../ctx.ts";
 import type { Diag, EditorPlugin, TextEditor } from "../ed/editor.ts";
 import { argPath, rel } from "../path.ts";
@@ -213,25 +214,27 @@ export const format = async (ctx: Ctx, doc: Doc, duringSave = false): Promise<bo
   }
   // without the server: golem fmt on the saved file, read back into the editor
   if (!doc.project) return null;
-  const written = await ctx.save([doc.path], { explicit: true, pageSave: "intermediate" });
-  if (!written.has(doc.path)) return "skipped";
-  // not while a build reads the project (docs/adr/0062)
   const project = doc.project;
-  const out = await withBuildDir(project, () => golem(ctx, project, ["fmt", argPath(rel(project, doc.path))])).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
-  if (out.code !== 0) {
-    if (!duringSave) {
-      const saved = allDocs(ctx.store.get()).find((d) => d.path === doc.path)?.saved;
-      if (saved !== undefined) ctx.store.dispatch({ type: "saved", path: doc.path, text: saved, beforeFormat: doc.saved });
+  return withPreviewInputFormatting(doc.path, async () => {
+    const written = await ctx.save([doc.path], { explicit: true, pageSave: "intermediate" });
+    if (!written.has(doc.path)) return "skipped";
+    // not while a build reads the project (docs/adr/0062)
+    const out = await withBuildDir(project, () => golem(ctx, project, ["fmt", argPath(rel(project, doc.path))])).catch((e) => ({ code: -1, stdout: "", stderr: String(e) }));
+    if (out.code !== 0) {
+      if (!duringSave) {
+        const saved = allDocs(ctx.store.get()).find((d) => d.path === doc.path)?.saved;
+        if (saved !== undefined) ctx.store.dispatch({ type: "saved", path: doc.path, text: saved, beforeFormat: doc.saved });
+      }
+      ctx.notify({ message: (out.stderr || out.stdout).trim() || "golem fmt に失敗しました", level: "error", sticky: true });
+      return null;
     }
-    ctx.notify({ message: (out.stderr || out.stdout).trim() || "golem fmt に失敗しました", level: "error", sticky: true });
-    return null;
-  }
-  const text = await api.readText(doc.path);
-  const ed = ctx.editors.get(doc.path);
-  const current = ed?.text() ?? doc.text;
-  if (text !== current) ed?.setText(text);
-  ctx.store.dispatch({ type: "saved", path: doc.path, text, beforeFormat: doc.saved, pageSave: duringSave ? "intermediate" : undefined });
-  return text !== current;
+    const text = await api.readText(doc.path);
+    const ed = ctx.editors.get(doc.path);
+    const current = ed?.text() ?? doc.text;
+    if (text !== current) ed?.setText(text);
+    ctx.store.dispatch({ type: "saved", path: doc.path, text, beforeFormat: doc.saved, pageSave: duringSave ? "intermediate" : undefined });
+    return text !== current;
+  });
 };
 
 const formatNow = async (ctx: Ctx, doc: Doc, duringSave = false) => {

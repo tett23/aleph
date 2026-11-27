@@ -1,6 +1,6 @@
 # ADR 0113: Emet、マニフェスト、スタイルの変更でプレビューを更新する
 
-Status: accepted-pending
+Status: accepted
 
 ## 文脈
 

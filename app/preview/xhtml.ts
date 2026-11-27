@@ -13,7 +13,11 @@ export type XNode = { kind: "text"; text: string } | { kind: "el"; tag: string; 
 /** Where the XHTML is (its directory) and the build/html its images must stay under. */
 export type Place = { dir: string; root: string };
 
-export const xhtmlPath = (project: string, path: string) => `${project}/build/html/${path.slice(project.length + 1).replace(/\.gm$/, ".xhtml")}`;
+export const xhtmlPath = (project: string, path: string, extension: "html" | "xhtml" = "xhtml") =>
+  `${project}/build/html/${path.slice(project.length + 1).replace(/\.gm$/, "." + extension)}`;
+
+export const readChapterXhtml = (chapters: ReadonlySet<string>, path: string, read: () => Promise<string>) =>
+  chapters.has(path) ? read() : Promise.resolve(null);
 
 const KEPT = new Set([
   "section", "div", "p", "span", "h1", "h2", "h3", "h4", "h5", "h6", "a", "em", "strong", "i", "b",
