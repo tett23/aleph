@@ -1,6 +1,6 @@
 # ADR 0003: アプリの構成
 
-Status: accepted
+Status: superseded [{"part":"技術の土台の画面とバックエンドの担当","by":["docs/adr/0116-own-domain-logic-in-rust.md"],"kind":"supplement"}]
 
 ## 文脈
 
