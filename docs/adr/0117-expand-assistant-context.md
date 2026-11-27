@@ -1,6 +1,6 @@
 # ADR 0117: アシスタントで日本語 20 万字の原稿を扱う
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
