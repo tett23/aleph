@@ -1,6 +1,6 @@
 # ADR 0017: Aleph のプラグイン
 
-Status: accepted
+Status: superseded [{"part":"画面と同じ権限で動くプラグインの実行と API","by":["docs/adr/0115-isolate-tabs-and-authorize-ipc.md"]}]
 
 ## 文脈
 
