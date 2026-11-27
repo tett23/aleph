@@ -1,6 +1,6 @@
 # ADR 0116: 変換とドメインロジックを Rust に集約する
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
