@@ -657,6 +657,11 @@ async fn copy_files(app: AppHandle, paths: Vec<String>) -> R<()> {
     on_main(&app, move || handout::copy(&paths)).await
 }
 
+#[tauri::command]
+async fn copy_text(app: AppHandle, text: String) -> R<()> {
+    on_main(&app, move || handout::copy_text(&text)).await
+}
+
 /// Starts dragging the files out of the window, at the pointer.
 #[tauri::command]
 async fn drag_out(app: AppHandle, window: tauri::WebviewWindow, paths: Vec<String>) -> R<()> {
@@ -1801,6 +1806,7 @@ pub fn run_app() {
             zip_entries,
             zip_folder,
             copy_files,
+            copy_text,
             pasteboard_state,
             paste_files,
             drag_out,

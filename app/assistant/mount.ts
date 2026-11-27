@@ -12,6 +12,8 @@ import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
 import { allDocs, focused, type Doc } from "../store.ts";
 import { gitOperation } from "../git-ipc.ts";
+import { displayedSections } from "../ui/copy-displayed-text.ts";
+import { copyText } from "../ui/notices.ts";
 import { applyAnswer, assistantChange } from "./applyflow.ts";
 import type { Scope } from "./edits.ts";
 import { chapterFor, splitSections, type Section } from "./material.ts";
@@ -93,34 +95,37 @@ const current = (ctx: Ctx) => {
 };
 
 const diffHtml = (lines: DiffLine[]) =>
-  `<pre class="as-diff">${lines.map((l) => (l.op === "…" ? `<span class="d-gap">…</span>` : `<span class="${l.op === "+" ? "d-add" : l.op === "-" ? "d-del" : ""}">${esc(l.op + l.text)}</span>`)).join("\n")}</pre>`;
+  `<pre class="as-diff" data-response-text>${lines.map((l) => (l.op === "…" ? `<span class="d-gap">…</span>` : `<span class="${l.op === "+" ? "d-add" : l.op === "-" ? "d-del" : ""}">${esc(l.op + l.text)}</span>`)).join("\n")}</pre>`;
+
+const copyAnswerButton = '<button type="button" class="btn small copy-text" data-copy-answer>応答をコピー</button>';
 
 const checkHtml = (o: Outcome<Answered>) => {
   const c = o.check;
   if (!c) return "";
-  if ("failed" in c) return `<div class="as-note muted">${esc(c.failed)}</div>`;
+  if ("failed" in c) return `<div class="as-note muted" data-response-text>${esc(c.failed)}</div>`;
   if (c.after > c.before)
-    return `<div class="as-note as-warn">${icon("triangle-alert", 12)}golem check のエラーが ${c.before} から ${c.after} に増えます${c.retried ? "（一度頼み直した後）" : ""}。<ul>${c.added
+    return `<div class="as-note as-warn" data-response-text>${icon("triangle-alert", 12)}golem check のエラーが ${c.before} から ${c.after} に増えます${c.retried ? "（一度頼み直した後）" : ""}。<ul>${c.added
       .map((d) => `<li>${d.span ? `${d.span.line} 行：` : ""}${esc(d.message)}<small>${esc(d.code)}</small></li>`)
       .join("")}</ul></div>`;
-  return c.retried ? `<div class="as-note muted">golem check のエラーが増えたので、一度頼み直しました。</div>` : "";
+  return c.retried ? `<div class="as-note muted" data-response-text>golem check のエラーが増えたので、一度頼み直しました。</div>` : "";
 };
 
 const answerHtml = (e: Entry) => {
   const o = e.outcome!;
   const a = o.answered;
-  const fallback = a.fallbackReason ? `<div class="as-note muted">${esc(connectorName(a.fallbackReason.from))} で答えられなかったので、ローカルで頼み直しました（${esc(a.fallbackReason.message)}）。</div>` : "";
-  const explanation = o.answer ? `<div class="as-expl">${esc(o.answer.explanation)}</div>` : "";
-  const reason = o.reason ? `<div class="as-note as-warn">${icon("triangle-alert", 12)}この案は当てられません：${esc(o.reason)}</div>` : "";
+  const fallback = a.fallbackReason ? `<div class="as-note muted" data-response-text>${esc(connectorName(a.fallbackReason.from))} で答えられなかったので、ローカルで頼み直しました（${esc(a.fallbackReason.message)}）。</div>` : "";
+  const explanation = o.answer?.explanation.trim() ? `<div class="as-expl" data-response-text>${esc(o.answer.explanation)}</div>` : "";
+  const reason = o.reason ? `<div class="as-note as-warn" data-response-text>${icon("triangle-alert", 12)}この案は当てられません：${esc(o.reason)}</div>` : "";
   const diff = o.after !== null && e.state !== "discarded" ? diffHtml(lineDiff(e.sheet, o.after)) : "";
   const buttons =
     o.after !== null && (e.state === "answered" || e.state === "applying")
       ? `<div class="row as-btns"><span class="btn pri${e.state === "applying" ? " off" : ""}" data-apply="${e.id}">適用</span><span class="btn" data-discard="${e.id}">捨てる</span></div>`
       : "";
   const done = e.state === "applied" ? `<div class="as-note muted">適用しました。</div>` : e.state === "discarded" ? `<div class="as-note muted">捨てました。</div>` : "";
-  const note = e.note ? `<div class="as-note as-warn">${esc(e.note)}</div>` : "";
+  const note = e.note ? `<div class="as-note as-warn" data-response-text>${esc(e.note)}</div>` : "";
   const meta = `<small class="as-meta">${esc(connectorName(a.connector))}${a.model ? ` · ${esc(a.model)}` : ""} · ${seconds(a.ms)}</small>`;
-  return explanation + fallback + reason + checkHtml(o) + diff + buttons + done + note + meta;
+  const content = explanation + fallback + reason + checkHtml(o) + diff;
+  return content + buttons + done + note + meta + (content || note ? `<div class="as-btns">${copyAnswerButton}</div>` : "");
 };
 
 const entryHtml = (e: Entry) =>
@@ -128,7 +133,7 @@ const entryHtml = (e: Entry) =>
     e.state === "asking"
       ? `<div class="muted">答えを待っています…</div>`
       : e.state === "failed"
-        ? `<div class="as-note as-warn">${icon("circle-x", 12)}${esc(e.error)}</div>`
+        ? `<div class="as-note as-warn" data-response-text>${icon("circle-x", 12)}${esc(e.error)}</div>${e.error.trim() ? `<div class="as-btns">${copyAnswerButton}</div>` : ""}`
         : answerHtml(e)
   }</div></div>`;
 
@@ -248,6 +253,12 @@ const build = (ctx: Ctx) => {
     if (t.dataset.connector !== undefined) chosen = t.value as ConnectorId;
   });
   el.addEventListener("click", (k) => {
+    const response = (k.target as Element).closest("[data-copy-answer]")?.closest(".as-ans");
+    if (response) {
+      const blocks = [...response.querySelectorAll<HTMLElement>("[data-response-text]")];
+      void copyText(displayedSections(blocks.map((block) => block.innerText)));
+      return;
+    }
     const t = (k.target as HTMLElement).closest<HTMLElement>("[data-send],[data-apply],[data-discard]");
     if (!t) return;
     if (t.dataset.send !== undefined) return void send(ctx);

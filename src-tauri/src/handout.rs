@@ -12,7 +12,8 @@ mod mac {
     use objc2_app_kit::{
         NSApp, NSDragOperation, NSDraggingContext, NSDraggingItem, NSDraggingSession,
         NSDraggingSource, NSEvent, NSEventModifierFlags, NSEventType, NSPasteboard,
-        NSPasteboardTypeFileURL, NSPasteboardWriting, NSWindow, NSWorkspace,
+        NSPasteboardTypeFileURL, NSPasteboardTypeString, NSPasteboardWriting, NSWindow,
+        NSWorkspace,
     };
     use objc2_foundation::{NSArray, NSPoint, NSRect, NSSize, NSString, NSURL};
     use std::path::{Path, PathBuf};
@@ -96,6 +97,32 @@ mod mac {
         }
     }
 
+    pub fn copy_text(text: &str) -> Result<(), String> {
+        MainThreadMarker::new().ok_or("メインスレッドの外からは書けません")?;
+        let board = NSPasteboard::generalPasteboard();
+        copy_text_to(&board, text)
+    }
+
+    fn copy_text_to(board: &NSPasteboard, text: &str) -> Result<(), String> {
+        board.clearContents();
+        let kind = unsafe { NSPasteboardTypeString };
+        if board.setString_forType(&NSString::from_str(text), kind) {
+            Ok(())
+        } else {
+            Err("クリップボードに書けませんでした".into())
+        }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn adr0114_i5_preserves_plain_text_on_a_private_pasteboard() {
+        let board = NSPasteboard::pasteboardWithUniqueName();
+        let text = "見出し\n\n   abc\n本文";
+        copy_text_to(&board, text).expect("write plain text");
+        let kind = unsafe { NSPasteboardTypeString };
+        assert_eq!(board.stringForType(kind).unwrap().to_string(), text);
+    }
+
     /// Starts a drag of `paths` from the window at the pointer, as drag-rs does
     /// (crabnebula-dev/drag-rs, MIT or Apache-2.0).
     pub fn drag(ns_window: *mut std::ffi::c_void, paths: &[PathBuf]) -> Result<(), String> {
@@ -177,6 +204,17 @@ pub fn pasteboard() -> Result<(isize, Vec<PathBuf>), String> {
 #[cfg(target_os = "macos")]
 pub fn copy(paths: &[PathBuf]) -> Result<(), String> {
     mac::copy(paths)
+}
+
+/// Writes plain text to the general pasteboard (main thread only).
+#[cfg(target_os = "macos")]
+pub fn copy_text(text: &str) -> Result<(), String> {
+    mac::copy_text(text)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn copy_text(_text: &str) -> Result<(), String> {
+    Err("テキストのコピーは macOS だけで使えます".into())
 }
 
 /// Starts dragging `paths` out of the window `ns_window` (main thread only).

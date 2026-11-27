@@ -3,9 +3,11 @@
 // other windows (the pages, the plot) also go into the main window's history.
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { api } from "../api.ts";
 import { esc } from "../esc.ts";
 import { h, icon } from "../icons.ts";
 import { swallowLatePress } from "./press.ts";
+import { copyDisplayedText } from "./copy-displayed-text.ts";
 import { createFolds, foldKey, type Fold } from "../notice-fold.ts";
 import { createNotifications, type Handle, type Level, type Note, type NotificationEvent, type Notifications, type NotifyOpts } from "../notify.ts";
 
@@ -48,6 +50,8 @@ export const notifications = (): Notifications => {
 };
 
 export const notify = (o: NotifyOpts): Handle => notifications().notify(o);
+
+export const copyText = (text: string) => copyDisplayedText(text, api.copyText, notify);
 
 /** A failure: an error that stays until closed. */
 export const notifyError = (message: string, actions?: NotifyOpts["actions"]) => notify({ message, level: "error", sticky: true, actions });

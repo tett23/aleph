@@ -11,10 +11,10 @@ import { renderBuildLog } from "./buildlog.ts";
 import { buildLogs, buildProblems } from "./projectbuildmount.ts";
 import { esc } from "./esc.ts";
 import { icon } from "./icons.ts";
-import { countProblems, DEFAULT_HEIGHT, emptyText, filterGroups, fromGolem, groupProblems, nextFilter, panelHeight, type Filter, type Problem } from "./problems.ts";
+import { countProblems, DEFAULT_HEIGHT, emptyText, filterGroups, fromGolem, groupProblems, nextFilter, panelHeight, problemsCopyText, problemSeverityLabel, type Filter, type Problem } from "./problems.ts";
 import { allDocs, focused, shownDoc } from "./store.ts";
 import { uiState } from "./uistate.ts";
-import { LEVEL_ICON, notifications } from "./ui/notices.ts";
+import { copyText, LEVEL_ICON, notifications } from "./ui/notices.ts";
 import { badgeText, type Note } from "./notify.ts";
 
 const SHOW = "showBottomPanel";
@@ -23,11 +23,7 @@ const TAB = "bottomPanelTab";
 type Tab = "problems" | "notifications" | "build-log" | "assistant";
 const KEPT: Tab[] = ["problems", "notifications", "assistant"];
 
-const SEV: Record<Problem["severity"], [string, string]> = {
-  error: ["circle-x", "エラー"],
-  warning: ["triangle-alert", "警告"],
-  info: ["info", "情報"],
-};
+const SEV: Record<Problem["severity"], string> = { error: "circle-x", warning: "triangle-alert", info: "info" };
 
 /** The open sheets' editor diagnostics. */
 const editorProblems = (ctx: Ctx): Problem[] =>
@@ -59,10 +55,12 @@ const countsHtml = (c: ReturnType<typeof countProblems>, filter: Filter) =>
     `<span class="pc sev-${sev}${filter === sev ? " on" : ""}" data-sev="${sev}" title="${filter === sev ? "絞りこみを外す" : `${name}だけを出す`}">${icon(ic, 12)}${c[key]}</span>`,
   ).join("");
 
-const rowHtml = (x: Problem, g: number, i: number) =>
-  `<div class="pr sev-${x.severity}" data-g="${g}" data-i="${i}" title="${SEV[x.severity][1]}">${icon(SEV[x.severity][0], 13)}<span class="msg">${esc(x.message)}</span><small>${esc(
+const rowHtml = (x: Problem, g: number, i: number) => {
+  const open = x.line === null ? "診断のファイルを開く" : "診断の位置へ移動";
+  return `<div class="pr sev-${x.severity}" data-g="${g}" data-i="${i}" title="${problemSeverityLabel[x.severity]}">${icon(SEV[x.severity], 13)}<span class="msg">${esc(x.message)}</span><small>${esc(
     [x.source, x.code].filter(Boolean).join(" "),
-  )}${x.line !== null ? ` [${x.line}, ${x.col ?? 1}]` : ""}</small></div>`;
+  )}${x.line !== null ? ` [${x.line}, ${x.col ?? 1}]` : ""}</small>${x.file ? `<button type="button" class="iconbtn problem-open" data-problem-open aria-label="${open}" title="${open}">${icon("arrow-up-right", 13)}</button>` : ""}</div>`;
+};
 
 const time = (at: number) => new Date(at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -114,7 +112,8 @@ export const mountBottomPanel = (ctx: Ctx) => {
     const badge = un.count ? `<span class="nbadge${un.error ? " err" : ""}">${badgeText(un.count)}</span>` : "";
     const history = ns.history();
     const head = `<div class="phead2"><span class="bottom-panel-tab${t === "problems" ? " on" : ""}" data-tab="problems">問題</span>${countsHtml(countProblems(groups.flatMap((g) => g.items)), filter)}<span class="bottom-panel-tab${t === "notifications" ? " on" : ""}" data-tab="notifications">通知${badge}</span>${log ? `<span class="bottom-panel-tab${t === "build-log" ? " on" : ""}" data-tab="build-log">ビルドログ</span>` : ""}<span class="bottom-panel-tab${t === "assistant" ? " on" : ""}" data-tab="assistant">アシスタント</span><span class="grow"></span>${
-        t === "notifications" && history.length ? `<span class="btn small" data-clear>履歴を消す</span>` : ""
+        t === "problems" ? `<button type="button" class="btn small copy-text" data-copy-problems${shownGroups.length ? "" : " disabled"}>問題をコピー</button>`
+          : t === "notifications" && history.length ? `<span class="btn small" data-clear>履歴を消す</span>` : ""
       }<span class="iconbtn" data-close title="閉じる（⇧⌘M）">${icon("x", 13)}</span></div>`;
     // the assistant's element stays in place: only the head is drawn again
     const body = host.querySelector<HTMLElement>(".pbody2");
@@ -133,7 +132,6 @@ export const mountBottomPanel = (ctx: Ctx) => {
       }</div>`;
     if (t === "assistant") host.querySelector(".pbody2")!.append(assistantView(ctx));
 
-    // a row: open its file at its place; taken at mousedown so the editor keeps the focus (as the old list did)
     host.onmousedown = (e) => {
       if (e.button !== 0) return;
       const t = e.target as HTMLElement;
@@ -152,11 +150,12 @@ export const mountBottomPanel = (ctx: Ctx) => {
       if (t.closest("[data-clear]")) return void (e.preventDefault(), notifications().clearHistory());
       const na = t.closest<HTMLElement>("[data-na]");
       if (na) return void (e.preventDefault(), notifications().press(Number(na.dataset.nid), Number(na.dataset.na)));
-      // the history's text can be selected and copied
-      if (t.closest(".nr")) return;
-      const row = t.closest<HTMLElement>("[data-g]");
+    };
+    host.onclick = (e) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("[data-copy-problems]")) return void copyText(problemsCopyText(shownGroups));
+      const row = t.closest("[data-problem-open]")?.closest<HTMLElement>("[data-g]");
       if (!row) return;
-      e.preventDefault();
       const x = shownGroups[Number(row.dataset.g)]?.items[Number(row.dataset.i)];
       if (x?.file) void ctx.open([x.file], x.line !== null ? { line: x.line, col: Math.max(0, (x.col ?? 1) - 1) } : undefined);
     };

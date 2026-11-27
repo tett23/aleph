@@ -81,3 +81,13 @@ export const nextFilter = (now: Filter, pressed: Problem["severity"]): Filter =>
 /** What the list says when nothing is shown. */
 export const emptyText = (filter: Filter): string =>
   filter === "error" ? "エラーはありません" : filter === "warning" ? "警告はありません" : filter === "info" ? "そのほかの問題はありません" : "問題はありません";
+
+export const problemSeverityLabel: Record<Problem["severity"], string> = { error: "エラー", warning: "警告", info: "情報" };
+
+export const problemsCopyText = (groups: readonly Group[]): string =>
+  groups.map(({ label, items }) => [
+    label,
+    ...items.map((x) => [
+      problemSeverityLabel[x.severity], x.source, x.code, x.line === null ? "" : `[${x.line}, ${x.col ?? 1}]`, x.message,
+    ].filter(Boolean).join(" ")),
+  ].join("\n")).join("\n\n");
