@@ -1,6 +1,6 @@
 # ADR 0114: 問題、プレビュー、アシスタントの応答をコピーする
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
