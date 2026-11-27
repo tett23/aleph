@@ -72,8 +72,10 @@ test("the embedded text has a limit of 200,000 characters per preview", () => {
   assert.ok(html.includes("（長すぎるため省きました）"));
 });
 
-test("converted to gm: an image embed becomes @figure, a sheet embed its name only", () => {
-  assert.equal(mdToGm("![[images/a.png]]\n\n![[人物#家族]]", "blank-line"), "@figure images/a.png\n\n人物\n");
+test("converted to gm: an image embed found becomes @nonumber @figure, one not found its stem and a comment; a sheet embed its name only (docs/adr/0061)", () => {
+  const found = { dir: "", resolveEmbed: (t: string) => (t === "images/a.png" ? "images/a.png" : null) };
+  assert.equal(mdToGm("![[images/a.png]]\n\n![[人物#家族]]", "blank-line", found), '@nonumber\n@figure "images/a.png" alt="a"\n\n人物\n');
+  assert.equal(mdToGm("![[images/a.png]]", "blank-line"), "a %% 画像: images/a.png %%\n");
 });
 
 test("the embedded Markdown follows the line-break setting (docs/adr/0035)", () => {
