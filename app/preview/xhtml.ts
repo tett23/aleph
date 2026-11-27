@@ -15,6 +15,9 @@ export type Place = { dir: string; root: string };
 
 export const xhtmlPath = (project: string, path: string) => `${project}/build/html/${path.slice(project.length + 1).replace(/\.gm$/, ".xhtml")}`;
 
+export const readChapterXhtml = (chapters: ReadonlySet<string>, path: string, read: () => Promise<string>) =>
+  chapters.has(path) ? read() : Promise.resolve(null);
+
 const KEPT = new Set([
   "section", "div", "p", "span", "h1", "h2", "h3", "h4", "h5", "h6", "a", "em", "strong", "i", "b",
   "ruby", "rt", "rp", "br", "hr", "ul", "ol", "li", "blockquote", "pre", "code",

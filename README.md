@@ -51,6 +51,8 @@ The plot (“プロット”) can be used only when the project of the sheet you
 
 With page refresh on save enabled, ⌘S refreshes the PDF preview immediately when the saved content changes. Autosave waits for five seconds of idle time and skips rendering if the pages already match.
 
+Changes to a project's Emet files or its root `manifest.toml` and `style.toml` refresh its text and page previews. Aleph also picks up changes saved by another editor, even when the changed file is closed in Aleph. Page refresh follows the same setting and waits for the end of the idle period on external changes.
+
 The text and page previews keep your scroll position when the same content target refreshes, both in the tab and in a separate window. The position is measured in pixels from the reading start.
 
 The writing checks for `.gm`, `.md`, and `.txt` skip absolute HTTP and HTTPS URLs with a host, including URLs enclosed in angle brackets.

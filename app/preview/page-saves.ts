@@ -1,5 +1,6 @@
 import type { Action } from "../store.ts";
 import type { createWaiter } from "./wait.ts";
+import type { InputChange, InputContent } from "./project-inputs.ts";
 
 // Saved page inputs for one project (ADR 0072). Keep the original text for
 // files first touched while a build is running, including previously closed sheets.
@@ -11,17 +12,19 @@ export const pageSaveTiming = (kind: PageSaveKind, before: string, after: string
 };
 
 export const createPageInputs = () => {
-  const files = new Map<string, { rendered: string; saved: string }>();
+  const files = new Map<string, { rendered: InputContent; saved: InputContent }>();
   return {
-    save(path: string, before: string, after: string) {
-      const rendered = files.get(path)?.rendered ?? before;
+    save(path: string, before: InputContent, after: InputContent) {
+      const previous = files.get(path);
+      const rendered = previous ? previous.rendered : before;
       files.set(path, { rendered, saved: after });
     },
     changed: () => Array.from(files.values()).some((f) => f.rendered !== f.saved),
     snapshot: () => new Map(Array.from(files, ([path, f]) => [path, f.saved])),
-    publish(snapshot: Map<string, string>) {
+    publish(snapshot: Map<string, InputContent>) {
       for (const [path, file] of files) {
-        file.rendered = snapshot.get(path) ?? file.rendered;
+        const rendered = snapshot.get(path);
+        if (rendered !== undefined) file.rendered = rendered;
         if (file.rendered === file.saved) files.delete(path);
       }
     },
@@ -37,16 +40,24 @@ export const createPageSaves = (waiter: ReturnType<typeof createWaiter>) => {
     projects.set(project, inputs);
     return inputs;
   };
+  const change = (project: string, changes: readonly InputChange[], timing: "wait" | "now" | null, build: () => void) => {
+    if (changes.length && (timing || projects.has(project))) {
+      const inputs = inputsFor(project);
+      for (const { path, before, after } of changes) inputs.save(path, before, after);
+    }
+    if (timing === "wait") waiter.request(project, build);
+    if (timing === "now") {
+      waiter.cancel(project);
+      build();
+    }
+  };
   return {
-    inputsFor,
+    inputsFor, change,
     saved(project: string, action: Extract<Action, { type: "saved" }>, before: string, eligible: boolean, build: () => void) {
-      if (before !== action.text && (eligible || projects.has(project))) inputsFor(project).save(action.path, before, action.text);
       const timing = pageSaveTiming(action.pageSave ?? "automatic", action.beforeFormat ?? before, action.text, eligible);
-      if (timing === "wait") waiter.request(project, build);
-      if (timing === "now") {
-        waiter.cancel(project);
-        build();
-      }
+      const changes = before === action.text ? [] : [{ path: action.path, before, after: action.text }];
+      if (changes.length && eligible && !timing) inputsFor(project);
+      change(project, changes, timing, build);
     },
   };
 };

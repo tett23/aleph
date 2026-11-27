@@ -24,5 +24,10 @@ export const previewMessage = (x: "none" | "empty") => (x === "none" ? NO_PREVIE
  * I10: after a save the pages are built again when the setting is on, the saved sheet is a .gm, and
  * the project has pages built before or the preview tab is open with "pages".
  */
-export const rebuildPagesOnSave = (o: { setting: boolean; kind: string; hasPages: boolean; previewTab: boolean; mode: PreviewMode }): boolean =>
-  o.setting && o.kind === "gm" && (o.hasPages || (o.previewTab && o.mode === "pages"));
+export const rebuildPagesOnSave = (o: {
+  setting: boolean; kind: string; hasPages: boolean; previewTab: boolean; mode: PreviewMode;
+  input?: boolean; followsProject?: boolean; initialBuild?: boolean;
+}): boolean =>
+  o.setting && (o.input
+    ? o.hasPages || !!o.initialBuild || (o.previewTab && o.mode === "pages" && !!o.followsProject)
+    : o.kind === "gm" && (o.hasPages || (o.previewTab && o.mode === "pages")));

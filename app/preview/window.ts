@@ -5,10 +5,10 @@ import { api } from "../api.ts";
 import { normalize } from "../config.ts";
 import { applyTheme, mountAppearance } from "../theme.ts";
 import { setUiState, windowUiState } from "../uistate.ts";
-import { autoDpi, pageInches } from "./pages.ts";
+import { autoDpi } from "./pages.ts";
 import { loadZoom, onWheelZoom, preparePages, preparePlain, previewPane, renderHint, saveZoom, zoomByClick, zoomControls } from "./render.ts";
 import { createPreviewFeed } from "./update.ts";
-import type { Pages, PagesNotice, PlainNotice } from "./mount.ts";
+import type { PagesNotice, PlainNotice } from "./mount.ts";
 
 export const startPreviewWindow = async (view: "pages" | "plain", project: string, workspace: string) => {
   const config = normalize(JSON.parse(await api.configLoad().catch(() => "{}")));
@@ -22,7 +22,7 @@ export const startPreviewWindow = async (view: "pages" | "plain", project: strin
   let error = "";
   let busy = true;
   let zoom = loadZoom();
-  let got: Pages | undefined;
+  let got: PagesNotice["pages"];
   const drawHead = () => {
     head.innerHTML = `<span>${view === "pages" ? "ページ" : "本文"}</span><small data-preview-status></small><span class="sp"></span>${view === "pages" ? zoomControls(zoom) : ""}`;
     const status = head.querySelector<HTMLElement>("[data-preview-status]")!;
@@ -68,12 +68,10 @@ export const startPreviewWindow = async (view: "pages" | "plain", project: strin
     return;
   }
 
-  const inches = pageInches(await api.readText(`${project}/style.toml`).catch(() => ""));
-  if (closed) return;
-  const want = () => autoDpi({ width: body.clientWidth, ratio: devicePixelRatio, zoom, inches, fixed: config.dpi });
+  const viewport = () => ({ width: body.clientWidth, ratio: devicePixelRatio, zoom });
   const sharpen = () => {
-    if (!busy && !error && got?.ok && config.dpi === 0 && want() > got.dpi)
-      void emit("aleph:pages-want", { project, workspace, dpi: want() });
+    if (!busy && !error && got?.ok && config.dpi === 0 && autoDpi({ ...viewport(), inches: got.inches }) > got.dpi)
+      void emit("aleph:pages-want", { project, workspace, viewport: viewport() });
   };
   const setZoom = (z: number) => {
     zoom = z;
@@ -117,5 +115,5 @@ export const startPreviewWindow = async (view: "pages" | "plain", project: strin
       };
     });
   }));
-  if (!closed) await emit("aleph:pages-want", { project, workspace, dpi: want() });
+  if (!closed) await emit("aleph:pages-want", { project, workspace, viewport: viewport() });
 };
