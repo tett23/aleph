@@ -1,6 +1,6 @@
 # ADR 0123: Golem の数の糖衣構文を文章の検査から除く
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
