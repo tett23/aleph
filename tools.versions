@@ -15,8 +15,17 @@ llama.cpp b12466 llama-{tag}-bin-macos-arm64.tar.gz ggml-org/llama.cpp 1940fb9b8
 # model  file  repository  revision  sha256
 model Qwen3.5-4B-Q4_K_M.gguf unsloth/Qwen3.5-4B-GGUF e87f176479d0855a907a41277aca2f8ee7a09523 00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4
 #
-# the chapters of the Golem manual, from the source at the golem tag above
-# manual  file  repository  sha256
-manual 03-markup.gm tett23/golem 5eb0a267200bd7eb85013d91ce56aec874ea7c5de045a934b7cefd54cfd17d66
-manual 04-manifest.gm tett23/golem 59fa4264769a0bf568ef894eed1dd9827f551d7be6afe7500b7e9c563ca6214e
-manual 05-style.gm tett23/golem 3545c2108a97406ce97360f17165322d202146ab5e723954281ce836d6786b0f
+# Manual sources, pinned by the heading label (ADR 0121); aliases are for older readers.
+manual-manifest tett23/golem db8d46bc666bf34584fa6b30db54db274ed9632dfbf7a88d6ccabafa571523ce
+manual-label markup 5eb0a267200bd7eb85013d91ce56aec874ea7c5de045a934b7cefd54cfd17d66 03-markup.gm
+manual-label manifest 59fa4264769a0bf568ef894eed1dd9827f551d7be6afe7500b7e9c563ca6214e 04-manifest.gm
+manual-label style 3545c2108a97406ce97360f17165322d202146ab5e723954281ce836d6786b0f 05-style.gm
+manual-label app-emet 7f2b7236dc8146c239b55a0140978dd7332efe1e8b6c4e19280289916440b4ea
+manual-label app-markup 1feeff28a5657bbd3f153159ca9c08c64d446cd3fe7b22e4fe57045095cd097f
+manual-label app-manifest 76cdf0cabcbc83a8bae1f18ffc075745ef299e3d0a9a048ac1e6c4e0c35e65a0
+manual-label app-style c785b716fa73f2f338b5f863d63883030767c72c8a2e14b9fd459510040b0032
+manual-label app-preflight c35c125f3f9b5de29b929edb09b202ee30d3547d67617e2136c954b751ec5fa7
+manual-label app-errors e03df5e77d05a06293c71364c286320a3c413a458c491068ca257240cd9b7a17
+manual-label app-indesign 9078eb0babb4eaa56227334baab0e844f771691c5633b838cc76f573fdb60134
+manual-label app-glossary 79628151b5fd0a9be69c62e0f0c74268ffb4bccc998f72536c8b9d96e3a8655a
+manual-label app-known-issues 86a07fd2fa5729d1acb7091100168361146bf77abc5c697ff3a02c5333c43412

@@ -23,6 +23,7 @@ version = "1.0.0-rc7"
 dependencies = [
  "git2",
  "ignore",
+ "libc",
  "libgit2-sys",
  "objc2",
  "objc2-app-kit",

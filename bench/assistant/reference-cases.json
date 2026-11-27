@@ -1,0 +1,72 @@
+[
+  {
+    "id": "ref-book-title",
+    "path": "manifest.toml",
+    "request": "manifest.toml の metadata に登録された書名を、表記どおりに答えてください。",
+    "source": "chapters = [\"chapters/01.gm\"]\n\n[metadata]\ntitle = \"薄明の測量帳\"\nlanguage = \"ja\"\n",
+    "facts": ["薄明の測量帳"]
+  },
+  {
+    "id": "ref-layout-mode-and-binding",
+    "path": "style.toml",
+    "request": "style.toml の [page] に設定されている writing-mode と binding の値を答えてください。値は設定の英語表記で答えてください。",
+    "source": "[page]\nsize = \"A5\"\nwriting-mode = \"vertical\"\nbinding = \"right\"\n\n[page.grid]\ncolumns = 2\n",
+    "facts": ["vertical", "right"]
+  },
+  {
+    "id": "ref-rescheduled-date",
+    "path": "notes/schedule.md",
+    "request": "notes/schedule.md を確認して、変更後の校了日を年月日で答えてください。",
+    "source": "# 校了日\n\n当初の予定は2027年3月9日。\n印刷所の連絡で2027年3月23日に変更した。\n納品予定日は2027年4月6日。\n",
+    "facts": ["2027年3月23日"]
+  },
+  {
+    "id": "ref-warehouse-address",
+    "path": "notes/shipping.txt",
+    "request": "notes/shipping.txt で、返送先の番地付き住所を確認して答えてください。",
+    "source": "発送元: 製本工房\n納品先: 羽澄町12-8\n返送先: 糸月町47-16\n連絡窓口: 制作部\n",
+    "facts": ["糸月町47-16"]
+  },
+  {
+    "id": "ref-table-item-code",
+    "path": "notes/inventory.md",
+    "request": "notes/inventory.md にある保存用封筒の管理コードを答えてください。",
+    "source": "# 備品\n\n| 品目 | 管理コード | 在庫 |\n| --- | --- | --- |\n| 薄紙 | MT-940 | 16 |\n| 保存用封筒 | PX-742 | 28 |\n| 保存箱 | BK-613 | 12 |\n",
+    "facts": ["PX-742"]
+  },
+  {
+    "id": "ref-inscription",
+    "path": "chapters/gate.gm",
+    "request": "chapters/gate.gm の門に刻まれた言葉を、一字も変えずに引用してください。",
+    "source": "# 門\n\n扉の上には「砂時計は海を量らない」と刻まれていた。\n案内板には「夕刻閉門」と印刷されていた。\n",
+    "facts": ["砂時計は海を量らない"]
+  },
+  {
+    "id": "ref-not-approved-color",
+    "path": "notes/cover.txt",
+    "request": "notes/cover.txt を読んで、表紙に採用された色名を答えてください。",
+    "source": "候補: 青磁鼠、葡萄鼠、薄香\n青磁鼠は試し刷りだけに使用。\n葡萄鼠は不採用。\n決定: 表紙は薄香。\n",
+    "facts": ["薄香"]
+  },
+  {
+    "id": "ref-ordered-chapters",
+    "path": "manifest.toml",
+    "request": "manifest.toml の chapters 配列で、chapters/wind.gm の直後に置かれた章のパスを答えてください。",
+    "source": "chapters = [\n  \"chapters/01.gm\",\n  \"chapters/wind.gm\",\n  \"chapters/echo.gm\",\n  \"chapters/river.gm\",\n]\n",
+    "facts": ["chapters/echo.gm"]
+  },
+  {
+    "id": "ref-odd-lot-quantity",
+    "path": "notes/print-run.md",
+    "request": "notes/print-run.md で、予備分の部数を確認してください。何部か単位付きで答えてください。",
+    "source": "# 印刷部数\n\n本納品: 1840部\n予備分: 137部\n見本: 26部\n",
+    "facts": ["137部"]
+  },
+  {
+    "id": "ref-shelf-and-box",
+    "path": "notes/archive.txt",
+    "request": "notes/archive.txt を読み、差し替え前の校正刷りを保管している棚と箱の識別子を両方答えてください。",
+    "source": "差し替え後の校正刷り: 棚 A-14、箱 M-330\n差し替え前の校正刷り: 棚 C-27、箱 K-481\n印刷見本: 棚 D-08、箱 N-269\n",
+    "facts": ["C-27", "K-481"]
+  }
+]

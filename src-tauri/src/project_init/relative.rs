@@ -1,10 +1,10 @@
 //! Directory-relative operations keep placement on the verified side of
 //! each directory entry even if another process replaces a path.
-use std::ffi::{c_char, c_int, CString, OsStr};
+use std::ffi::{c_char, c_int, CStr, CString, OsStr, OsString};
 use std::fs::File;
 use std::io::{self, Result};
-use std::os::fd::{AsRawFd, FromRawFd};
-use std::os::unix::ffi::OsStrExt;
+use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd};
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Component, Path};
 
 // Values from the platform's <fcntl.h>. File and directory creation pass
@@ -87,6 +87,92 @@ pub fn open_dir(dir: &File, path: &OsStr) -> Result<File> {
 
 pub fn open_entry(dir: &File, path: &OsStr) -> Result<File> {
     open(dir.as_raw_fd(), path, O_NONBLOCK, 0)
+}
+
+/// Classifies an entry without following it or opening special files.
+pub(crate) fn entry_kind(dir: &File, entry: &OsStr) -> Result<libc::mode_t> {
+    let entry = name(entry)?;
+    let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+    // SAFETY: dir owns the descriptor, and stat is initialized only on success.
+    check(unsafe {
+        libc::fstatat(
+            dir.as_raw_fd(),
+            entry.as_ptr(),
+            stat.as_mut_ptr(),
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    })?;
+    Ok(unsafe { stat.assume_init() }.st_mode & libc::S_IFMT)
+}
+
+pub(crate) fn read_link(dir: &File, entry: &OsStr) -> Result<OsString> {
+    let entry = name(entry)?;
+    let mut target = vec![0u8; libc::PATH_MAX as usize + 1];
+    // SAFETY: dir owns the descriptor, the name is NUL terminated and the buffer is writable.
+    let count = unsafe {
+        libc::readlinkat(
+            dir.as_raw_fd(),
+            entry.as_ptr(),
+            target.as_mut_ptr().cast(),
+            target.len(),
+        )
+    };
+    if count < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if count as usize == target.len() {
+        return Err(io::Error::other("リンク先のパスが長すぎます"));
+    }
+    target.truncate(count as usize);
+    Ok(OsString::from_vec(target))
+}
+
+struct DirectoryStream(*mut libc::DIR);
+
+impl Drop for DirectoryStream {
+    fn drop(&mut self) {
+        // SAFETY: this stream owns the descriptor transferred to fdopendir.
+        unsafe { libc::closedir(self.0) };
+    }
+}
+
+/// Visits names from a held directory without resolving its path again.
+pub(crate) fn names(dir: &File, mut visit: impl FnMut(&OsStr) -> bool) -> Result<()> {
+    let descriptor = open_dir(dir, OsStr::new("."))?.into_raw_fd();
+    // SAFETY: the descriptor refers to a directory and ownership transfers on success.
+    let stream = unsafe { libc::fdopendir(descriptor) };
+    if stream.is_null() {
+        let error = io::Error::last_os_error();
+        // SAFETY: fdopendir failed, so the descriptor is still owned here.
+        drop(unsafe { File::from_raw_fd(descriptor) });
+        return Err(error);
+    }
+    let stream = DirectoryStream(stream);
+    loop {
+        // SAFETY: errno is thread local, and the returned name lives until the next readdir.
+        let (entry, errno) = unsafe {
+            #[cfg(target_os = "macos")]
+            let errno = libc::__error();
+            #[cfg(not(target_os = "macos"))]
+            let errno = libc::__errno_location();
+            *errno = 0;
+            let entry = libc::readdir(stream.0);
+            (entry, *errno)
+        };
+        if entry.is_null() {
+            return if errno == 0 {
+                Ok(())
+            } else {
+                Err(io::Error::from_raw_os_error(errno))
+            };
+        }
+        // SAFETY: readdir returned a live entry and guarantees a NUL-terminated name.
+        let name =
+            OsStr::from_bytes(unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) }.to_bytes());
+        if name != "." && name != ".." && !visit(name) {
+            return Ok(());
+        }
+    }
 }
 
 pub fn parent(anchor: &File, path: &Path) -> Result<File> {

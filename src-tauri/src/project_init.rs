@@ -7,7 +7,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
-mod relative;
+pub(crate) mod relative;
 #[cfg(test)]
 mod tests;
 
