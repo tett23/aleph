@@ -111,8 +111,10 @@ const buildHtml = async (ctx: Ctx, project: string, paths: string[]) => {
       const o = await golem(ctx, project, ["build", "--target", "html"]);
       if (o.code !== 0) throw new Error(out(o) || "golem build に失敗しました");
       const chapters = new Set(manifestChapters(manifest).map((path) => `${project}/${path}`));
+      // Golem builds the index and the chapters into the same freshly generated site.
+      const extension = await api.exists(`${project}/build/html/index.html`) ? "html" : "xhtml";
       return Promise.all(paths.map(async (p) => {
-        const x = xhtmlPath(project, p);
+        const x = xhtmlPath(project, p, extension);
         const source = await readChapterXhtml(chapters, p, () => api.readText(x));
         const body = source === null ? null : chapterBody(source, { dir: dirname(x), root: `${project}/build/html` });
         return [p, body?.html ?? null] as const;
