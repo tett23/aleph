@@ -3,37 +3,25 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
-import { addChapter, manifestChapters, removeChapters, restoreChapters } from "./manifest.ts";
+import { manifestChapters, removeChapters, restoreChapters } from "./manifest.ts";
 
 test("one-line array", () => {
   const m = `chapters = ["chapters/01.gm", "chapters/02.gm"]\n\n[metadata]\ntitle = "x"\n`;
   assert.deepEqual(manifestChapters(m), ["chapters/01.gm", "chapters/02.gm"]);
-  assert.equal(addChapter(m, "chapters/03.gm"), `chapters = ["chapters/01.gm", "chapters/02.gm", "chapters/03.gm"]\n\n[metadata]\ntitle = "x"\n`);
-});
-
-test("multi-line array keeps one item per line", () => {
-  const m = `chapters = [\n  "chapters/01.gm",\n  "chapters/02.gm",\n]\n`;
-  assert.equal(addChapter(m, "chapters/03.gm"), `chapters = [\n  "chapters/01.gm",\n  "chapters/02.gm",\n  "chapters/03.gm"\n]\n`);
-  const noTrailing = `chapters = [\n  "a.gm",\n  "b.gm"\n]\n`;
-  assert.equal(addChapter(noTrailing, "c.gm"), `chapters = [\n  "a.gm",\n  "b.gm",\n  "c.gm"\n]\n`);
-  assert.deepEqual(manifestChapters(addChapter(m, "chapters/03.gm")), ["chapters/01.gm", "chapters/02.gm", "chapters/03.gm"]);
 });
 
 test("empty array", () => {
   assert.deepEqual(manifestChapters(`chapters = []\n`), []);
-  assert.equal(addChapter(`chapters = []\n`, "a.gm"), `chapters = ["a.gm"]\n`);
 });
 
 test("inline tables give their file", () => {
   const m = `chapters = [\n  "chapters/01.gm",\n  { file = "chapters/02-en.gm", paragraph-separator = "blank-line" },\n]\n`;
   assert.deepEqual(manifestChapters(m), ["chapters/01.gm", "chapters/02-en.gm"]);
-  assert.deepEqual(manifestChapters(addChapter(m, "c.gm")), ["chapters/01.gm", "chapters/02-en.gm", "c.gm"]);
 });
 
 test("nested arrays give each of their files, in order", () => {
   const m = `chapters = ["a.gm", ["b1.gm", "b2.gm"], "c.gm"]\n`;
   assert.deepEqual(manifestChapters(m), ["a.gm", "b1.gm", "b2.gm", "c.gm"]);
-  assert.deepEqual(manifestChapters(addChapter(m, "d.gm")), ["a.gm", "b1.gm", "b2.gm", "c.gm", "d.gm"]);
 });
 
 test("brackets and quotes inside strings and comments do not confuse it", () => {
@@ -41,13 +29,8 @@ test("brackets and quotes inside strings and comments do not confuse it", () => 
   assert.deepEqual(manifestChapters(m), ["a]b.gm", "c.gm"]);
 });
 
-test("no chapters key adds one at the top", () => {
-  assert.equal(addChapter(`[metadata]\n`, "a.gm"), `chapters = ["a.gm"]\n[metadata]\n`);
+test("no chapters key gives an empty list", () => {
   assert.deepEqual(manifestChapters(`[metadata]\n`), []);
-});
-
-test("a path with a quote is escaped", () => {
-  assert.equal(addChapter(`chapters = []`, `a"b.gm`), `chapters = ["a\\"b.gm"]`);
 });
 
 test("the paragraph separator of a file: @manifest, then the chapter's item, then [source], then blank-line", async () => {
@@ -101,7 +84,6 @@ test("ADR 0066 invariant 1: chapter toggle removes duplicate nested references w
   const removed = removeChapters(src, ["x.gm"]).src;
   assert.deepEqual(manifestChapters(removed), ["a.gm", "b.gm"]);
   assert.match(removed, /\{ file = "b.gm", paragraph-separator = "line" \}/);
-  assert.deepEqual(manifestChapters(addChapter(removed, "x.gm")), ["a.gm", "b.gm", "x.gm"]);
 });
 
 test("ADR 0066 invariant 1: removing a sibling on the same line preserves the other chapter", () => {
@@ -110,21 +92,6 @@ test("ADR 0066 invariant 1: removing a sibling on the same line preserves the ot
   assert.deepEqual(manifestChapters(removed), ["b.gm", "c.gm"]);
   assert.match(removed, /paragraph-separator = "line"/);
 });
-
-test("ADR 0066 invariant 1: adding after a commented item keeps valid comma placement", () => {
-  const source = 'chapters = [\n  "a.gm" # keep this comment\n]\n';
-  const added = addChapter(source, "b.gm");
-  assert.match(added, /"a.gm", # keep this comment/);
-  assert.deepEqual(manifestChapters(added), ["a.gm", "b.gm"]);
-});
-
-test("ADR 0066 invariant 1: a multiline array closing on the last item line stays valid", () => {
-  const source = 'chapters = [\n  "a.gm"]\n';
-  const added = addChapter(source, "b.gm");
-  assert.deepEqual(manifestChapters(added), ["a.gm", "b.gm"]);
-  assert.match(added, /"b.gm"\]/);
-});
-
 
 test("ADR 0066 invariant 1: a temporary project keeps gm contents and the adjacent chapter", () => {
   const dir = mkdtempSync(join(tmpdir(), "aleph-0066-"));
@@ -145,10 +112,4 @@ test("ADR 0066 invariant 1: a temporary project keeps gm contents and the adjace
 test("ADR 0066 invariant 1: deleting the only item with a trailing comma leaves an empty array", () => {
   const removed = removeChapters('chapters = ["a.gm",]\n', ["a.gm"]).src;
   assert.equal(removed, "chapters = []\n");
-  assert.equal(addChapter(removed, "a.gm"), 'chapters = ["a.gm"]\n');
-});
-
-test("ADR 0066 invariant 1: adding to an empty multiline array keeps its lines", () => {
-  const source = "chapters = [\n]\n";
-  assert.equal(addChapter(source, "a.gm"), 'chapters = [\n  "a.gm"\n]\n');
 });

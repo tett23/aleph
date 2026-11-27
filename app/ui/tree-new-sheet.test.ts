@@ -16,6 +16,7 @@ test("ADR 0093 I1, I2, I3, I4: new-file resolves a name before creating a sheet 
   const files = new Map([[manifest, 'chapters = ["old.gm"]\n']]);
   const opens: string[] = [];
   const questions: string[] = [];
+  const register: [string, string, string][] = [];
   let answer = "";
   let format = "";
   let beforeChoice = () => {};
@@ -66,8 +67,15 @@ test("ADR 0093 I1, I2, I3, I4: new-file resolves a name before creating a sheet 
       if (createNew && files.has(path)) throw new Error("already exists");
       files.set(path, text);
     };
+    api.updateManifestChapter = async (project: string, path: string, mode: string) => {
+      register.push([project, path, mode]);
+      const current = files.get(manifest)!;
+      const text = current.replace("]", `, ${JSON.stringify(path.slice(project.length + 1))}]`);
+      files.set(manifest, text);
+      return { text, registered: true };
+    };
     api.listTree = async () => [];
-    const state = { workspace: root, workspaces: [root], focus: 0, open: [] as { path: string; project: string }[] };
+    const state = { workspace: root, workspaces: [root], focus: 0, panes: [], open: [] as { path: string; project: string }[] };
     const ctx = {
       store: { get: () => state }, config: {}, titles: new Map(), projects: [],
       refresh() {}, open: (paths: string[]) => opens.push(...paths),
@@ -110,6 +118,10 @@ test("ADR 0093 I1, I2, I3, I4: new-file resolves a name before creating a sheet 
     await created("chapters/新章.", "Golem (.gm)", project + "/chapters/新章.gm");
     await created("chapters/exact.GM", "", project + "/chapters/exact.GM");
     assert.equal(files.get(manifest), 'chapters = ["old.gm", "chapters/新章.gm", "chapters/exact.GM"]\n');
+    assert.deepEqual(register, [
+      [project, project + "/chapters/新章.gm", "add"],
+      [project, project + "/chapters/exact.GM", "add"],
+    ]);
     await unchanged("chapters/新章", "Golem (.gm)");
     await unchanged("chapters/取消", "やめる");
   } finally {

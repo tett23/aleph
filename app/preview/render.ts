@@ -55,7 +55,7 @@ export const markdownHook: { expand: ((src: string, path: string) => Promise<str
 
 export const prepareMarkdown = (pane: HTMLElement, src: string, vertical: boolean, path: string) =>
   prepare(pane, async (staging) => {
-    const html = markdownHook.expand ? await markdownHook.expand(src, path) : markdownHtml(src);
+    const html = await (markdownHook.expand ? markdownHook.expand(src, path) : markdownHtml(src));
     const el = surface(staging);
     el.className = `pview plain md ${vertical ? "vertical" : ""}`;
     el.innerHTML = html;

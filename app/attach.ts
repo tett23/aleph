@@ -1,7 +1,7 @@
 // The right sidebar's attachments and outline, the counts in the status bar, and
 // the characters and goal rings in the tree (docs/adr/0012, docs/adr/0075).
 import { api } from "./api.ts";
-import { countsStatus, countText, goalProgress, sheetCounts, type Stats } from "./count.ts";
+import { countNonMarkdown, countsStatus, fileChars, goalProgress, sheetCounts, type SheetCounts, type Stats } from "./count.ts";
 import type { Ctx } from "./ctx.ts";
 import { esc } from "./esc.ts";
 import { gmBlocks } from "./gm.ts";
@@ -110,7 +110,7 @@ const pending = new Set<string>();
 let redraw = 0;
 
 const count = (ctx: Ctx, kind: string, project: string | null, path: string, text: string): Stats =>
-  countText(kind, text, ctx.config.manuscript, separatorOf(project, path, text));
+  countNonMarkdown(kind, text, ctx.config.manuscript, separatorOf(project, path, text));
 
 /** The characters of a .gm in the tree: from the open sheet, else read once in the background. */
 const charsOf = (ctx: Ctx, path: string): number | null => {
@@ -272,12 +272,28 @@ export const mountAttach = (ctx: Ctx) => {
   ctx.rightSidebar.attach = { icon: "paperclip", title: "添付", render: (el) => drawAttach(el, ctx) };
   ctx.rightSidebar.outline = { icon: "list", title: "アウトライン", render: (el) => drawOutline(el, ctx) };
 
+  let statusKey = "";
+  let statusCounts: SheetCounts | null = null;
+  let statusVersion = 0;
   ctx.status.push((s) => {
     const d = shownDoc(s);
     if (!d) return "";
     // the editor's buffer, unsaved edits included: it follows input, undo, redo and sheet switches (docs/adr/0075)
-    const c = sheetCounts(d.kind, d.text, ctx.config.manuscript, separatorOf(d.project, d.path, d.text));
-    return c ? countsStatus(c) : "";
+    const separator = separatorOf(d.project, d.path, d.text);
+    if (d.kind !== "md")
+      return ["gm", "txt"].includes(d.kind) ? countsStatus({ ...countNonMarkdown(d.kind, d.text, ctx.config.manuscript, separator), fileChars: fileChars(d.text) }) : "";
+    const key = JSON.stringify([d.path, d.kind, d.text, separator, ctx.config.manuscript]);
+    if (key !== statusKey) {
+      statusKey = key;
+      statusCounts = null;
+      const version = ++statusVersion;
+      void sheetCounts(d.kind, d.text, ctx.config.manuscript, separator).then((counts) => {
+        if (statusVersion !== version) return;
+        statusCounts = counts;
+        ctx.refresh(["status"]);
+      }).catch(() => { if (statusVersion === version) statusCounts = null; });
+    }
+    return statusCounts ? countsStatus(statusCounts) : "";
   });
 
   // the tree: characters of each .gm, and a ring for sheets with a goal

@@ -1,5 +1,5 @@
-// The `chapters` array of manifest.toml: reading the chapter files and adding one
-// (docs/adr/0004). Items are a string, an inline table with `file`, or a nested
+// The `chapters` array of manifest.toml (docs/adr/0004).
+// Items are a string, an inline table with `file`, or a nested
 // array (which Golem treats as one chapter).
 
 type Tok = { t: "str"; v: string; at: number; end: number } | { t: "ch"; v: string; at: number } | { t: "word"; v: string; at: number };
@@ -83,33 +83,6 @@ export const manifestChapters = (src: string): string[] => {
     if (k?.t === "word" && k.v === "file" && eq?.t === "ch" && eq.v === "=") out.push(tk.v);
   });
   return out;
-};
-
-/** The manifest with `rel` added at the end of `chapters`, keeping the array's layout. */
-export const addChapter = (src: string, rel: string): string => {
-  const item = `"${rel.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-  const span = chaptersSpan(src);
-  if (!span) return `chapters = [${item}]\n${src}`;
-  const inner = src.slice(span.open + 1, span.close);
-  if (!inner.trim()) {
-    if (inner.includes("\n")) {
-      const lastLine = inner.lastIndexOf("\n") + 1;
-      const closeIndent = inner.slice(lastLine);
-      return src.slice(0, span.open + 1) + inner.slice(0, lastLine) + closeIndent + "  " + item + "\n" + closeIndent + src.slice(span.close);
-    }
-    return src.slice(0, span.open + 1) + item + src.slice(span.close);
-  }
-  if (inner.includes("\n")) {
-    const items = itemsOf(src, span.open, span.close);
-    const last = items[items.length - 1];
-    if (last && !src.slice(last.end, span.close).includes("\n")) {
-      const tail = src.slice(last.end, span.close);
-      return src.slice(0, last.end) + (tail.trim().startsWith(",") ? tail + " " : ", ") + item + src.slice(span.close);
-    }
-    return put(src, items, items.length, item, span.open, true, false);
-  }
-  const body = inner.replace(/\s*,?\s*$/, "");
-  return src.slice(0, span.open + 1) + body + ", " + item + src.slice(span.close);
 };
 
 export type Separator = "blank-line" | "line";
@@ -204,7 +177,7 @@ const cut = (src: string, items: Item[], k: number, lines: boolean): string => {
 };
 
 /** One item put into a list at `k` (the end when past it). */
-const put = (src: string, items: Item[], k: number, text: string, open: number, lines: boolean, trailingComma = true): string => {
+const put = (src: string, items: Item[], k: number, text: string, open: number, lines: boolean): string => {
   if (lines && items.length) {
     if (k < items.length) {
       const from = src.lastIndexOf("\n", items[k].start - 1) + 1;
@@ -218,7 +191,7 @@ const put = (src: string, items: Item[], k: number, text: string, open: number, 
     const lineEnd = nl < 0 ? src.length : nl;
     const comma = src.slice(last.end, lineEnd).trim().startsWith(",");
     return comma
-      ? src.slice(0, lineEnd + 1) + `${indent}${text}${trailingComma ? "," : ""}\n` + src.slice(lineEnd + 1)
+      ? src.slice(0, lineEnd + 1) + `${indent}${text},\n` + src.slice(lineEnd + 1)
       : src.slice(0, last.end) + "," + src.slice(last.end, lineEnd + 1) + `${indent}${text}\n` + src.slice(lineEnd + 1);
   }
   if (k < items.length) return src.slice(0, items[k].start) + `${text}, ` + src.slice(items[k].start);

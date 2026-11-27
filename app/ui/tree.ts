@@ -7,9 +7,9 @@ import { forgetGrid, gridOf } from "../docs.ts";
 import { forgetManifest, loadManifest } from "../separator.ts";
 import { esc } from "../esc.ts";
 import { icon } from "../icons.ts";
-import { addChapter, manifestChapters, removeChapters } from "../manifest.ts";
+import { manifestChapters } from "../manifest.ts";
 import { selectedGmInTreeOrder } from "../chapter-export.ts";
-import { basename, dirname, ext, rel, stem } from "../path.ts";
+import { basename, dirname, ext, stem } from "../path.ts";
 import { allDocs, focused } from "../store.ts";
 import { flatten, IMAGE_KINDS, kindOf, opensOnClick, projectOf, projectsIn, selectChapters, titleOf, treeRows, workspaceRows, type Row } from "../workspace.ts";
 import { handedOver, zipNames } from "../handover.ts";
@@ -359,8 +359,7 @@ export const runTreeAct = async (ctx: Ctx, act: string) => {
       if (await api.exists(path)) return toast(`${name} はもうあります`);
       await api.writeText(path, project ? "# \n" : "", true);
       if (project && ext(name) === "gm") {
-        const mp = `${project}/manifest.toml`;
-        await api.writeText(mp, addChapter(await api.readText(mp), name));
+        await updateChapter(ctx, path, project, "add");
       }
       await reloadTree(ctx);
       return ctx.open([path], { line: 1, col: 2 });
@@ -368,31 +367,31 @@ export const runTreeAct = async (ctx: Ctx, act: string) => {
   }
 };
 
-/** The requested gm alone is added to or removed from its project's manifest. */
-const toggleChapter = async (ctx: Ctx, path: string, project: string) => {
+/** Keep an open manifest in step with the checked update, unless the writer edited it meanwhile. */
+const updateChapter = async (ctx: Ctx, path: string, project: string, mode: "add" | "toggle") => {
   const manifestPath = `${project}/manifest.toml`;
   try {
-    const open = allDocs(ctx.store.get()).find((doc) => doc.path === manifestPath);
-    if (open) {
-      await ctx.save([manifestPath]);
-      if (allDocs(ctx.store.get()).some((doc) => doc.path === manifestPath && doc.text !== doc.saved)) return;
-    }
-    const source = await api.readText(manifestPath);
-    const relative = rel(project, path);
-    const registered = manifestChapters(source).includes(relative);
-    const updated = registered ? removeChapters(source, [relative]).src : addChapter(source, relative);
-    await api.writeText(manifestPath, updated);
-    if (open) {
+    const currentManifest = () => allDocs(ctx.store.get()).find((doc) => doc.path === manifestPath);
+    if (currentManifest()) await ctx.save([manifestPath]);
+    const before = currentManifest();
+    if (before && before.text !== before.saved) return;
+    const { text: updated } = await api.updateManifestChapter(project, path, mode);
+    const current = currentManifest();
+    if (before && current && current.text === before.text && current.saved === before.saved) {
       const editor = ctx.editors.get(manifestPath);
-      if (editor?.edit) editor.edit.apply([{ from: 0, to: editor.text().length, insert: updated }], "manifest");
+      if (editor?.edit && editor.text() !== updated) editor.edit.apply([{ from: 0, to: editor.text().length, insert: updated }], "manifest");
       else ctx.store.dispatch({ type: "edit", path: manifestPath, text: updated });
       ctx.store.dispatch({ type: "saved", path: manifestPath, text: updated });
     }
-    await reloadTree(ctx);
-    ctx.refresh(["sidebar"]);
   } catch (error) {
     notifyError(`manifest.toml の更新に失敗しました: ${String(error)}`);
   }
+};
+
+const toggleChapter = async (ctx: Ctx, path: string, project: string) => {
+  await updateChapter(ctx, path, project, "toggle");
+  await reloadTree(ctx);
+  ctx.refresh(["sidebar"]);
 };
 
 const exportSelected = async (ctx: Ctx, paths: string[]) => {

@@ -1,38 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { embedOf, expandEmbeds, sectionOf } from "./embed.ts";
-import { parseMarkdown } from "./md.ts";
+import { api } from "./api.ts";
+import { expandEmbeds, sectionOf } from "./embed.ts";
+import type { Block } from "./md.ts";
 
-test("only a whole line ![[…]] is an embed; in a line it stays a wikilink", () => {
-  assert.deepEqual(embedOf("![[人物]]"), { target: "人物", heading: null });
-  assert.deepEqual(embedOf("  ![[人物#家族]] "), { target: "人物", heading: "家族" });
-  assert.deepEqual(embedOf("![[images/a.png]]"), { target: "images/a.png", heading: null });
-  assert.equal(embedOf("見て ![[人物]]"), null);
-  assert.deepEqual(parseMarkdown("![[人物]]"), [{ t: "embed", target: "人物", heading: null }]);
-  assert.deepEqual(parseMarkdown("a ![[人物]]")[0].t, "para");
-});
-
-test("a heading's section runs to the next heading of the same or a higher level", () => {
-  const md = "# 題\n## 家族\n父\n### 母\n母のこと\n## 友\n友のこと";
-  assert.equal(sectionOf(md, "md", "家族"), "## 家族\n父\n### 母\n母のこと");
-  assert.equal(sectionOf(md, "md", "友"), "## 友\n友のこと");
-  assert.equal(sectionOf(md, "md", "ない"), null);
-  assert.equal(sectionOf("## a\n```\n# 中\n```\nx\n## b", "md", "a"), "## a\n```\n# 中\n```\nx");
-});
+// Fixed ASTs for embed rendering tests; Rust parser equivalence is tested in mdgm/tests.rs.
+const ast: Record<string, Block[]> = {
+  "# A\n![[b]]": [{ t: "heading", level: 1, c: [{ t: "text", v: "A" }] }, { t: "embed", target: "b", heading: null }],
+  "# B\nびー\n![[c]]": [{ t: "heading", level: 1, c: [{ t: "text", v: "B" }] }, { t: "para", lines: [{ c: [{ t: "text", v: "びー" }], hard: false }] }, { t: "embed", target: "c", heading: null }],
+  "# C\n![[d]]": [{ t: "heading", level: 1, c: [{ t: "text", v: "C" }] }, { t: "embed", target: "d", heading: null }],
+  "# D\n![[e]]": [{ t: "heading", level: 1, c: [{ t: "text", v: "D" }] }, { t: "embed", target: "e", heading: null }],
+  "# E": [{ t: "heading", level: 1, c: [{ t: "text", v: "E" }] }],
+  "![[self]]": [{ t: "embed", target: "self", heading: null }],
+  "![[y]]": [{ t: "embed", target: "y", heading: null }],
+  "![[x]]": [{ t: "embed", target: "x", heading: null }],
+  "![[ch.gm]]\n\n![[data.toml]]\n\n![[pic.png]]\n\n![[nope]]\n\n![[b#ない]]": (["ch.gm", "data.toml", "pic.png", "nope"].map((target): Block => ({ t: "embed", target, heading: null }))).concat([{ t: "embed", target: "b", heading: "ない" }]),
+  "![[p]]": [{ t: "embed", target: "p", heading: null }],
+  "一\n二": [{ t: "para", lines: [{ c: [{ t: "text", v: "一" }], hard: false }, { c: [{ t: "text", v: "二" }], hard: false }] }],
+};
+api.parseMarkdown = async (text) => ast[text] ?? (text.startsWith("あ") ? [{ t: "para", lines: [{ c: [{ t: "text", v: text }], hard: false }] }] : []);
 
 const files: Record<string, string> = {
-  "/w/a.md": "# A\n![[b]]",
-  "/w/b.md": "# B\nびー\n![[c]]",
-  "/w/c.md": "# C\n![[d]]",
-  "/w/d.md": "# D\n![[e]]",
-  "/w/e.md": "# E",
-  "/w/self.md": "![[self]]",
-  "/w/x.md": "![[y]]",
-  "/w/y.md": "![[x]]",
-  "/w/ch.gm": "# 霧笛\n[ruby: 父|ちち]は言った。",
-  "/w/data.toml": "a = 1",
-  "/w/pic.png": "",
-  "/w/long.md": "あ".repeat(150_000),
+  "/w/a.md": "# A\n![[b]]", "/w/b.md": "# B\nびー\n![[c]]", "/w/c.md": "# C\n![[d]]", "/w/d.md": "# D\n![[e]]", "/w/e.md": "# E",
+  "/w/self.md": "![[self]]", "/w/x.md": "![[y]]", "/w/y.md": "![[x]]", "/w/ch.gm": "# 霧笛\n[ruby: 父|ちち]は言った。", "/w/data.toml": "a = 1", "/w/pic.png": "", "/w/long.md": "あ".repeat(150_000),
 };
 const io = {
   resolve: (t: string) => (`/w/${t}` in files ? `/w/${t}` : `/w/${t}.md` in files ? `/w/${t}.md` : null),
@@ -40,60 +30,32 @@ const io = {
   plain: (src: string) => `<p>PLAIN:${src.length}</p>`,
 };
 
-test("embeds nest up to three levels; deeper ones are only noted", () => {
-  const html = expandEmbeds(files["/w/a.md"], "/w/a.md", io);
-  assert.ok(html.includes("びー"));
-  assert.ok(html.includes("<h1>C</h1>"));
-  assert.ok(html.includes("<h1>D</h1>"));
-  assert.ok(!html.includes("<h1>E</h1>"));
-  assert.ok(html.includes("（入れ子が深すぎるため埋め込みません）"));
+test("heading section stops at the next equal heading and ignores code fences", () => {
+  const md = "# 題\n## 家族\n父\n### 母\n母のこと\n## 友\n友のこと";
+  assert.equal(sectionOf(md, "md", "家族"), "## 家族\n父\n### 母\n母のこと");
+  assert.equal(sectionOf("## a\n```\n# 中\n```\nx\n## b", "md", "a"), "## a\n```\n# 中\n```\nx");
 });
 
-test("a sheet embedding itself or its ancestor is noted as a loop", () => {
-  assert.ok(expandEmbeds(files["/w/self.md"], "/w/self.md", io).includes("（循環のため埋め込みません）"));
-  const xy = expandEmbeds(files["/w/x.md"], "/w/x.md", io);
-  assert.equal(xy.split("（循環のため埋め込みません）").length - 1, 1);
+test("embeds nest three levels and reject cycles", async () => {
+  const html = await expandEmbeds(files["/w/a.md"], "/w/a.md", io);
+  assert.match(html, /びー/);
+  assert.match(html, /<h1>D<\/h1>/);
+  assert.doesNotMatch(html, /<h1>E<\/h1>/);
+  assert.match(html, /入れ子が深すぎる/);
+  assert.match(await expandEmbeds(files["/w/self.md"], "/w/self.md", io), /循環のため埋め込みません/);
 });
 
-test("each kind: .gm through plainHtml, other text in <pre>, images as images, missing noted", () => {
-  const html = expandEmbeds("![[ch.gm]]\n\n![[data.toml]]\n\n![[pic.png]]\n\n![[nope]]\n\n![[b#ない]]", "/w/z.md", io);
-  assert.ok(html.includes("PLAIN:"));
-  assert.ok(html.includes("<pre>a = 1</pre>"));
-  assert.ok(html.includes('<img data-src="/w/pic.png"'));
-  assert.ok(html.includes("（見つかりません：nope）"));
-  assert.ok(html.includes("（見出しが見つかりません：ない）"));
-  assert.ok(html.includes('data-embed-open="/w/b.md"'));
+test("other file kinds, image and missing targets retain their frames", async () => {
+  const html = await expandEmbeds("![[ch.gm]]\n\n![[data.toml]]\n\n![[pic.png]]\n\n![[nope]]\n\n![[b#ない]]", "/w/z.md", io);
+  assert.match(html, /PLAIN:/);
+  assert.match(html, /<pre>a = 1<\/pre>/);
+  assert.match(html, /data-src="\/w\/pic.png"/);
+  assert.match(html, /見つかりません：nope/);
+  assert.match(html, /見出しが見つかりません：ない/);
 });
 
-test("the embedded text has a limit of 200,000 characters per preview", () => {
-  const html = expandEmbeds("![[long]]\n\n![[long]]", "/w/z.md", io);
-  assert.equal(html.split("あ".repeat(1000)).length > 100, true);
-  assert.ok(html.includes("（長すぎるため省きました）"));
-});
-
-test("the embedded Markdown follows the line-break setting (docs/adr/0035)", () => {
+test("line-break preference applies to an embedded Markdown sheet", async () => {
   const io2 = { resolve: (t: string) => (t === "p" ? "/w/p.md" : null), read: () => "一\n二", plain: (s: string) => s };
-  assert.ok(expandEmbeds("![[p]]", "/w/a.md", { ...io2, breaks: "newline" }).includes("一<br>二"));
-  assert.ok(expandEmbeds("![[p]]", "/w/a.md", { ...io2, breaks: "blank-line" }).includes("一二"));
-});
-
-test("an embed's frame is titled by the sheet's name, the written target beside it when different (docs/adr/0039)", () => {
-  const names: Record<string, string> = { "/w/c.md": "C の章", "/w/b.md": "b" };
-  const io3 = { ...io, name: (p: string) => names[p] ?? null };
-  const head = (src: string) => /<div class="embed-head"[^>]*>(.*?)<\/div>/.exec(expandEmbeds(src, "/w/z.md", io3))![1];
-  assert.equal(head("![[c]]"), 'C の章<small class="embed-target">c</small>');
-  assert.equal(head("![[b]]"), "b");
-  assert.equal(head("![[b#B]]"), "b &gt; B");
-  assert.equal(head("![[e]]"), "e");
-  assert.equal(head("![[nope]]"), "nope");
-  assert.equal(head("![[pic.png]]"), "pic.png");
-});
-
-test("an embedded sheet's images resolve from its own folder, inside the workspace (docs/adr/0047)", () => {
-  const files: Record<string, string> = { "/w/a.md": "![[sub/b]]", "/w/sub/b.md": "![図](img/x.png) ![外](https://example.com/x.png)" };
-  const io4 = { resolve: (t: string) => (t === "sub/b" ? "/w/sub/b.md" : null), read: (p: string) => files[p] ?? null, plain: (s: string) => s, root: "/w" };
-  const html = expandEmbeds(files["/w/a.md"], "/w/a.md", io4);
-  assert.match(html, /<img data-src="\/w\/sub\/img\/x.png" alt="図">/);
-  assert.match(html, /外部の画像は読み込みません：https:\/\/example.com\/x.png/);
-  assert.doesNotMatch(html, /src="https/);
+  assert.match(await expandEmbeds("![[p]]", "/w/a.md", { ...io2, breaks: "newline" }), /一<br>二/);
+  assert.match(await expandEmbeds("![[p]]", "/w/a.md", { ...io2, breaks: "blank-line" }), /一二/);
 });

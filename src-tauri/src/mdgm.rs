@@ -1,13 +1,16 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Deserialize)]
+mod parser;
+use parser::{parse_blocks, parse_inlines};
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Separator {
     BlankLine,
     Line,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Inline {
     Text {
@@ -26,9 +29,11 @@ pub enum Inline {
         c: Vec<Inline>,
     },
     Link {
+        href: String,
         c: Vec<Inline>,
     },
     Image {
+        src: String,
         alt: String,
     },
     Wikilink {
@@ -38,21 +43,22 @@ pub enum Inline {
     },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Line {
-    c: Vec<Inline>,
-    hard: bool,
+    pub c: Vec<Inline>,
+    pub hard: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct ListItem {
-    depth: usize,
-    ordered: bool,
-    c: Vec<Inline>,
+    pub depth: usize,
+    pub ordered: bool,
+    pub c: Vec<Inline>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     checked: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Block {
     Heading {
@@ -86,6 +92,133 @@ pub enum Block {
     },
 }
 
+#[tauri::command]
+pub async fn parse_markdown(text: String) -> Vec<Block> {
+    parse_blocks(&text)
+}
+
+fn inline_plain(parts: &[Inline]) -> String {
+    parts
+        .iter()
+        .map(|part| match part {
+            Inline::Text { v } | Inline::Code { v } => v.clone(),
+            Inline::Image { .. } => String::new(),
+            Inline::Wikilink {
+                target,
+                heading,
+                text,
+            } => text.clone().unwrap_or_else(|| {
+                heading.as_ref().map_or_else(
+                    || target.clone(),
+                    |heading| {
+                        if target.is_empty() {
+                            heading.clone()
+                        } else {
+                            format!("{target} > {heading}")
+                        }
+                    },
+                )
+            }),
+            Inline::Strong { c }
+            | Inline::Em { c }
+            | Inline::Del { c }
+            | Inline::Link { c, .. } => inline_plain(c),
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn count_markdown(text: String) -> Vec<String> {
+    parse_blocks(&text)
+        .into_iter()
+        .flat_map(|block| match block {
+            Block::Heading { c, .. } => vec![inline_plain(&c)],
+            Block::Para { lines } | Block::Quote { lines } => {
+                vec![lines.iter().map(|line| inline_plain(&line.c)).collect()]
+            }
+            Block::List { items } => items.iter().map(|item| inline_plain(&item.c)).collect(),
+            _ => Vec::new(),
+        })
+        .filter(|s: &String| !s.trim().is_empty())
+        .collect()
+}
+
+#[derive(Serialize)]
+pub struct TableData {
+    head: Vec<Vec<Inline>>,
+    body: Vec<Vec<Vec<Inline>>>,
+    aligns: Vec<Option<String>>,
+}
+
+fn table_cells(row: &str) -> Vec<String> {
+    let trimmed = row.trim();
+    let trimmed = trimmed.strip_prefix('|').unwrap_or(trimmed);
+    let trimmed = if trimmed.ends_with('|') && !trimmed.ends_with("\\|") {
+        &trimmed[..trimmed.len() - 1]
+    } else {
+        trimmed
+    };
+    let mut cells = Vec::new();
+    let mut start = 0;
+    let bytes = trimmed.as_bytes();
+    for at in 0..bytes.len() {
+        if bytes[at] == b'|' && (at == 0 || bytes[at - 1] != b'\\') {
+            cells.push(trimmed[start..at].trim().replace("\\|", "|"));
+            start = at + 1;
+        }
+    }
+    cells.push(trimmed[start..].trim().replace("\\|", "|"));
+    cells
+}
+
+fn table_alignment(cell: &str) -> Option<String> {
+    let left = cell.starts_with(':');
+    let right = cell.ends_with(':');
+    let inner = if left { &cell[1..] } else { cell };
+    let inner = if right {
+        &inner[..inner.len() - 1]
+    } else {
+        inner
+    };
+    if inner.is_empty() || !inner.bytes().all(|byte| byte == b'-') {
+        return None;
+    }
+    Some(
+        if left && right {
+            "center"
+        } else if left {
+            "left"
+        } else if right {
+            "right"
+        } else {
+            return None;
+        }
+        .to_string(),
+    )
+}
+
+#[tauri::command]
+pub async fn parse_markdown_table(rows: Vec<String>) -> TableData {
+    let mut rows = rows.into_iter();
+    let head = table_cells(&rows.next().unwrap_or_default())
+        .iter()
+        .map(|cell| parse_inlines(cell))
+        .collect();
+    let aligns = table_cells(&rows.next().unwrap_or_default())
+        .iter()
+        .map(|cell| table_alignment(cell))
+        .collect();
+    let body = rows
+        .map(|row| {
+            table_cells(&row)
+                .iter()
+                .map(|cell| parse_inlines(cell))
+                .collect()
+        })
+        .collect();
+    TableData { head, body, aligns }
+}
+
 fn escape(text: &str, slot: bool) -> String {
     let mut escaped = String::with_capacity(text.len());
     let mut chars = text.char_indices();
@@ -114,8 +247,8 @@ fn inline(parts: &[Inline], slot: bool) -> String {
             Inline::Code { v } => format!("[code: {}]", escape(v, true)),
             Inline::Strong { c } => format!("[strong: {}]", inline(c, true)),
             Inline::Em { c } => format!("[italic: {}]", inline(c, true)),
-            Inline::Del { c } | Inline::Link { c } => inline(c, slot),
-            Inline::Image { alt } => escape(alt, slot),
+            Inline::Del { c } | Inline::Link { c, .. } => inline(c, slot),
+            Inline::Image { alt, .. } => escape(alt, slot),
             Inline::Wikilink {
                 target,
                 heading,
@@ -227,12 +360,8 @@ fn to_gm(blocks: &[Block], separator: Separator) -> Result<String, String> {
     })
 }
 
-#[tauri::command]
-pub async fn markdown_blocks_to_gm(
-    blocks: Vec<Block>,
-    separator: Separator,
-) -> Result<String, String> {
-    to_gm(&blocks, separator)
+pub fn markdown_to_gm(text: &str, separator: Separator) -> Result<String, String> {
+    to_gm(&parse_blocks(text), separator)
 }
 
 #[cfg(test)]
