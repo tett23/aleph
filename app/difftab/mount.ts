@@ -9,6 +9,7 @@ import { diffDestination, openFromDiff } from "../docs.ts";
 import { esc } from "../esc.ts";
 import { commit, committed } from "../gitpanel.ts";
 import { icon } from "../icons.ts";
+import { dispatchKey } from "../keybind.ts";
 import { basename } from "../path.ts";
 import { allDocs, diffAvailable, dirty, type Doc } from "../store.ts";
 import { gitFailure, gitOperation, type GitDiff } from "../git-ipc.ts";
@@ -16,7 +17,7 @@ import { opensOnClick } from "../workspace.ts";
 import { applyDecision, commitMessage, hasChanges } from "./apply.ts";
 import { commitBeforeApplyDialog, irreversibleApplyDialog } from "./modal.ts";
 import { diffTextHtml } from "./text.ts";
-import { mountDiffFrame, revokeDiffFrame, validDiffOpen } from "./frame.ts";
+import { mountDiffFrame, revokeDiffFrame, validDiffKey, validDiffOpen } from "./frame.ts";
 import { MAX_FILES, diffFiles, folderEntry, type DiffFile } from "./read.ts";
 
 /** The diffs read at the same time, at most. */
@@ -61,13 +62,32 @@ const nextGeneration = (body: HTMLElement) => {
   return value;
 };
 
+/** Relay only the live diff frame's keyboard request to the window dispatcher. */
+const relayDiffKey = (ctx: Ctx, body: HTMLElement, request: unknown, current: () => boolean): boolean => {
+  const owner = body.closest<HTMLElement>(".tabview.diff-tab");
+  if (!current() || !body.isConnected || !owner || owner.hidden) return false;
+  const sourcePane = Number(owner.dataset.pane);
+  const sourceId = Number(owner.dataset.tabId);
+  if (!ctx.store.get().panes[sourcePane]?.tabs.some((tab) => tab.id === sourceId && tab.diff)) return false;
+  if (request && typeof request === "object" && (request as { type?: unknown }).type === "activate-pane") {
+    ctx.store.dispatch({ type: "selectPane", pane: sourcePane });
+    return true;
+  }
+  const key = validDiffKey(request);
+  if (!key) return false;
+  if (ctx.store.get().pane === sourcePane) dispatchKey(ctx, new KeyboardEvent("keydown", key), false);
+  return true;
+};
+
 /** Reads the workspace's diff against HEAD and draws the diff tab's head and body. */
 const load = async (ctx: Ctx, head: HTMLElement, body: HTMLElement) => {
   const mine = nextGeneration(body);
   head.classList.remove("snapshot-head");
   const stale = () => mine !== generations.get(body) || !body.isConnected || !!body.closest<HTMLElement>(".tabview")?.hidden;
   const ws = ctx.store.get().workspace;
-  const line = (text: string) => void mountDiffFrame(body, `<div class="muted dline">${esc(text)}</div>`, () => {});
+  const line = (text: string) => void mountDiffFrame(body, `<div class="muted dline">${esc(text)}</div>`, (request) => {
+    relayDiffKey(ctx, body, request, () => !stale() && ctx.store.get().workspace === ws);
+  });
   head.onclick = (e) => {
     if (e.button === 0 && (e.target as HTMLElement).closest("[data-diff-reload]")) void load(ctx, head, body);
   };
@@ -97,6 +117,7 @@ const load = async (ctx: Ctx, head: HTMLElement, body: HTMLElement) => {
     const owner = body.closest<HTMLElement>(".tabview.diff-tab");
     const current = () => !stale() && body.isConnected && !!owner && !owner.hidden && ctx.store.get().workspace === ws;
     if (!current()) return;
+    if (relayDiffKey(ctx, body, request, current)) return;
     const path = validDiffOpen(request, ws, allowed);
     if (!path) return;
     const sourcePane = Number(owner!.dataset.pane);
@@ -121,7 +142,7 @@ export const mountDiffTab = (ctx: Ctx) => {
     const snapshot = activeSnapshot(ctx.store.get());
     if (snapshot) {
       nextGeneration(body);
-      drawSnapshot(ctx, head, body, snapshot);
+      drawSnapshot(ctx, head, body, snapshot, (request) => { relayDiffKey(ctx, body, request, () => activeSnapshot(ctx.store.get()) === snapshot); });
     } else {
       void load(ctx, head, body);
     }
