@@ -2,6 +2,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Outcome } from "./dropin.ts";
 import type { ModelInfo } from "./assistant/models.ts";
+import type { Separator } from "./manifest.ts";
+import type { Block } from "./md.ts";
 
 export type Entry = { path: string; name: string; dir: boolean; children: Entry[] };
 export type TreeMoveInventory = { entries: Entry[]; projects: string[] };
@@ -43,6 +45,7 @@ export const api = {
   configSave: (json: string) => invoke<void>("config_save", { json }),
   listTree: (root: string, options?: { showHidden: boolean; showIgnored: boolean }) => invoke<Entry[]>("list_tree", { root, showHidden: options?.showHidden ?? false, showIgnored: options?.showIgnored ?? true }),
   readText: (path: string) => invoke<string>("read_text", { path }),
+  markdownBlocksToGm: (blocks: Block[], separator: Separator) => invoke<string>("markdown_blocks_to_gm", { blocks, separator }),
   /** The English words spelled wrong, by macOS (docs/adr/0030). */
   spellCheck: (words: string[]) => invoke<string[]>("spell_check", { words }),
   readBytes: (path: string) => invoke<ArrayBuffer>("read_bytes", { path }),

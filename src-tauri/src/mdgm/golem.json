@@ -1,0 +1,170 @@
+{
+  "name": "Golem check",
+  "markdown": "# 霧笛\n\n**強い a]b|c** と *斜め* と `co|de`。\n50%% と ##1 と a\\[0\\]。\n\n= 等号\n\n- 一\n  - 二\n1. 三\n\n> 引用\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```\nコード\n```\n\n最後  \nの行\n",
+  "separator": "blank-line",
+  "blocks": [
+    {
+      "t": "heading",
+      "level": 1,
+      "c": [
+        {
+          "t": "text",
+          "v": "霧笛"
+        }
+      ]
+    },
+    {
+      "t": "para",
+      "lines": [
+        {
+          "c": [
+            {
+              "t": "strong",
+              "c": [
+                {
+                  "t": "text",
+                  "v": "強い a]b|c"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "v": " と "
+            },
+            {
+              "t": "em",
+              "c": [
+                {
+                  "t": "text",
+                  "v": "斜め"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "v": " と "
+            },
+            {
+              "t": "code",
+              "v": "co|de"
+            },
+            {
+              "t": "text",
+              "v": "。"
+            }
+          ],
+          "hard": false
+        },
+        {
+          "c": [
+            {
+              "t": "text",
+              "v": "50%% と ##1 と a[0]。"
+            }
+          ],
+          "hard": false
+        }
+      ]
+    },
+    {
+      "t": "para",
+      "lines": [
+        {
+          "c": [
+            {
+              "t": "text",
+              "v": "= 等号"
+            }
+          ],
+          "hard": false
+        }
+      ]
+    },
+    {
+      "t": "list",
+      "items": [
+        {
+          "depth": 0,
+          "ordered": false,
+          "c": [
+            {
+              "t": "text",
+              "v": "一"
+            }
+          ]
+        },
+        {
+          "depth": 1,
+          "ordered": false,
+          "c": [
+            {
+              "t": "text",
+              "v": "二"
+            }
+          ]
+        },
+        {
+          "depth": 0,
+          "ordered": true,
+          "c": [
+            {
+              "t": "text",
+              "v": "三"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "t": "quote",
+      "lines": [
+        {
+          "c": [
+            {
+              "t": "text",
+              "v": "引用"
+            }
+          ],
+          "hard": false
+        }
+      ]
+    },
+    {
+      "t": "table",
+      "rows": [
+        "| a | b |",
+        "|---|---|",
+        "| 1 | 2 |"
+      ]
+    },
+    {
+      "t": "code",
+      "lang": "",
+      "text": "コード"
+    },
+    {
+      "t": "para",
+      "lines": [
+        {
+          "c": [
+            {
+              "t": "text",
+              "v": "最後"
+            }
+          ],
+          "hard": true
+        },
+        {
+          "c": [
+            {
+              "t": "text",
+              "v": "の行"
+            }
+          ],
+          "hard": false
+        }
+      ]
+    }
+  ],
+  "expected": "# 霧笛\n\n[strong: 強い a\\]b\\|c] と [italic: 斜め] と [code: co\\|de]。\n50\\%% と \\##1 と a\\[0]。\n\n\\= 等号\n\n- 一\n  - 二\n+ 三\n\n引用\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```\nコード\n```\n\n最後\\\nの行\n"
+}

@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { embedOf, expandEmbeds, sectionOf } from "./embed.ts";
 import { parseMarkdown } from "./md.ts";
-import { mdToGm } from "./mdgm.ts";
 
 test("only a whole line ![[…]] is an embed; in a line it stays a wikilink", () => {
   assert.deepEqual(embedOf("![[人物]]"), { target: "人物", heading: null });
@@ -70,10 +69,6 @@ test("the embedded text has a limit of 200,000 characters per preview", () => {
   const html = expandEmbeds("![[long]]\n\n![[long]]", "/w/z.md", io);
   assert.equal(html.split("あ".repeat(1000)).length > 100, true);
   assert.ok(html.includes("（長すぎるため省きました）"));
-});
-
-test("converted to gm: an image embed becomes @figure, a sheet embed its name only", () => {
-  assert.equal(mdToGm("![[images/a.png]]\n\n![[人物#家族]]", "blank-line"), "@figure images/a.png\n\n人物\n");
 });
 
 test("the embedded Markdown follows the line-break setting (docs/adr/0035)", () => {
