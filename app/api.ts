@@ -140,7 +140,10 @@ export const api = {
   /** Revokes the approval of Claude Code or Codex (docs/adr/0089); the next request asks again. */
   assistantRevoke: (connector: ConnectorId) => invoke<void>("assistant_revoke", { connector }),
   /** Asks a connector; Rust asks for the approval in a native dialog the first time (I6) and falls back to the local connector once (I8). */
-  assistantAsk: (connector: ConnectorId, messages: ChatMessage[], material: string[], manuscript = false, sourceFile?: string, reference?: AssistantReference, onPreparation?: (preparing: boolean) => void) => invoke<Answered>("assistant_ask", { connector, messages, material, manuscript, sourceFile, reference, preparation: new Channel(onPreparation) }),
+  assistantAsk: (connector: ConnectorId, messages: ChatMessage[], material: string[], manuscript = false, sourceFile?: string, reference?: AssistantReference, onPreparation?: (preparing: boolean) => void) => invoke<Answered>("assistant_ask", {
+    request: { connector, messages, material, manuscript, sourceFile, reference },
+    preparation: new Channel(onPreparation),
+  }),
   assistantPrepareLocal: () => invoke<void>("assistant_prepare_local"),
   assistantProjectSource: (target: string, name: string, snapshots: AssistantSnapshot[]) => invoke<string>("assistant_project_source", { target, name, snapshots }),
   /** A bundled chapter of the Golem manual for the material: "03-markup", "04-manifest" or "05-style". */

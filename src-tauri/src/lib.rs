@@ -1364,6 +1364,17 @@ struct AssistantReference {
     snapshots: Vec<assistant_project::Snapshot>,
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistantAskRequest {
+    connector: connectors::Connector,
+    messages: Vec<llama::Message>,
+    material: Option<Vec<String>>,
+    manuscript: Option<bool>,
+    source_file: Option<String>,
+    reference: Option<AssistantReference>,
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AssistantResponse {
@@ -1381,14 +1392,17 @@ struct AssistantResponse {
 async fn assistant_ask(
     app: AppHandle,
     webview: tauri::Webview,
-    connector: connectors::Connector,
-    messages: Vec<llama::Message>,
-    material: Option<Vec<String>>,
-    manuscript: Option<bool>,
-    source_file: Option<String>,
-    reference: Option<AssistantReference>,
+    request: AssistantAskRequest,
     preparation: tauri::ipc::Channel<bool>,
 ) -> R<AssistantResponse> {
+    let AssistantAskRequest {
+        connector,
+        messages,
+        material,
+        manuscript,
+        source_file,
+        reference,
+    } = request;
     if reference.is_some() {
         tab_ipc::host(&webview)?;
     }
