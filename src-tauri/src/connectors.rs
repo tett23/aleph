@@ -4,7 +4,7 @@
 //! once when they fail (I8). A connector the writer has not approved is never
 //! started (I6).
 
-use crate::llama::{Message, Role, ANSWER_SCHEMA};
+use crate::llama::{Message, Role};
 use crate::process::{Place, Roots};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -61,10 +61,9 @@ fn strings(a: &[&str]) -> Vec<String> {
 }
 
 /// The answer's schema on one line, for `claude --json-schema`.
-pub fn schema_line() -> String {
-    serde_json::from_str::<serde_json::Value>(ANSWER_SCHEMA)
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| ANSWER_SCHEMA.replace('\n', " "))
+#[cfg(test)]
+fn schema_line() -> String {
+    crate::llama::answer_schema(false).to_string()
 }
 
 /// The arguments of `claude` (docs/adr/0081): no tools, the answer bound to
@@ -124,6 +123,8 @@ pub fn prompt_text(messages: &[Message]) -> String {
 struct Edit {
     find: String,
     replace: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    file: Option<String>,
 }
 
 /// The answer's shape (app/assistant/answer.schema.json).
@@ -134,22 +135,38 @@ struct Answer {
     edits: Vec<Edit>,
 }
 
-fn checked(v: serde_json::Value) -> Result<String, String> {
+fn checked(v: serde_json::Value, manuscript: bool) -> Result<String, String> {
     let a: Answer =
         serde_json::from_value(v).map_err(|e| format!("答えが JSON の形に合いません：{e}"))?;
+    if a.edits.iter().any(|e| {
+        e.file.as_ref().is_some_and(|file| !file.is_empty()) != manuscript
+            || (!manuscript && e.file.is_some())
+    }) {
+        return Err("編集案の file が対象に合いません".into());
+    }
     serde_json::to_string(&a).map_err(|e| e.to_string())
 }
 
 /// The answer checked against the answer's schema, as compact JSON.
-pub fn parse_answer(text: &str) -> Result<String, String> {
+#[cfg(test)]
+fn parse_answer(text: &str) -> Result<String, String> {
+    parse_answer_for(text, false)
+}
+
+fn parse_answer_for(text: &str, manuscript: bool) -> Result<String, String> {
     let v: serde_json::Value = serde_json::from_str(text.trim())
         .map_err(|e| format!("答えが JSON ではありません：{e}"))?;
-    checked(v)
+    checked(v, manuscript)
 }
 
 /// The answer in the JSON `claude --output-format json` prints: the
 /// structured output bound by `--json-schema`, or else the result's text.
-pub fn claude_answer(stdout: &str) -> Result<String, String> {
+#[cfg(test)]
+fn claude_answer(stdout: &str) -> Result<String, String> {
+    claude_answer_for(stdout, false)
+}
+
+fn claude_answer_for(stdout: &str, manuscript: bool) -> Result<String, String> {
     let v: serde_json::Value = serde_json::from_str(stdout.trim())
         .map_err(|e| format!("claude の出力が JSON ではありません：{e}"))?;
     let result = v.get("result").and_then(|r| r.as_str()).unwrap_or("");
@@ -157,8 +174,8 @@ pub fn claude_answer(stdout: &str) -> Result<String, String> {
         return Err(format!("claude：{result}"));
     }
     match v.get("structured_output") {
-        Some(s) if !s.is_null() => checked(s.clone()),
-        _ => parse_answer(result),
+        Some(s) if !s.is_null() => checked(s.clone(), manuscript),
+        _ => parse_answer_for(result, manuscript),
     }
 }
 
@@ -366,6 +383,7 @@ fn run_in(
     messages: &[Message],
     dir: &Path,
     timeout: Duration,
+    manuscript: bool,
 ) -> Result<String, Failure> {
     let work = dir.join("work");
     let input = prompt_text(messages);
@@ -373,19 +391,19 @@ fn run_in(
         Connector::Claude => {
             let r = run_timed(
                 bin,
-                &claude_args(&schema_line()),
+                &claude_args(&crate::llama::answer_schema(manuscript).to_string()),
                 &work,
                 &input,
                 path_with(bin),
                 timeout,
             )?;
             exited(c, &r)?;
-            claude_answer(&r.stdout).map_err(|e| fail(FailKind::Schema, e))
+            claude_answer_for(&r.stdout, manuscript).map_err(|e| fail(FailKind::Schema, e))
         }
         Connector::Codex => {
             let schema = dir.join("schema.json");
             let answer = dir.join("answer.json");
-            std::fs::write(&schema, ANSWER_SCHEMA)
+            std::fs::write(&schema, crate::llama::answer_schema(manuscript).to_string())
                 .map_err(|e| fail(FailKind::Start, e.to_string()))?;
             let r = run_timed(
                 bin,
@@ -402,7 +420,7 @@ fn run_in(
                     format!("Codex の答えのファイルを読めません：{e}"),
                 )
             })?;
-            parse_answer(&text).map_err(|e| fail(FailKind::Schema, e))
+            parse_answer_for(&text, manuscript).map_err(|e| fail(FailKind::Schema, e))
         }
         Connector::Local => Err(fail(FailKind::Start, "ローカルは CLI ではありません")),
     }
@@ -410,15 +428,27 @@ fn run_in(
 
 /// Runs Claude Code or Codex on the messages in an empty temporary working
 /// folder under `tmp`, removed afterwards; the answer's JSON or why it failed.
-pub fn run(
+#[cfg(test)]
+fn run(
     c: Connector,
     bin: &Path,
     messages: &[Message],
     tmp: &Path,
     timeout: Duration,
 ) -> Result<String, Failure> {
+    run_for(c, bin, messages, tmp, timeout, false)
+}
+
+fn run_for(
+    c: Connector,
+    bin: &Path,
+    messages: &[Message],
+    tmp: &Path,
+    timeout: Duration,
+    manuscript: bool,
+) -> Result<String, Failure> {
     let dir = scratch(tmp, c)?;
-    let out = run_in(c, bin, messages, &dir, timeout);
+    let out = run_in(c, bin, messages, &dir, timeout, manuscript);
     let _ = std::fs::remove_dir_all(&dir);
     out
 }
@@ -448,7 +478,8 @@ pub struct Answered {
 /// Asks `c`: the local connector directly; Claude Code or Codex only when
 /// approved (I6) and found, and the local connector once more when they fail
 /// (I8). `local` asks the local connector and gives the answer and the model.
-pub fn ask(
+#[cfg(test)]
+fn ask(
     c: Connector,
     approved: bool,
     bin: Option<&Path>,
@@ -457,6 +488,35 @@ pub fn ask(
     timeout: Duration,
     local: impl FnOnce(&[Message]) -> Result<(String, String), String>,
 ) -> Result<Answered, String> {
+    ask_with_material(
+        c,
+        approved,
+        bin,
+        tmp,
+        timeout,
+        crate::llama::SizedRequest {
+            messages,
+            sections: &[],
+            manuscript: false,
+        },
+        local,
+    )
+}
+
+pub fn ask_with_material(
+    c: Connector,
+    approved: bool,
+    bin: Option<&Path>,
+    tmp: &Path,
+    timeout: Duration,
+    request: crate::llama::SizedRequest<'_>,
+    local: impl FnOnce(&[Message]) -> Result<(String, String), String>,
+) -> Result<Answered, String> {
+    let crate::llama::SizedRequest {
+        messages,
+        sections,
+        manuscript,
+    } = request;
     let t0 = Instant::now();
     let ms = || t0.elapsed().as_millis() as u64;
     let local_answer = |fallback_reason: Option<Fallback>| {
@@ -486,7 +546,25 @@ pub fn ask(
         return Err(format!("{} の利用は承認されていません", c.name()));
     }
     let bin = bin.ok_or_else(|| format!("{} が見つかりません", c.name()))?;
-    match run(c, bin, messages, tmp, timeout) {
+    let external = crate::llama::external_messages(messages, sections);
+    let overflows = |failure: &Failure| {
+        let text = failure.message.to_ascii_lowercase();
+        [
+            "context window",
+            "context length",
+            "context limit",
+            "context_length_exceeded",
+            "prompt is too long",
+            "input is too long",
+        ]
+        .iter()
+        .any(|pattern| text.contains(pattern))
+    };
+    let mut answer = run_for(c, bin, &external, tmp, timeout, manuscript);
+    if manuscript && answer.as_ref().is_err_and(overflows) && external != messages {
+        answer = run_for(c, bin, messages, tmp, timeout, manuscript);
+    }
+    match answer {
         Ok(answer) => Ok(Answered {
             answer,
             connector: c,
@@ -494,6 +572,9 @@ pub fn ask(
             ms: ms(),
             fallback_reason: None,
         }),
+        Err(f) if manuscript && overflows(&f) => {
+            Err(format!("コンテキスト上限を超えました：{}", f.message))
+        }
         Err(f) => local_answer(Some(Fallback {
             from: c,
             kind: f.kind,
@@ -539,6 +620,45 @@ mod tests {
                 content: "行送りを広げて".into(),
             },
         ]
+    }
+
+    #[test]
+    fn adr0117_i4_external_checks_chapter_schema_without_local_model() {
+        let dir = testdir::fresh("assistant-large-external");
+        let binary = dir.join("claude");
+        script(
+            &binary,
+            r#"
+input=$(cat)
+case "$input" in
+  *MANUAL*) echo '{"is_error":true,"result":"context window exceeded"}';;
+  *BODY*) echo '{"structured_output":{"explanation":"末尾","edits":[{"file":"two.gm","find":"乙","replace":"丙"}]}}';;
+  *) exit 2;;
+esac
+"#,
+        );
+        let mut messages = messages();
+        messages.last_mut().unwrap().content = "BODY".into();
+        let answer = ask_with_material(
+            Connector::Claude,
+            true,
+            Some(&binary),
+            &dir,
+            TIMEOUT,
+            crate::llama::SizedRequest {
+                messages: &messages,
+                sections: &["MANUAL".into()],
+                manuscript: true,
+            },
+            |_| panic!("external requests do not start the local model"),
+        )
+        .unwrap();
+        assert_eq!(answer.connector, Connector::Claude);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&answer.answer).unwrap()["edits"][0]["file"],
+            "two.gm"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     /// A claude that records it was started, its arguments, its working

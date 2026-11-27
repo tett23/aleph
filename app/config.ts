@@ -6,6 +6,9 @@ import type { ProjectOrder } from "./project-order.ts";
 import { readKeyBindings, readUi } from "./legacy-names.ts";
 
 export type Theme = "auto" | "light" | "dark";
+export const assistantContextLimits = [8192, 16384, 32768, 65536, 131072, 262144] as const;
+type AssistantContextLimit = (typeof assistantContextLimits)[number];
+export const assistantContextLimitOf = (value: unknown): AssistantContextLimit | null => assistantContextLimits.find((choice) => choice === value) ?? null;
 
 export type Config = {
   workspaces: string[];
@@ -29,6 +32,7 @@ export type Config = {
   autoCommit: boolean;
   lastAutoCommit: Record<string, string>;
   disabledPlugins: string[];
+  assistantContextLimit: AssistantContextLimit | null;
   /** The user's key bindings by command id, only those that differ from the defaults (docs/adr/0034). */
   keyBindings: Record<string, Binding[]>;
   leaderKey: string;
@@ -64,6 +68,7 @@ export const defaults = (): Config => ({
   autoCommit: true,
   lastAutoCommit: {},
   disabledPlugins: [],
+  assistantContextLimit: null,
   keyBindings: {},
   leaderKey: DEFAULT_LEADER,
   keySequenceTimeout: DEFAULT_TIMEOUT,
@@ -120,6 +125,7 @@ export const normalize = (raw: unknown): Config => {
         ? Object.fromEntries(Object.entries(r.lastAutoCommit).filter((e): e is [string, string] => typeof e[1] === "string"))
         : d.lastAutoCommit,
     disabledPlugins: Array.isArray(r.disabledPlugins) ? r.disabledPlugins.filter((p): p is string => typeof p === "string") : d.disabledPlugins,
+    assistantContextLimit: assistantContextLimitOf(r.assistantContextLimit),
     // unknown ids and bindings that cannot be used are dropped once the commands are registered (keybind.ts)
     keyBindings:
       r.keyBindings && typeof r.keyBindings === "object" && !Array.isArray(r.keyBindings)
