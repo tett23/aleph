@@ -1,6 +1,6 @@
 # ADR 0121: ローカルアシスタントの起動時に Golem のマニュアルを読み込む
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 

@@ -1,6 +1,6 @@
 # ADR 0122: ローカル Qwen のファイル参照を対象のプロジェクトに限る
 
-Status: proposed
+Status: accepted-pending
 
 ## 文脈
 
