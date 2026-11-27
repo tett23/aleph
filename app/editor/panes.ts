@@ -55,6 +55,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
     el.append(root);
     const views = new Map<string, View>();
     let paneEls: HTMLElement[] = [];
+    const tabMarkup = new WeakMap<HTMLElement, string>();
 
     const build = (s: State, t: Tab): View => {
       const view: View = { el: h(`<div class="tabview"></div>`), host: null, editors: new Map(), docs: t.open.map(bindEditorDoc), vertical: tabVertical(s, t) };
@@ -183,7 +184,11 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
         const pe = paneEls[pi];
         pe.classList.toggle("on", s.panes.length > 1 && pi === s.pane);
         const bar = pe.querySelector<HTMLElement>(".tabbar")!;
-        bar.innerHTML = tabBar(s, pi);
+        const markup = tabBar(s, pi);
+        if (tabMarkup.get(bar) !== markup) {
+          bar.innerHTML = markup;
+          tabMarkup.set(bar, markup);
+        }
         showActive(bar);
         const body = pe.querySelector<HTMLElement>(".ebody")!;
         body.querySelector(":scope > .welcome")?.remove();
@@ -273,7 +278,7 @@ export const mountPanes = (ctx: Ctx, editorFor: (el: HTMLElement, doc: Doc, inde
       if (!tab || t.closest("[data-tab-x]")) return;
       dragTab(e, Number(tab.closest<HTMLElement>(".pane")!.dataset.pane), Number(tab.dataset.tab));
     });
-    root.addEventListener("mouseup", (e) => {
+    root.addEventListener("click", (e) => {
       const t = e.target as HTMLElement;
       if (e.button !== 0) return;
       const x = t.closest<HTMLElement>("[data-tab-x]");

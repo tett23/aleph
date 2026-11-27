@@ -27,7 +27,7 @@ export const drawSnapshot = (ctx: Pick<Ctx, "store" | "editors" | "baseText">, h
     const text = diffLineHtml(line);
     return i === target ? `<span data-snapshot-target>${text}</span>` : text;
   }).join("\n");
-  body.onmouseup = null;
+  body.onclick = null;
   body.innerHTML = lines.length
     ? `<section class="dfile snapshot-diff">${omitted(omittedBefore, "前")}<pre>${html}</pre>${omitted(omittedAfter, "後")}</section>`
     : '<div class="muted dline">HEAD との差分はありません</div>';
@@ -39,7 +39,7 @@ export const drawSnapshot = (ctx: Pick<Ctx, "store" | "editors" | "baseText">, h
     const view = body.getBoundingClientRect();
     if (omittedBefore || top >= view.bottom) body.scrollTop = Math.max(0, top - view.top - body.clientHeight / 3);
   }
-  head.onmouseup = null;
+  head.onclick = null;
   let request = 0;
   const showNote = (message: string) => {
     note.textContent = message;

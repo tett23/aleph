@@ -54,6 +54,7 @@ With page refresh on save enabled, ⌘S refreshes the PDF preview immediately wh
 Changes to a project's Emet files or its root `manifest.toml` and `style.toml` refresh its text and page previews. Aleph also picks up changes saved by another editor, even when the changed file is closed in Aleph. Page refresh follows the same setting and waits for the end of the idle period on external changes.
 
 The text and page previews keep your scroll position when the same content target refreshes, both in the tab and in a separate window. The position is measured in pixels from the reading start.
+If the preview shows an error message in place of the content, drag to select the message and press ⌘C to copy it.
 
 Select text and press ⌘C to copy individual passages from Problems, the text preview, or an assistant response. The copy buttons copy the filtered Problems list, the displayed preview text, or a single assistant response as plain text.
 
