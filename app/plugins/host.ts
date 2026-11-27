@@ -1,95 +1,141 @@
-// Aleph's own plugins (docs/adr/0017): ES modules exporting activate(aleph).
-// Each plugin's registrations are kept apart, so a plugin that fails is
-// turned off alone, and a handler that throws is reported, not spread.
-
+// Plugin messages cross an opaque-origin iframe boundary (ADR 0115).
 export const API_VERSION = 1;
 
-/** The open sheet, as plugins see it: they cannot change the text. */
 export type Current = { path: string; kind: string; text: string; project: string | null } | null;
-
-export type AlephApi = {
-  version: number;
-  registerCommand: (label: string, run: (cur: Current) => void | Promise<void>) => void;
-  registerStatus: (render: (cur: Current) => string) => void;
-  onSave: (f: (cur: Current) => void) => void;
-  toast: (msg: string) => void;
-};
-
 export type PluginFile = { name: string; source: string };
 export type LoadResult = { name: string; state: "ok" | "disabled" | "failed"; error?: string };
-type Owned<T> = { plugin: string; f: T };
+export type PluginFrame = { port: MessagePort; close: () => void };
+export type Spawn = (source: string, receive: (message: unknown) => void) => Promise<PluginFrame>;
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+type Reply = { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
+type Plugin = {
+  name: string;
+  frame: PluginFrame | null;
+  commandEntries: { id: number; label: string }[];
+  statusKey: string | null;
+  status: string[];
+  ready: boolean;
+  replies: Map<number, Reply>;
+  nextId: number;
+};
 
-/** `fail` tells a failure (an error that stays, docs/adr/0064); without it, `toast`. */
-export const createHost = (toast: (msg: string) => void, fail: (msg: string) => void = toast) => {
-  let commands: Owned<{ label: string; run: (cur: Current) => void | Promise<void> }>[] = [];
-  let status: Owned<(cur: Current) => string>[] = [];
-  let saves: Owned<(cur: Current) => void>[] = [];
-  const drop = (plugin: string) => {
-    commands = commands.filter((x) => x.plugin !== plugin);
-    status = status.filter((x) => x.plugin !== plugin);
-    saves = saves.filter((x) => x.plugin !== plugin);
+const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+export const createHost = (toast: (text: string) => void, fail: (text: string) => void, spawn: Spawn, changed: () => void = () => {}) => {
+  let plugins: Plugin[] = [];
+
+  const close = (plugin: Plugin) => {
+    for (const reply of plugin.replies.values()) {
+      clearTimeout(reply.timer);
+      reply.reject(new Error("プラグインを閉じました"));
+    }
+    plugin.replies.clear();
+    plugin.frame?.close();
+    plugin.frame = null;
   };
-  const apiFor = (plugin: string): AlephApi => ({
-    version: API_VERSION,
-    registerCommand: (label, run) => void commands.push({ plugin, f: { label, run } }),
-    registerStatus: (render) => void status.push({ plugin, f: render }),
-    onSave: (f) => void saves.push({ plugin, f }),
-    toast,
-  });
+
+  const request = (plugin: Plugin, type: "command" | "status", values: Record<string, unknown>): Promise<unknown> =>
+    new Promise((resolve, reject) => {
+      if (!plugin.frame) return reject(new Error("プラグインを閉じました"));
+      const id = ++plugin.nextId;
+      const timer = setTimeout(() => {
+        plugin.replies.delete(id);
+        reject(new Error("プラグインの応答がありません"));
+      }, 30_000);
+      plugin.replies.set(id, { resolve, reject, timer });
+      plugin.frame.port.postMessage({ type, id, ...values });
+    });
+
+  const receive = (plugin: Plugin, value: unknown, ready: (error?: string) => void) => {
+    if (!value || typeof value !== "object") return;
+    const data = value as Record<string, unknown>;
+    if (!plugin.ready && data.type === "register-command" && typeof data.id === "number" && Number.isSafeInteger(data.id) && typeof data.label === "string") {
+      plugin.commandEntries.push({ id: data.id, label: data.label });
+      return;
+    }
+    if (data.type === "toast" && typeof data.text === "string") return toast(data.text);
+    if (data.type === "error" && typeof data.error === "string") return fail(`プラグイン ${plugin.name} で誤りがありました：${data.error}`);
+    if (data.type === "ready") {
+      plugin.ready = true;
+      return ready();
+    }
+    if (data.type === "failed" && typeof data.error === "string") return ready(data.error);
+    if (data.type !== "result" || typeof data.id !== "number") return;
+    const reply = plugin.replies.get(data.id);
+    if (!reply) return;
+    plugin.replies.delete(data.id);
+    clearTimeout(reply.timer);
+    if (typeof data.error === "string") reply.reject(new Error(data.error));
+    else reply.resolve(data.value);
+  };
 
   return {
-    /** Loads the plugins in order; `importer` turns a source into a module (a blob URL in the app). */
-    load: async (files: PluginFile[], disabled: string[], importer: (source: string) => Promise<Record<string, unknown>>): Promise<LoadResult[]> => {
-      const out: LoadResult[] = [];
+    load: async (files: PluginFile[], disabled: string[]): Promise<LoadResult[]> => {
+      plugins.forEach(close);
+      plugins = [];
+      const results: LoadResult[] = [];
       for (const { name, source } of files) {
-        drop(name);
         if (disabled.includes(name)) {
-          out.push({ name, state: "disabled" });
+          results.push({ name, state: "disabled" });
           continue;
         }
+        const plugin: Plugin = { name, frame: null, commandEntries: [], statusKey: null, status: [], ready: false, replies: new Map(), nextId: 0 };
         try {
-          const mod = await importer(source);
-          if (typeof mod.activate !== "function") throw new Error("activate を書き出していません");
-          await (mod.activate as (a: AlephApi) => unknown)(apiFor(name));
-          out.push({ name, state: "ok" });
-        } catch (e) {
-          drop(name);
-          out.push({ name, state: "failed", error: message(e) });
-          fail(`プラグイン ${name} を読めません：${message(e)}`);
+          let settle = (_error?: string) => {};
+          const ready = new Promise<void>((resolve, reject) => {
+            settle = (error) => error ? reject(new Error(error)) : resolve();
+          });
+          plugin.frame = await spawn(source, (value) => receive(plugin, value, settle));
+          let timer: ReturnType<typeof setTimeout>;
+          try {
+            await Promise.race([ready, new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new Error("プラグインの起動が時間切れです")), 10_000);
+            })]);
+          } finally {
+            clearTimeout(timer!);
+          }
+          plugins.push(plugin);
+          results.push({ name, state: "ok" });
+        } catch (error) {
+          close(plugin);
+          results.push({ name, state: "failed", error: message(error) });
+          fail(`プラグイン ${name} を読めません：${message(error)}`);
         }
       }
-      return out;
+      changed();
+      return results;
     },
-    commands: () =>
-      commands.map(({ plugin, f }) => ({
-        plugin,
-        label: f.label,
-        run: async (cur: Current) => {
-          try {
-            await f.run(cur);
-          } catch (e) {
-            fail(`プラグイン ${plugin} の「${f.label}」で誤りがありました：${message(e)}`);
-          }
-        },
-      })),
-    status: (cur: Current): string[] =>
-      status.flatMap(({ f }) => {
+    commands: () => plugins.flatMap((plugin) => plugin.commandEntries.map((command) => ({
+      plugin: plugin.name,
+      label: command.label,
+      run: async (current: Current) => {
         try {
-          const s = f(cur);
-          return s ? [s] : [];
-        } catch {
-          return [];
+          await request(plugin, "command", { command: command.id, current });
+        } catch (error) {
+          fail(`プラグイン ${plugin.name} の「${command.label}」で誤りがありました：${message(error)}`);
         }
-      }),
-    saved: (cur: Current) =>
-      saves.forEach(({ plugin, f }) => {
-        try {
-          f(cur);
-        } catch (e) {
-          fail(`プラグイン ${plugin} の保存の処理で誤りがありました：${message(e)}`);
-        }
-      }),
+      },
+    }))),
+    status: (current: Current): string[] => {
+      const key = JSON.stringify(current);
+      for (const plugin of plugins) {
+        if (plugin.statusKey === key) continue;
+        plugin.statusKey = key;
+        plugin.status = [];
+        void request(plugin, "status", { current }).then((value) => {
+          if (plugin.statusKey !== key || !Array.isArray(value)) return;
+          plugin.status = value.filter((text): text is string => typeof text === "string" && text.length > 0);
+          changed();
+        }).catch(() => {});
+      }
+      return plugins.flatMap((plugin) => plugin.status);
+    },
+    saved: (current: Current) => {
+      for (const plugin of plugins) plugin.frame?.port.postMessage({ type: "saved", current });
+    },
+    close: () => {
+      plugins.forEach(close);
+      plugins = [];
+    },
   };
 };

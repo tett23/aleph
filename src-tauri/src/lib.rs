@@ -22,6 +22,7 @@ mod replace;
 mod search;
 mod sha256;
 mod spell;
+mod tab_ipc;
 mod tree_move;
 mod watchfs;
 mod window;
@@ -705,7 +706,7 @@ fn picked(p: Option<tauri_plugin_dialog::FilePath>) -> Option<PathBuf> {
     p.and_then(|f| f.into_path().ok())
 }
 
-const PLUGIN_WARNING: &str = "プラグインは Aleph と同じ権限で動き、ファイルを読み書きできます。自分で書いたか、読んで信頼したものだけを入れてください。";
+const PLUGIN_WARNING: &str = "プラグインは隔離した画面で動きます。コマンド、ステータス、保存の処理には、対象のシートの情報と本文を渡します。";
 
 /// Asks for a `.js` and copies it into the plugins folder after the writer agrees;
 /// the name copied, or none when the writer stopped.
@@ -1799,6 +1800,7 @@ pub fn run_app() {
         .manage(Kept::default())
         .manage(Watching::default())
         .manage(llama::Local::default())
+        .manage(tab_ipc::Registry::default())
         .manage(Downloading::default())
         .menu(menu)
         .on_menu_event(|app, e| {
@@ -1855,6 +1857,10 @@ pub fn run_app() {
             pasteboard_state,
             paste_files,
             drag_out,
+            tab_ipc::tab_ipc_open,
+            tab_ipc::tab_ipc_grant,
+            tab_ipc::tab_ipc_read_text,
+            tab_ipc::tab_ipc_close,
             debug_build,
             config_load,
             config_save,

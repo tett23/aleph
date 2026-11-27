@@ -46,6 +46,7 @@ import { readChapterXhtml, xhtmlPath } from "./xhtml.ts";
 import { chapterBody } from "./xhtmldom.ts";
 import { bindPreviewCopy, previewCopyButton } from "./copy.ts";
 import { createProjectInputWatch, previewInput, type InputChange, type InputContent } from "./project-inputs.ts";
+import { mountIsolatedError } from "./error-frame.ts";
 
 // ---- builds ----
 
@@ -270,16 +271,20 @@ type TabPreview = {
   updates: ReturnType<typeof previewPane>;
   controls: (() => void) | null;
   error: string;
+  errorFrame: (() => void) | null;
 };
 const tabs = new WeakMap<HTMLElement, TabPreview>();
 const tabPreview = (head: HTMLElement, body: HTMLElement, ctx: Ctx): TabPreview => {
   const existing = tabs.get(body);
   if (existing) return existing;
   const tab: TabPreview = {
-    revision: "", controls: null, error: "", stopCopy: bindPreviewCopy(head, body),
+    revision: "", controls: null, error: "", errorFrame: null, stopCopy: bindPreviewCopy(head, body),
     updates: previewPane(body, (error, empty) => {
       tab.error = String(error);
-      if (empty) renderHint(body, tab.error, true);
+      if (empty) {
+        tab.errorFrame?.();
+        tab.errorFrame = mountIsolatedError(body, tab.error);
+      }
       ctx.notify({ message: `プレビューの更新に失敗しました：${tab.error}`, level: "error" });
       const status = head.querySelector<HTMLElement>("[data-preview-status]");
       if (status) {
@@ -330,6 +335,8 @@ const drawTab = (head: HTMLElement, body: HTMLElement, ctx: Ctx) => {
     tab.controls = null;
   }
   if (what === "none" || what === "empty" || (what === "pages" && !doc?.project)) {
+    tab.errorFrame?.();
+    tab.errorFrame = null;
     head.innerHTML = headLeft(s, ctx, doc);
     head.onclick = (e) => void modeClick(ctx, e);
     tab.revision = "";
@@ -389,6 +396,8 @@ type PreviewLoad = Parameters<ReturnType<typeof previewPane>["request"]>[2];
 const updateTab = (tab: TabPreview, target: PreviewTarget, content: string, load: PreviewLoad | undefined, head: HTMLElement) => {
   const revision = JSON.stringify([previewKey(target), content]);
   if (revision === tab.revision) return;
+  tab.errorFrame?.();
+  tab.errorFrame = null;
   tab.revision = revision;
   tab.error = "";
   const status = head.querySelector<HTMLElement>("[data-preview-status]")!;
@@ -537,6 +546,8 @@ export const mountPreview = (ctx: Ctx) => {
     const tab = tabs.get(body);
     if (!tab) return;
     tab.revision = "";
+    tab.errorFrame?.();
+    tab.errorFrame = null;
     tab.updates.pause();
     tab.controls?.();
     tab.controls = null;
@@ -544,6 +555,7 @@ export const mountPreview = (ctx: Ctx) => {
   ctx.view.closePreviewTab = (body) => {
     const tab = tabs.get(body);
     tab?.stopCopy();
+    tab?.errorFrame?.();
     tab?.updates.close();
     tab?.controls?.();
     tabs.delete(body);

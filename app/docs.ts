@@ -1,7 +1,7 @@
 // Loading sheets and opening them (docs/adr/0004).
 import { api } from "./api.ts";
 import type { At, Ctx, OpenOpts, SaveOptions } from "./ctx.ts";
-import { allDocs, type Doc, type Grid } from "./store.ts";
+import { allDocs, canOpenFromDiff, type DiffDestination, type Doc, type Grid, type State } from "./store.ts";
 import { IMAGE_KINDS, kindOf, projectOf, readGrid, workspaceOf } from "./workspace.ts";
 
 const grids = new Map<string, Grid>();
@@ -59,6 +59,31 @@ export const openPaths = async (ctx: Ctx, paths: string[], at?: At, opts?: OpenO
   const docs = await Promise.all(paths.map((p) => loadDoc(p, ctx)));
   ctx.pendingAt = at ?? null;
   ctx.store.dispatch({ type: "open", docs, newTab: opts?.newTab });
+};
+
+/** The destination of a diff request is fixed at click time, before file I/O. */
+export const diffDestination = (state: State, sourcePane: number, sourceId: number, path: string, plot: boolean): DiffDestination | null => {
+  if (!state.panes[sourcePane]?.tabs.some((tab) => tab.id === sourceId && tab.diff)) return null;
+  const existing = state.panes.flatMap((pane, pi) => pane.tabs.flatMap((tab) =>
+    (plot ? tab.plot === path.slice(0, -"/plot.csv".length) : tab.open.some((doc) => doc.path === path)) ? [{ pane: pi, id: tab.id }] : []))[0];
+  const followed = state.panes.flatMap((pane, pi) => pane.tabs.flatMap((tab) =>
+    tab.id === state.followed && tab.open.length && !tab.diff && !tab.preview && !tab.plot ? [{ pane: pi, id: tab.id }] : []))[0];
+  const target = existing ?? followed;
+  return { sourcePane, sourceId, targetPane: target?.pane ?? (state.panes.length > 1 ? 1 - sourcePane : sourcePane), targetId: target?.id ?? null };
+};
+
+/** A diff frame opens only into its captured destination while that frame remains current. */
+export const openFromDiff = async (ctx: Ctx, path: string, workspace: string, destination: DiffDestination, newTab: boolean, current: () => boolean): Promise<void> => {
+  if (!current() || ctx.store.get().workspace !== workspace || workspaceOf(path, [workspace]) !== workspace) return;
+  const project = path.endsWith("/plot.csv") ? path.slice(0, -"/plot.csv".length) : null;
+  if (project && ctx.projects.includes(project)) {
+    if (current() && ctx.store.get().workspace === workspace) ctx.store.dispatch({ type: "plotFromDiff", project, newTab, destination });
+    return;
+  }
+  const doc = await loadDoc(path, ctx);
+  if (!current() || ctx.store.get().workspace !== workspace || !canOpenFromDiff(ctx.store.get(), destination, path)) return;
+  ctx.pendingAt = null;
+  ctx.store.dispatch({ type: "openFromDiff", docs: [doc], newTab, destination });
 };
 
 /** Publish a saved action only after the write succeeds. A declined write has no save event. */

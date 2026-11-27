@@ -29,6 +29,9 @@ export type Tab = { id: number; open: Doc[]; focus: number; plot: string | null;
 /** A pane of the editor area: its tabs and the selected one. */
 export type Pane = { tabs: Tab[]; active: number };
 
+/** A diff frame's source and its chosen destination, captured before file I/O. */
+export type DiffDestination = { sourceId: number; sourcePane: number; targetId: number | null; targetPane: number };
+
 export type State = {
   workspaces: string[];
   workspace: string | null;
@@ -63,6 +66,8 @@ export type Action =
   | { type: "workspaces"; workspaces: string[] }
   | { type: "workspace"; path: string | null }
   | { type: "open"; docs: Doc[]; newTab?: boolean }
+  | { type: "openFromDiff"; docs: Doc[]; newTab?: boolean; destination: DiffDestination }
+  | { type: "plotFromDiff"; project: string; newTab?: boolean; destination: DiffDestination }
   | { type: "close" }
   | { type: "closeTab"; pane: number; index: number }
   | { type: "selectTab"; pane: number; index: number }
@@ -231,6 +236,35 @@ const place = (s: State, c: Content, newTab: boolean | undefined): State => {
   return withPanes({ ...s, seq: s.seq + 1 }, setPane(s.panes, pi, { tabs: [...p.tabs, t], active: p.tabs.length }), pi);
 };
 
+const validDiffDestination = (s: State, d: DiffDestination): boolean => {
+  const source = s.panes[d.sourcePane]?.tabs.find((t) => t.id === d.sourceId);
+  if (!source?.diff || !s.panes[d.targetPane]) return false;
+  if (d.targetId === null) return true;
+  return locate(s, d.targetId)?.pane === d.targetPane;
+};
+
+export const canOpenFromDiff = (s: State, d: DiffDestination, path: string): boolean => {
+  if (!validDiffDestination(s, d) || (d.targetId !== null && !isSheetTab(s.panes[d.targetPane].tabs.find((t) => t.id === d.targetId)))) return false;
+  const existing = findDoc(s, path);
+  return !existing || (existing.pane === d.targetPane && s.panes[existing.pane].tabs[existing.tab].id === d.targetId);
+};
+
+/** Place content in the destination captured by a diff request, independent of later selection. */
+const placeDiff = (s: State, c: Content, newTab: boolean | undefined, d: DiffDestination): State => {
+  if (d.targetId !== null) {
+    const at = locate(s, d.targetId)!;
+    const there = select(s, at.pane, at.tab);
+    return newTab ? addTab(there, c) : replaceActive(there, c);
+  }
+  const p = s.panes[d.targetPane];
+  const source = d.targetPane === d.sourcePane ? p.tabs.findIndex((t) => t.id === d.sourceId) : -1;
+  const index = source >= 0 ? source + 1 : p.tabs.length;
+  const tab: Tab = { ...c, id: s.seq };
+  return withPanes({ ...s, seq: s.seq + 1 }, setPane(s.panes, d.targetPane, {
+    ...p, tabs: [...p.tabs.slice(0, index), tab, ...p.tabs.slice(index)], active: index,
+  }), d.targetPane);
+};
+
 const select = (s: State, pane: number, tab: number, focus?: number): State => {
   const panes = s.panes.map((p, k) =>
     k === pane ? { ...p, active: tab, tabs: focus === undefined ? p.tabs : p.tabs.map((t, j) => (j === tab ? { ...t, focus } : t)) } : p,
@@ -281,7 +315,10 @@ const step = (s: State, a: Action): State => {
     }
     case "workspace":
       return settle({ ...s, workspace: a.path, panes: [{ tabs: [], active: 0 }], pane: 0, selected: [], anchor: null });
-    case "open": {
+    case "open":
+    case "openFromDiff": {
+      const destination = a.type === "openFromDiff" ? a.destination : null;
+      if (destination && !canOpenFromDiff(s, destination, a.docs[0]?.path ?? "")) return s;
       // opening shows the files down to each sheet in the tree
       const expanded = new Set(s.expanded);
       for (const d of a.docs) if (d.workspace) ancestors(d.path, d.workspace).forEach((p) => expanded.add(p));
@@ -293,7 +330,10 @@ const step = (s: State, a: Action): State => {
       // a sheet opens once: one already open (alone or among chapters) is selected where it is
       if (a.docs.length === 1) {
         const at = findDoc(s, a.docs[0].path);
-        if (at) return { ...select(s, at.pane, at.tab, at.doc), ...tree };
+        if (at) {
+          if (destination && (at.pane !== destination.targetPane || s.panes[at.pane].tabs[at.tab].id !== destination.targetId)) return s;
+          return { ...select(s, at.pane, at.tab, at.doc), ...tree };
+        }
       } else {
         const same = s.panes.flatMap((p, pi) => p.tabs.flatMap((t, ti) => (t.open.map((d) => d.path).join("\n") === a.docs.map((d) => d.path).join("\n") ? [{ pi, ti }] : [])))[0];
         if (same) return { ...select(s, same.pi, same.ti, 0), ...tree };
@@ -311,7 +351,7 @@ const step = (s: State, a: Action): State => {
             : removeTab(base, at.pane, at.tab);
         }
       const tab: Content = { open: a.docs, focus: 0, plot: null, preview: false, diff: false };
-      return { ...place(base, tab, a.newTab), ...tree };
+      return { ...(destination ? placeDiff(base, tab, a.newTab, destination) : place(base, tab, a.newTab)), ...tree };
     }
     case "close":
       return { ...removeTab(s, s.pane, s.panes[s.pane]?.active ?? 0), selected: [] };
@@ -428,6 +468,15 @@ const step = (s: State, a: Action): State => {
       if (at) return { ...select(s, at.pi, at.ti), selected: [] };
       const tab: Content = { open: [], focus: 0, plot: a.project, preview: false, diff: false };
       return { ...place(s, tab, a.newTab), selected: [] };
+    }
+    case "plotFromDiff": {
+      const d = a.destination;
+      if (!validDiffDestination(s, d)) return s;
+      const existing = s.panes.flatMap((p, pi) => p.tabs.flatMap((t, ti) => (t.plot === a.project ? [{ pi, ti, id: t.id }] : [])))[0];
+      if (existing) return existing.pi === d.targetPane && existing.id === d.targetId ? { ...select(s, existing.pi, existing.ti), selected: [] } : s;
+      if (d.targetId !== null && !isSheetTab(s.panes[d.targetPane].tabs.find((t) => t.id === d.targetId))) return s;
+      const tab: Content = { open: [], focus: 0, plot: a.project, preview: false, diff: false };
+      return { ...placeDiff(s, tab, a.newTab, d), selected: [] };
     }
     case "showPreview": {
       // with no tab there is nothing to show (docs/adr/0087)
