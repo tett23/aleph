@@ -11,11 +11,16 @@ test("ADR 0065 invariant 3: a clicked md uses its live text while another tab is
     const doc = (path: string, text: string) => ({ path, text, saved: text, kind: "md", project: null, workspace: "/w", grid: { chars: 40, lines: 20, vertical: false } });
     let state = reduce(initialState(), { type: "open", docs: [doc("/w/first.md", "# Original")] });
     state = reduce(state, { type: "open", docs: [doc("/w/second.md", "# Active")], newTab: true });
-    const written: [string, string][] = [];
+    const written: [string, string, boolean | undefined][] = [];
     const read: string[] = [];
+    const conversions: unknown[] = [];
     api.exists = async () => false;
     api.readText = async (path: string) => { read.push(path); return "# Disk"; };
-    api.writeText = async (path: string, text: string) => { written.push([path, text]); };
+    api.markdownBlocksToGm = async (blocks: unknown, separator: unknown) => {
+      conversions.push({ blocks, separator });
+      return conversions.length === 1 ? "# Edited\n" : "# Disk\n";
+    };
+    api.writeText = async (path: string, text: string, createNew?: boolean) => { written.push([path, text, createNew]); };
     api.listTree = async () => [];
     const errors: string[] = [];
     const ctx = {
@@ -24,11 +29,12 @@ test("ADR 0065 invariant 3: a clicked md uses its live text while another tab is
       notify: ({ message }: { message: string }) => { errors.push(message); return { dismiss: () => {} }; },
     };
     await convertToGm(ctx, "/w/first.md");
-    assert.deepEqual(written, [["/w/first.gm", "# Edited\n"]]);
+    assert.deepEqual(written, [["/w/first.gm", "# Edited\n", true]]);
     assert.deepEqual(read, []);
+    assert.deepEqual(conversions, [{ blocks: [{ t: "heading", level: 1, c: [{ t: "text", v: "Edited" }] }], separator: "blank-line" }]);
     await convertToGm(ctx, "/w/third.md");
     assert.deepEqual(read, ["/w/third.md"]);
-    assert.deepEqual(written[1], ["/w/third.gm", "# Disk\n"]);
+    assert.deepEqual(written[1], ["/w/third.gm", "# Disk\n", true]);
     const before = written.length;
     const previousDocument = globalThis.document;
     const dialog = { addEventListener: (_type: string, callback: (event: unknown) => void) => {
@@ -42,6 +48,7 @@ test("ADR 0065 invariant 3: a clicked md uses its live text while another tab is
       api.exists = async () => true;
       await convertToGm(ctx, "/w/first.md");
       assert.equal(written.length, before);
+      assert.equal(conversions.length, 2);
     } finally {
       Object.assign(globalThis, { document: previousDocument });
     }

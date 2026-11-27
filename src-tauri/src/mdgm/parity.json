@@ -1,0 +1,983 @@
+[
+  {
+    "name": "headings stay; the closing #s go",
+    "markdown": "# 霧笛 #\n\n## 灯の交代\n",
+    "blocks": [
+      {
+        "t": "heading",
+        "level": 1,
+        "c": [
+          {
+            "t": "text",
+            "v": "霧笛"
+          }
+        ]
+      },
+      {
+        "t": "heading",
+        "level": 2,
+        "c": [
+          {
+            "t": "text",
+            "v": "灯の交代"
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "# 霧笛\n\n## 灯の交代\n"
+  },
+  {
+    "name": "lists: bullets become -, nesting two spaces; numbered become +",
+    "markdown": "* 一\n    + 二\n        - 三\n- 四\n",
+    "blocks": [
+      {
+        "t": "list",
+        "items": [
+          {
+            "depth": 0,
+            "ordered": false,
+            "c": [
+              {
+                "t": "text",
+                "v": "一"
+              }
+            ]
+          },
+          {
+            "depth": 1,
+            "ordered": false,
+            "c": [
+              {
+                "t": "text",
+                "v": "二"
+              }
+            ]
+          },
+          {
+            "depth": 2,
+            "ordered": false,
+            "c": [
+              {
+                "t": "text",
+                "v": "三"
+              }
+            ]
+          },
+          {
+            "depth": 0,
+            "ordered": false,
+            "c": [
+              {
+                "t": "text",
+                "v": "四"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "- 一\n  - 二\n    - 三\n- 四\n"
+  },
+  {
+    "name": "lists: bullets become -, nesting two spaces; numbered become +",
+    "markdown": "1. 一\n2) 二\n",
+    "blocks": [
+      {
+        "t": "list",
+        "items": [
+          {
+            "depth": 0,
+            "ordered": true,
+            "c": [
+              {
+                "t": "text",
+                "v": "一"
+              }
+            ]
+          },
+          {
+            "depth": 0,
+            "ordered": true,
+            "c": [
+              {
+                "t": "text",
+                "v": "二"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "+ 一\n+ 二\n"
+  },
+  {
+    "name": "emphasis, italics and code become commands; nested",
+    "markdown": "**強く**と*斜め*と`code`\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "strong",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "強く"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": "と"
+              },
+              {
+                "t": "em",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "斜め"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": "と"
+              },
+              {
+                "t": "code",
+                "v": "code"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "[strong: 強く]と[italic: 斜め]と[code: code]\n"
+  },
+  {
+    "name": "emphasis, italics and code become commands; nested",
+    "markdown": "__a *b* c__\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "strong",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "a "
+                  },
+                  {
+                    "t": "em",
+                    "c": [
+                      {
+                        "t": "text",
+                        "v": "b"
+                      }
+                    ]
+                  },
+                  {
+                    "t": "text",
+                    "v": " c"
+                  }
+                ]
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "[strong: a [italic: b] c]\n"
+  },
+  {
+    "name": "emphasis, italics and code become commands; nested",
+    "markdown": "**`x*y`**\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "strong",
+                "c": [
+                  {
+                    "t": "code",
+                    "v": "x*y"
+                  }
+                ]
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "[strong: [code: x*y]]\n"
+  },
+  {
+    "name": "inside a prose slot ] and | are escaped; in running text they are not",
+    "markdown": "**a]b|c**\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "strong",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "a]b|c"
+                  }
+                ]
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "[strong: a\\]b\\|c]\n"
+  },
+  {
+    "name": "inside a prose slot ] and | are escaped; in running text they are not",
+    "markdown": "a]b|c\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "a]b|c"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "a]b|c\n"
+  },
+  {
+    "name": "inside a prose slot ] and | are escaped; in running text they are not",
+    "markdown": "`[x|y]`\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "code",
+                "v": "[x|y]"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "[code: \\[x\\|y\\]]\n"
+  },
+  {
+    "name": "running text: [ and \\ and %% are escaped",
+    "markdown": "配列は a\\[0\\] と書く。\\\\ と 50%% 引き\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "配列は a[0] と書く。\\ と 50%% 引き"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "配列は a\\[0] と書く。\\\\ と 50\\%% 引き\n"
+  },
+  {
+    "name": "a paragraph starting with # - + = @ | is escaped; so is ## before a digit",
+    "markdown": "\\# 見出しでない\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "# 見出しでない"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "\\# 見出しでない\n"
+  },
+  {
+    "name": "a paragraph starting with # - + = @ | is escaped; so is ## before a digit",
+    "markdown": "\\- 項目でない\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "- 項目でない"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "\\- 項目でない\n"
+  },
+  {
+    "name": "a paragraph starting with # - + = @ | is escaped; so is ## before a digit",
+    "markdown": "\\+ 項目でない\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "+ 項目でない"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "\\+ 項目でない\n"
+  },
+  {
+    "name": "a paragraph starting with # - + = @ | is escaped; so is ## before a digit",
+    "markdown": "= 等号\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "= 等号"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "\\= 等号\n"
+  },
+  {
+    "name": "a paragraph starting with # - + = @ | is escaped; so is ## before a digit",
+    "markdown": "@mention です\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "@mention です"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "\\@mention です\n"
+  },
+  {
+    "name": "a paragraph starting with # - + = @ | is escaped; so is ## before a digit",
+    "markdown": "| 縦棒で始まる\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "| 縦棒で始まる"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "\\| 縦棒で始まる\n"
+  },
+  {
+    "name": "a paragraph starting with # - + = @ | is escaped; so is ## before a digit",
+    "markdown": "番号は ##1 と書く\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "番号は ##1 と書く"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "番号は \\##1 と書く\n"
+  },
+  {
+    "name": "links keep their text; an image alone on a line becomes @figure",
+    "markdown": "[Golem](https://example.com) を見る\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "link",
+                "href": "https://example.com",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "Golem"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " を見る"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "Golem を見る\n"
+  },
+  {
+    "name": "links keep their text; an image alone on a line becomes @figure",
+    "markdown": "![灯台の絵](images/lighthouse.png \"t\")\n",
+    "blocks": [
+      {
+        "t": "image",
+        "alt": "灯台の絵",
+        "src": "images/lighthouse.png"
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "@figure images/lighthouse.png alt=\"灯台の絵\"\n"
+  },
+  {
+    "name": "quotes lose the mark; rules become a blank line; tables and code blocks stay",
+    "markdown": "> 引用\n> 続き\n\n---\n\n後\n",
+    "blocks": [
+      {
+        "t": "quote",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "引用"
+              }
+            ],
+            "hard": false
+          },
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "続き"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      },
+      {
+        "t": "hr"
+      },
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "後"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "引用\n続き\n\n後\n"
+  },
+  {
+    "name": "quotes lose the mark; rules become a blank line; tables and code blocks stay",
+    "markdown": "| a | b |\n|---|---|\n| 1 | 2 |\n",
+    "blocks": [
+      {
+        "t": "table",
+        "rows": [
+          "| a | b |",
+          "|---|---|",
+          "| 1 | 2 |"
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "| a | b |\n|---|---|\n| 1 | 2 |\n"
+  },
+  {
+    "name": "quotes lose the mark; rules become a blank line; tables and code blocks stay",
+    "markdown": "```gm\n[ruby: x|y] **z** %%\n```\n",
+    "blocks": [
+      {
+        "t": "code",
+        "lang": "gm",
+        "text": "[ruby: x|y] **z** %%"
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "```gm\n[ruby: x|y] **z** %%\n```\n"
+  },
+  {
+    "name": "two trailing spaces become a forced break",
+    "markdown": "一行目  \n二行目\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "一行目"
+              }
+            ],
+            "hard": true
+          },
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "二行目"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "一行目\\\n二行目\n"
+  },
+  {
+    "name": "paragraphs: kept as lines in the blank-line style, joined into one line in the line style",
+    "markdown": "一行目\n二行目\n\n次の段落\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "一行目"
+              }
+            ],
+            "hard": false
+          },
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "二行目"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      },
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "次の段落"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "一行目\n二行目\n\n次の段落\n"
+  },
+  {
+    "name": "paragraphs: kept as lines in the blank-line style, joined into one line in the line style",
+    "markdown": "一行目\n二行目\n\n次の段落\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "一行目"
+              }
+            ],
+            "hard": false
+          },
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "二行目"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      },
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "次の段落"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "line",
+    "expected": "一行目二行目\n\n次の段落\n"
+  },
+  {
+    "name": "paragraphs: kept as lines in the blank-line style, joined into one line in the line style",
+    "markdown": "一  \n二\n三\n",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "一"
+              }
+            ],
+            "hard": true
+          },
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "二"
+              }
+            ],
+            "hard": false
+          },
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "三"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "line",
+    "expected": "一\\\n二三\n"
+  },
+  {
+    "name": "an image alone on its line becomes @figure even when text follows on the next line",
+    "markdown": "![a](x.png)\n次の行\n",
+    "blocks": [
+      {
+        "t": "image",
+        "alt": "a",
+        "src": "x.png"
+      },
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "text",
+                "v": "次の行"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "@figure x.png alt=\"a\"\n\n次の行\n"
+  },
+  {
+    "name": "a wikilink keeps only the text it shows (docs/adr/0027)",
+    "markdown": "[[人物|父]]と[[場所]]",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "wikilink",
+                "target": "人物",
+                "heading": null,
+                "text": "父"
+              },
+              {
+                "t": "text",
+                "v": "と"
+              },
+              {
+                "t": "wikilink",
+                "target": "場所",
+                "heading": null,
+                "text": null
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "父と場所\n"
+  },
+  {
+    "name": "GFM in gm: strikethrough keeps its text, task marks become ☐ and ☑, autolinks their URL (docs/adr/0035)",
+    "markdown": "~~消す~~と https://x.y",
+    "blocks": [
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "del",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "消す"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": "と "
+              },
+              {
+                "t": "link",
+                "href": "https://x.y",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "https://x.y"
+                  }
+                ]
+              }
+            ],
+            "hard": false
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "消すと https://x.y\n"
+  },
+  {
+    "name": "GFM in gm: strikethrough keeps its text, task marks become ☐ and ☑, autolinks their URL (docs/adr/0035)",
+    "markdown": "- [ ] 書く\n- [x] 読む",
+    "blocks": [
+      {
+        "t": "list",
+        "items": [
+          {
+            "depth": 0,
+            "ordered": false,
+            "c": [
+              {
+                "t": "text",
+                "v": "書く"
+              }
+            ],
+            "checked": false
+          },
+          {
+            "depth": 0,
+            "ordered": false,
+            "c": [
+              {
+                "t": "text",
+                "v": "読む"
+              }
+            ],
+            "checked": true
+          }
+        ]
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "- ☐ 書く\n- ☑ 読む\n"
+  },
+  {
+    "name": "whole-line embeds",
+    "markdown": "![[images/a.png]]\n\n![[人物#家族]]\n",
+    "blocks": [
+      {
+        "t": "embed",
+        "target": "images/a.png",
+        "heading": null
+      },
+      {
+        "t": "embed",
+        "target": "人物",
+        "heading": "家族"
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "@figure images/a.png\n\n人物\n"
+  },
+  {
+    "name": "mixed syntax and command-like verbatim text",
+    "markdown": "# 霧笛\r\n\r\n**強い a]b|c** と *斜め* と `co|de`。\r\n\r\n```gm\r\n[ruby: x|y] **z** %%\r\n```\r\n",
+    "blocks": [
+      {
+        "t": "heading",
+        "level": 1,
+        "c": [
+          {
+            "t": "text",
+            "v": "霧笛"
+          }
+        ]
+      },
+      {
+        "t": "para",
+        "lines": [
+          {
+            "c": [
+              {
+                "t": "strong",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "強い a]b|c"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " と "
+              },
+              {
+                "t": "em",
+                "c": [
+                  {
+                    "t": "text",
+                    "v": "斜め"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "v": " と "
+              },
+              {
+                "t": "code",
+                "v": "co|de"
+              },
+              {
+                "t": "text",
+                "v": "。"
+              }
+            ],
+            "hard": false
+          }
+        ]
+      },
+      {
+        "t": "code",
+        "lang": "gm",
+        "text": "[ruby: x|y] **z** %%"
+      }
+    ],
+    "separator": "blank-line",
+    "expected": "# 霧笛\n\n[strong: 強い a\\]b\\|c] と [italic: 斜め] と [code: co\\|de]。\n\n```gm\n[ruby: x|y] **z** %%\n```\n"
+  }
+]

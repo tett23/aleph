@@ -12,6 +12,7 @@ mod guard;
 mod handout;
 mod llama;
 mod lsp;
+mod mdgm;
 mod models;
 mod nav;
 mod process;
@@ -1817,6 +1818,7 @@ pub fn run_app() {
             spell_check,
             write_bytes,
             read_text,
+            mdgm::markdown_blocks_to_gm,
             read_bytes,
             write_text,
             exists,
