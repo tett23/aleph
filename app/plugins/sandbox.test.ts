@@ -34,24 +34,31 @@ test("ADR 0115 I3: the plugin frame rejects accessible parent DOM", () => {
   assert.deepEqual(boot({ document: {} }), [{ type: "failed", error: "親画面の DOM に届きます" }]);
 });
 
-test("ADR 0115 I3: a plugin receives only the host's message port", async () => {
+test("ADR 0115 I3, ADR 0120 I2: a plugin receives only the host's message port", async (t) => {
   const ports: MessagePort[] = [];
+  const requests: string[] = [];
   const host = createHost(() => {}, () => {}, async (_source, receive) => {
     const channel = new MessageChannel();
     ports.push(channel.port2);
     channel.port1.onmessage = ({ data }) => receive(data);
     channel.port2.postMessage({ type: "ready" });
     return { port: channel.port1, close: () => channel.port1.close() };
+  }, {
+    authorize: async (_channel, path) => { requests.push(path); return false; },
+    close: async () => {},
   });
-  const result = await host.load([{ name: "one.js", source: "ignored" }], []);
+  t.after(() => {
+    host.close();
+    ports.forEach((port) => port.close());
+  });
+  const result = await host.load([{ name: "one.js", open: async () => ({ channel: "one", source: "ignored" }) }], []);
   assert.equal(result[0].state, "ok");
   assert.equal(ports.length, 1);
   ports[0].postMessage({ type: "invoke", command: "read_text", path: "/private" });
   ports[0].postMessage({ type: "register-command", id: 1, label: "late" });
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(host.commands(), []);
-  host.close();
-  ports.forEach((port) => port.close());
+  assert.deepEqual(requests, []);
 });
 
 test("ADR 0115 I3: the plugin bootstrap hash in both Tauri CSPs matches the script", async () => {

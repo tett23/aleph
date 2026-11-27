@@ -2,7 +2,7 @@ import runtime from "./frame.js?raw";
 import type { PluginFrame, Spawn } from "./host.ts";
 
 // Keep this hash in sync with frame.js and both Tauri CSP entries.
-const FRAME_POLICY = "default-src 'none'; script-src 'sha256-GjTuWqcsbSZKZBwRCm2CEM/LpDbJCpiTgXucc/HtZ34=' blob:; connect-src 'none'; img-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
+const FRAME_POLICY = "default-src 'none'; script-src 'sha256-xmdittongS+lgQ6qR4IESu+Ia+/Slqs6z7PAoc/fJDk=' blob:; connect-src 'none'; img-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 
 /** Start one plugin in a sandboxed frame with an opaque origin and one private port. */
 export const spawnPlugin: Spawn = async (source, receive): Promise<PluginFrame> => {

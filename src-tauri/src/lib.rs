@@ -16,6 +16,9 @@ mod mdconvert;
 mod mdgm;
 mod models;
 mod nav;
+mod plugin_approval;
+#[cfg(test)]
+mod plugin_approval_tests;
 mod process;
 mod project_init;
 mod replace;
@@ -1801,6 +1804,7 @@ pub fn run_app() {
         .manage(Watching::default())
         .manage(llama::Local::default())
         .manage(tab_ipc::Registry::default())
+        .manage(plugin_approval::Registry::default())
         .manage(Downloading::default())
         .menu(menu)
         .on_menu_event(|app, e| {
@@ -1861,6 +1865,14 @@ pub fn run_app() {
             tab_ipc::tab_ipc_grant,
             tab_ipc::tab_ipc_read_text,
             tab_ipc::tab_ipc_close,
+            plugin_approval::plugin_session_open,
+            plugin_approval::plugin_session_close,
+            plugin_approval::plugin_sheet_access,
+            plugin_approval::plugin_sheet_use,
+            plugin_approval::plugin_approval_prompt,
+            plugin_approval::plugin_approval_reply,
+            plugin_approval::plugin_approval_list,
+            plugin_approval::plugin_approval_forget,
             debug_build,
             config_load,
             config_save,

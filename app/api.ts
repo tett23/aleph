@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Outcome } from "./dropin.ts";
 import type { ModelInfo } from "./assistant/models.ts";
 import type { Block, Inline } from "./md.ts";
+import type { PluginApprovalDecision, PluginApprovalPrompt } from "./plugins/approval-dialog.ts";
 
 export type Entry = { path: string; name: string; dir: boolean; children: Entry[] };
 export type TreeMoveInventory = { entries: Entry[]; projects: string[] };
@@ -90,6 +91,14 @@ export const api = {
   installPlugin: () => invoke<string | null>("install_plugin"),
   removePlugin: (name: string) => invoke<boolean>("remove_plugin", { name }),
   openPluginsFolder: () => invoke<void>("open_plugins_folder"),
+  pluginSessionOpen: (name: string) => invoke<{ channel: string; source: string }>("plugin_session_open", { name }),
+  pluginSessionClose: (channel: string) => invoke<void>("plugin_session_close", { channel }),
+  pluginSheetAccess: (channel: string, path: string) => invoke<string | null>("plugin_sheet_access", { channel, path }),
+  pluginSheetUse: (channel: string, path: string, grant: string) => invoke<boolean>("plugin_sheet_use", { channel, path, grant }),
+  pluginApprovalPrompt: () => invoke<PluginApprovalPrompt | null>("plugin_approval_prompt"),
+  pluginApprovalReply: (id: string, allow: boolean) => invoke<void>("plugin_approval_reply", { id, allow }),
+  pluginApprovalList: () => invoke<PluginApprovalDecision[]>("plugin_approval_list"),
+  pluginApprovalForget: (id: string) => invoke<void>("plugin_approval_forget", { id }),
   /** Shows a file or folder in Finder, selected (docs/adr/0053). */
   revealPath: (path: string) => invoke<void>("reveal_path", { path }),
   /** Handing the tree's files outside (docs/adr/0077): a folder's zip entries as on disk, the zip written where the writer picks (null when stopped), the pasteboard, a drag out of the window. */

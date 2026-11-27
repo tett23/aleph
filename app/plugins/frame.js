@@ -56,7 +56,7 @@ const init = async (event) => {
     } finally {
       URL.revokeObjectURL(url);
     }
-    port.postMessage({ type: "ready" });
+    port.postMessage({ type: "ready", hasStatus: statuses.length > 0, hasSaves: saves.length > 0 });
   } catch (error) {
     port.postMessage({ type: "failed", error: String(error) });
     return;

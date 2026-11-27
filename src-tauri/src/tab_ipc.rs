@@ -44,7 +44,7 @@ struct Channel {
 #[derive(Default)]
 pub struct Registry(Mutex<HashMap<String, Channel>>);
 
-fn id() -> Result<String> {
+pub(crate) fn id() -> Result<String> {
     let mut random = [0u8; 16];
     File::open("/dev/urandom")
         .and_then(|mut source| source.read_exact(&mut random))
@@ -134,7 +134,7 @@ impl Registry {
     }
 }
 
-fn host(webview: &Webview) -> Result<()> {
+pub(crate) fn host(webview: &Webview) -> Result<()> {
     if webview.label() == "main" && webview.window().label() == "main" {
         Ok(())
     } else {

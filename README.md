@@ -101,7 +101,10 @@ For push and pull, configure a tracking branch on an SSH or HTTPS remote. SSH us
 
 ## Status
 
-The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, the conversion from Markdown, and plugins. Each Aleph plugin runs in a sandboxed frame and uses messages to register commands, a status display, and save notifications.
+The first version is implemented: one editor for horizontal and vertical writing, golem lsp, previews of the text and the pages, saving and Git, goals and notes, the plot and its Gantt chart, the shared library, diagnostics and search, building the project, and the conversion from Markdown.
+
+Aleph plugins are **experimental** and may be removed in a future release. Each Aleph plugin runs in a sandboxed frame and uses messages to register commands, a status display, and save notifications. Aleph asks before sharing sheet information with a plugin and remembers the decision until Aleph quits.
+
 Each decision is an ADR (Architecture Decision Record) under [docs/adr/](docs/adr/), and the current behaviour is in [docs/specifications.md](docs/specifications.md). The names of the elements of the screen, such as the sidebar, the right sidebar and the bottom panel, are in [docs/glossary.md](docs/glossary.md).
 It targets macOS on Apple Silicon first.
 
