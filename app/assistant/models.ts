@@ -5,6 +5,7 @@
 // (docs/adr/0042); this side only shows them and asks.
 import { api, type ConnectorId, type ConnectorInfo } from "../api.ts";
 import type { Ctx } from "../ctx.ts";
+import { assistantContextLimitOf, assistantContextLimits } from "../config.ts";
 import { esc } from "../esc.ts";
 import { item } from "../ui/item.ts";
 
@@ -53,7 +54,7 @@ export const connectorRowHtml = (c: ConnectorInfo) => {
 };
 
 /** The section's body: the model to use, chosen from the installed ones, each model of the list, then the rows of Claude Code and Codex. */
-export const modelsHtml = (models: readonly ModelInfo[], error = "", connectors: readonly ConnectorInfo[] = []) => {
+export const modelsHtml = (models: readonly ModelInfo[], error = "", connectors: readonly ConnectorInfo[] = [], context: number | null = null, activeContext: number | null = null) => {
   const busy = models.some((m) => m.downloading);
   const options = models
     .filter((m) => m.installed)
@@ -62,6 +63,7 @@ export const modelsHtml = (models: readonly ModelInfo[], error = "", connectors:
   return (
     (error ? `<p class="ng">${esc(error)}</p>` : "") +
     item("使うモデル", "ローカルのコネクタが使うモデル。選んだモデルが無いときは、既定のモデルを使う", `<select class="field" data-model>${options}</select>`) +
+    item("ローカルのコンテキスト長の上限", `入力と答えが収まる長さを、モデルと設定の上限の範囲で選ぶ${activeContext === null ? "" : `。起動中は ${activeContext.toLocaleString("ja-JP")} トークン`}`, `<select class="field" data-assistant-context><option value="">自動</option>${assistantContextLimits.map((limit) => `<option value="${limit}"${context === limit ? " selected" : ""}>${limit.toLocaleString("ja-JP")}</option>`).join("")}</select>`) +
     models.map((m) => item(m.name, `${esc(sizeLabel(m.size))}・${esc(m.license)}・${esc(state(m))}`, control(m, busy))).join("") +
     connectors
       .filter((c) => c.id !== "local")
@@ -113,8 +115,8 @@ export const mountAssistantSettings = (ctx: Ctx) => {
     group: "オプション",
     render: async () => {
       try {
-        const [models, connectorList] = await Promise.all([api.assistantModels(), readConnectors()]);
-        return modelsHtml(models, lastError, connectorList);
+        const [models, connectorList, activeContext] = await Promise.all([api.assistantModels(), readConnectors(), api.assistantLocalContext().catch(() => null)]);
+        return modelsHtml(models, lastError, connectorList, ctx.config.assistantContextLimit, activeContext);
       } catch (e) {
         return `<p class="ng">${esc(String(e))}</p>`;
       }
@@ -138,6 +140,11 @@ export const mountAssistantSettings = (ctx: Ctx) => {
       return true;
     },
     onChange: async (el) => {
+      if (el.matches("[data-assistant-context]")) {
+        ctx.config.assistantContextLimit = assistantContextLimitOf(Number(el.value));
+        await ctx.saveConfig();
+        return false;
+      }
       if (!el.matches("[data-model]")) return false;
       lastError = "";
       reuse = true;

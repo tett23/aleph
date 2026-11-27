@@ -1090,13 +1090,18 @@ fn assistant_choose_model(app: AppHandle, id: String) -> R<String> {
 }
 
 /// Runs `f` against the llama-server of the model in use, started when needed.
-fn with_local<T>(app: &AppHandle, f: impl FnOnce(&Path) -> R<T>) -> R<(T, models::Model)> {
+fn local_paths(app: &AppHandle) -> R<(models::Model, PathBuf, PathBuf)> {
     let m = model_in_use(app)?;
     let model = model_path(app, &m)?;
     let bin = roots(app)
         .resources
         .map(|r| r.join("llama.cpp").join("llama-server"))
         .ok_or("アプリのリソースのフォルダがありません")?;
+    Ok((m, model, bin))
+}
+
+fn with_local<T>(app: &AppHandle, f: impl FnOnce(&Path) -> R<T>) -> R<(T, models::Model)> {
+    let (m, model, bin) = local_paths(app)?;
     let out = app
         .state::<llama::Local>()
         .with_server(&bin, &model, &std::env::temp_dir(), f)?;
@@ -1140,6 +1145,11 @@ async fn assistant_local_template_count(app: AppHandle, messages: Vec<llama::Mes
         with_local(&app, |sock| llama::template_count(sock, &messages)).map(|(n, _)| n)
     })
     .await
+}
+
+#[tauri::command]
+fn assistant_local_context(app: AppHandle) -> Option<u32> {
+    app.state::<llama::Local>().active_context()
 }
 
 // ---- the assistant's tab: the manual's chapters and golem check (docs/adr/0081) ----
@@ -1274,6 +1284,8 @@ async fn assistant_ask(
     app: AppHandle,
     connector: connectors::Connector,
     messages: Vec<llama::Message>,
+    material: Option<Vec<String>>,
+    manuscript: Option<bool>,
 ) -> R<connectors::Answered> {
     blocking(move || {
         let bin = connector_path(&app, connector);
@@ -1281,14 +1293,45 @@ async fn assistant_ask(
             return Err(format!("{} が見つかりません", connector.name()));
         }
         let approved = connector_approved(&app, connector)?;
-        connectors::ask(
+        let sections = material.unwrap_or_default();
+        let manuscript = manuscript.unwrap_or(false);
+        let timeout = if manuscript {
+            std::time::Duration::from_secs(600)
+        } else {
+            connectors::TIMEOUT
+        };
+        connectors::ask_with_material(
             connector,
             approved,
             bin.as_deref(),
-            &messages,
             &std::env::temp_dir(),
-            connectors::TIMEOUT,
-            |ms| with_local(&app, |sock| llama::ask(sock, ms)).map(|(a, m)| (a, m.name)),
+            timeout,
+            llama::SizedRequest {
+                messages: &messages,
+                sections: &sections,
+                manuscript,
+            },
+            |_| {
+                let (model, path, server) = local_paths(&app)?;
+                let cap = kept_config(&app)
+                    .get("assistantContextLimit")
+                    .and_then(|v| v.as_u64())
+                    .and_then(|n| u32::try_from(n).ok())
+                    .filter(|n| llama::CONTEXT_CHOICES.contains(n))
+                    .unwrap_or(llama::CONTEXT_CHOICES[5]);
+                let answer = app.state::<llama::Local>().ask_sized(
+                    &server,
+                    &path,
+                    &std::env::temp_dir(),
+                    cap,
+                    llama::SizedRequest {
+                        messages: &messages,
+                        sections: &sections,
+                        manuscript,
+                    },
+                )?;
+                Ok((answer, model.name))
+            },
         )
     })
     .await
@@ -1866,6 +1909,7 @@ pub fn run_app() {
             assistant_local_ask,
             assistant_local_count,
             assistant_local_template_count,
+            assistant_local_context,
             assistant_connectors,
             assistant_revoke,
             assistant_ask,

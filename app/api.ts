@@ -117,12 +117,13 @@ export const api = {
   assistantLocalAsk: (messages: ChatMessage[]) => invoke<LocalAnswer>("assistant_local_ask", { messages }),
   assistantLocalCount: (texts: string[]) => invoke<number[]>("assistant_local_count", { texts }),
   assistantLocalTemplateCount: (messages: ChatMessage[]) => invoke<number>("assistant_local_template_count", { messages }),
+  assistantLocalContext: () => invoke<number | null>("assistant_local_context"),
   /** The connectors, found and approved; Rust finds the CLIs and keeps the approvals. */
   assistantConnectors: () => invoke<ConnectorInfo[]>("assistant_connectors"),
   /** Revokes the approval of Claude Code or Codex (docs/adr/0089); the next request asks again. */
   assistantRevoke: (connector: ConnectorId) => invoke<void>("assistant_revoke", { connector }),
   /** Asks a connector; Rust asks for the approval in a native dialog the first time (I6) and falls back to the local connector once (I8). */
-  assistantAsk: (connector: ConnectorId, messages: ChatMessage[]) => invoke<Answered>("assistant_ask", { connector, messages }),
+  assistantAsk: (connector: ConnectorId, messages: ChatMessage[], material: string[], manuscript = false) => invoke<Answered>("assistant_ask", { connector, messages, material, manuscript }),
   /** A bundled chapter of the Golem manual for the material: "03-markup", "04-manifest" or "05-style". */
   assistantManual: (chapter: string) => invoke<string>("assistant_manual", { chapter }),
   /** golem check --format json of each text in place of `file`, in a copy of `project` in the cache. */

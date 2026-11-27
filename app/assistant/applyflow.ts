@@ -9,6 +9,7 @@ import { applyToSheet, type Edit, type Scope } from "./edits.ts";
 export type ApplyDeps = {
   /** The sheet's text in its editor now. */
   text: () => string;
+  matchesVersion?: (text: string) => boolean;
   /** The step before applying (prepareApply of docs/adr/0088); `applicable` checks the edits again after a commit. */
   prepare: (applicable: () => boolean) => Promise<"apply" | "cancel" | "unapplicable">;
   /** Puts `after` in place of `before` as one change of the editor, undone with one ⌘Z (I3). */
@@ -24,14 +25,17 @@ export type ApplyDeps = {
 export type ApplyResult = { kind: "applied" } | { kind: "cancelled" } | { kind: "unapplicable"; reason: string };
 
 export const applyAnswer = async (d: ApplyDeps, scope: Scope, edits: readonly Edit[]): Promise<ApplyResult> => {
-  const first = applyToSheet(d.text(), scope, edits);
+  const check = (text: string) => d.matchesVersion && !d.matchesVersion(text)
+    ? { ok: false as const, reason: "頼んだ時点からシートが変わっています。" }
+    : applyToSheet(text, scope, edits);
+  const first = check(d.text());
   // an edit that does not fit shows its reason, with no dialog (docs/adr/0088)
   if (!first.ok) return { kind: "unapplicable", reason: first.reason };
-  const p = await d.prepare(() => applyToSheet(d.text(), scope, edits).ok);
+  const p = await d.prepare(() => check(d.text()).ok);
   if (p === "cancel") return { kind: "cancelled" };
   // counted again on the text as it is now: a commit saves the sheets, and the writer may have typed
   const before = d.text();
-  const now = applyToSheet(before, scope, edits);
+  const now = check(before);
   if (p === "unapplicable" || !now.ok) return { kind: "unapplicable", reason: now.ok ? "書き換えの案が、今のテキストに当てられません" : now.reason };
   d.change(before, now.text);
   if ((await d.save()) && (await d.diffAvailable())) d.showDiff();

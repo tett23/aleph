@@ -10,6 +10,17 @@ use std::time::{Duration, Instant};
 pub const CONTEXT: u32 = 4096;
 /// The tokens left for the answer (docs/adr/0081, アシスタントに渡す資料).
 pub const ANSWER_TOKENS: u32 = 1024;
+pub const CONTEXT_CHOICES: [u32; 6] = [8_192, 16_384, 32_768, 65_536, 131_072, 262_144];
+
+fn reply_limit(context: u32) -> u32 {
+    (context / 4).min(4096)
+}
+
+fn select_context(input: usize, cap: u32) -> Option<u32> {
+    CONTEXT_CHOICES
+        .into_iter()
+        .find(|&context| context <= cap && input <= (context - reply_limit(context)) as usize)
+}
 /// How long llama-server waits for the next request (docs/adr/0081).
 pub const IDLE: Duration = Duration::from_secs(5 * 60);
 
@@ -31,16 +42,53 @@ pub struct Message {
     pub content: String,
 }
 
+pub fn external_messages(messages: &[Message], sections: &[String]) -> Vec<Message> {
+    let budget = 65_536;
+    let mut left = budget;
+    let sections = sections.iter().filter(|section| {
+        if section.is_empty() || section.len() + 2 > left {
+            return false;
+        }
+        left -= section.len() + 2;
+        true
+    });
+    with_material(messages, sections)
+}
+
+fn with_material<'a>(
+    messages: &[Message],
+    sections: impl IntoIterator<Item = &'a String>,
+) -> Vec<Message> {
+    let mut out = messages.to_vec();
+    let Some(system) = out.first_mut().filter(|m| m.role == Role::System) else {
+        return out;
+    };
+    let mut sections = sections.into_iter().peekable();
+    if sections.peek().is_some() {
+        system.content.push_str("\n\n# 資料\n\n");
+    }
+    for section in sections {
+        system.content.push_str(section);
+        system.content.push_str("\n\n");
+    }
+    out
+}
+
 /// The arguments llama-server starts with (I5): it listens on the UNIX socket
 /// `socket` only, with no TCP port and no host name.
-pub fn server_args(model: &Path, socket: &Path, log: &Path) -> Result<Vec<String>, String> {
+fn server_args_for(
+    model: &Path,
+    socket: &Path,
+    log: &Path,
+    context: u32,
+) -> Result<Vec<String>, String> {
     let sock = socket.to_string_lossy();
     if !sock.ends_with(".sock") || socket.file_name().is_none() {
         return Err(format!("UNIX ソケットのパスは .sock で終わる：{sock}"));
     }
     let model = model.to_string_lossy();
     let log = log.to_string_lossy();
-    let context = CONTEXT.to_string();
+    let context = context.to_string();
     Ok([
         "--model",
         &model,
@@ -64,19 +112,38 @@ pub fn server_args(model: &Path, socket: &Path, log: &Path) -> Result<Vec<String
     .to_vec())
 }
 
+#[cfg(test)]
+fn server_args(model: &Path, socket: &Path, log: &Path) -> Result<Vec<String>, String> {
+    server_args_for(model, socket, log, CONTEXT)
+}
+
 /// The body of a request for an answer: the messages, bound to the answer's
 /// schema, at temperature 0, without the thinking (docs/adr/0081).
-pub fn chat_body(messages: &[Message]) -> serde_json::Value {
-    let schema: serde_json::Value =
-        serde_json::from_str(ANSWER_SCHEMA).unwrap_or(serde_json::Value::Null);
+pub fn answer_schema(manuscript: bool) -> serde_json::Value {
+    let mut schema: serde_json::Value = serde_json::from_str(ANSWER_SCHEMA).expect("answer schema");
+    if manuscript {
+        let edit = &mut schema["properties"]["edits"]["items"];
+        edit["properties"]["file"] = serde_json::json!({ "type": "string" });
+        edit["required"] = serde_json::json!(["file", "find", "replace"]);
+    }
+    schema
+}
+
+fn chat_body_with_limit(messages: &[Message], limit: u32, manuscript: bool) -> serde_json::Value {
+    let schema = answer_schema(manuscript);
     serde_json::json!({
         "messages": messages,
         "temperature": 0,
         "seed": 0,
-        "max_tokens": ANSWER_TOKENS,
+        "max_tokens": limit,
         "json_schema": schema,
         "chat_template_kwargs": { "enable_thinking": false },
     })
+}
+
+#[cfg(test)]
+fn chat_body(messages: &[Message]) -> serde_json::Value {
+    chat_body_with_limit(messages, ANSWER_TOKENS, false)
 }
 
 fn error_of(v: &serde_json::Value) -> Option<String> {
@@ -89,7 +156,7 @@ fn error_of(v: &serde_json::Value) -> Option<String> {
 }
 
 /// The content of the first choice of a chat completion.
-pub fn answer_of(body: &str) -> Result<String, String> {
+fn answer_with_limit(body: &str, limit: u32) -> Result<String, String> {
     let v: serde_json::Value = serde_json::from_str(body)
         .map_err(|e| format!("llama-server の答えが JSON ではありません：{e}"))?;
     if let Some(e) = error_of(&v) {
@@ -101,11 +168,16 @@ pub fn answer_of(body: &str) -> Result<String, String> {
         choice["finish_reason"].as_str(),
     ) {
         (Some(_), Some("length")) => Err(format!(
-            "答えが {ANSWER_TOKENS} トークンで切れました (finish_reason: length)"
+            "答えが {limit} トークンで切れました (finish_reason: length)"
         )),
         (Some(c), _) => Ok(c.to_string()),
         (None, _) => Err("llama-server の答えに content がありません".into()),
     }
+}
+
+#[cfg(test)]
+fn answer_of(body: &str) -> Result<String, String> {
+    answer_with_limit(body, ANSWER_TOKENS)
 }
 
 /// The bytes of an HTTP/1.1 request; the connection closes after the answer.
@@ -232,7 +304,16 @@ fn ok_body((status, body): (u16, String)) -> Result<String, String> {
 
 /// Asks for an answer to the messages.
 pub fn ask(socket: &Path, messages: &[Message]) -> Result<String, String> {
-    let body = chat_body(messages).to_string();
+    ask_with_limit(socket, messages, ANSWER_TOKENS, false)
+}
+
+fn ask_with_limit(
+    socket: &Path,
+    messages: &[Message],
+    limit: u32,
+    manuscript: bool,
+) -> Result<String, String> {
+    let body = chat_body_with_limit(messages, limit, manuscript).to_string();
     call(
         socket,
         "POST",
@@ -241,7 +322,7 @@ pub fn ask(socket: &Path, messages: &[Message]) -> Result<String, String> {
         ANSWER_TIMEOUT,
     )
     .and_then(ok_body)
-    .and_then(|b| answer_of(&b))
+    .and_then(|b| answer_with_limit(&b, limit))
 }
 
 fn tokenize(socket: &Path, content: &str, special: bool) -> Result<usize, String> {
@@ -290,6 +371,7 @@ struct Running {
     dir: PathBuf,
     socket: PathBuf,
     model: PathBuf,
+    context: u32,
 }
 
 #[derive(Default)]
@@ -303,7 +385,7 @@ struct State {
 
 /// The local llama-server: none until the first request (docs/adr/0081).
 #[derive(Default)]
-pub struct Local(std::sync::Mutex<State>);
+pub struct Local(std::sync::Mutex<State>, std::sync::Mutex<()>);
 
 fn tail(path: &Path) -> String {
     let t = std::fs::read_to_string(path).unwrap_or_default();
@@ -318,7 +400,7 @@ fn halt(mut r: Running) {
 }
 
 /// Starts llama-server with `model` and waits until it answers /health.
-fn start(bin: &Path, model: &Path, tmp: &Path) -> Result<Running, String> {
+fn start(bin: &Path, model: &Path, tmp: &Path, context: u32) -> Result<Running, String> {
     if !bin.is_file() {
         return Err(format!(
             "llama-server が同梱されていません（{}）",
@@ -341,7 +423,7 @@ fn start(bin: &Path, model: &Path, tmp: &Path) -> Result<Running, String> {
     let socket = dir.join("llama.sock");
     let log = dir.join("llama-server.log");
     let child = std::process::Command::new(bin)
-        .args(server_args(model, &socket, &log)?)
+        .args(server_args_for(model, &socket, &log, context)?)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -352,6 +434,7 @@ fn start(bin: &Path, model: &Path, tmp: &Path) -> Result<Running, String> {
         dir,
         socket,
         model: model.to_path_buf(),
+        context,
     };
     let deadline = Instant::now() + START_TIMEOUT;
     loop {
@@ -391,12 +474,23 @@ impl Local {
         tmp: &Path,
         f: impl FnOnce(&Path) -> Result<T, String>,
     ) -> Result<T, String> {
+        let _request = self.1.lock().unwrap_or_else(|e| e.into_inner());
+        self.with_context(bin, model, tmp, CONTEXT, f)
+    }
+
+    fn with_context<T>(
+        &self,
+        bin: &Path,
+        model: &Path,
+        tmp: &Path,
+        context: u32,
+        f: impl FnOnce(&Path) -> Result<T, String>,
+    ) -> Result<T, String> {
         let socket = {
             let mut s = self.state();
-            let usable = s
-                .running
-                .as_mut()
-                .is_some_and(|r| r.model == model && matches!(r.child.try_wait(), Ok(None)));
+            let usable = s.running.as_mut().is_some_and(|r| {
+                r.model == model && r.context == context && matches!(r.child.try_wait(), Ok(None))
+            });
             if !usable {
                 if s.busy > 0 && s.running.is_some() {
                     return Err("ほかのモデルで答えている途中です".into());
@@ -404,7 +498,13 @@ impl Local {
                 if let Some(r) = s.running.take() {
                     halt(r);
                 }
-                s.running = Some(start(bin, model, tmp)?);
+                s.running = Some(start(bin, model, tmp, context).map_err(|error| {
+                    if context > CONTEXT_CHOICES[0] {
+                        format!("長いコンテキストで起動できません（{context} トークン）：{error}")
+                    } else {
+                        error
+                    }
+                })?);
             }
             s.busy += 1;
             s.running
@@ -419,6 +519,73 @@ impl Local {
         out
     }
 
+    pub fn ask_sized(
+        &self,
+        bin: &Path,
+        model: &Path,
+        tmp: &Path,
+        cap: u32,
+        request: SizedRequest<'_>,
+    ) -> Result<String, String> {
+        let SizedRequest {
+            messages,
+            sections,
+            manuscript,
+        } = request;
+        let _request = self.1.lock().unwrap_or_else(|e| e.into_inner());
+        let (input, trained) =
+            self.with_context(bin, model, tmp, CONTEXT_CHOICES[0], |socket| {
+                let model = ok_body(call(socket, "GET", "/v1/models", None, ANSWER_TIMEOUT)?)?;
+                let value: serde_json::Value =
+                    serde_json::from_str(&model).map_err(|e| e.to_string())?;
+                let trained = value["data"][0]["meta"]["n_ctx_train"]
+                    .as_u64()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .unwrap_or(CONTEXT_CHOICES[0]);
+                Ok((template_count(socket, messages)?, trained))
+            })?;
+        let cap = cap.min(trained);
+        let context = select_context(input, cap).ok_or_else(|| {
+            format!("コンテキスト上限を超えました（入力 {input}、上限 {cap} トークン）")
+        })?;
+        self.with_context(bin, model, tmp, context, |socket| {
+            let limit = reply_limit(context);
+            let budget = (context - limit) as usize;
+            let fixed = template_count(socket, messages)?;
+            if fixed > budget {
+                return Err(format!(
+                    "コンテキスト上限を超えました（入力 {fixed}、上限 {context} トークン）"
+                ));
+            }
+            let mut left = budget - fixed;
+            let candidates: Vec<_> = sections
+                .iter()
+                .map(|section| format!("{section}\n\n"))
+                .collect();
+            let costs = count(socket, &candidates)?;
+            let mut chosen: Vec<_> = sections
+                .iter()
+                .zip(costs)
+                .filter_map(|(section, cost)| {
+                    if section.is_empty() || cost > left {
+                        return None;
+                    }
+                    left -= cost;
+                    Some(section)
+                })
+                .collect();
+            loop {
+                let fitted = with_material(messages, chosen.iter().copied());
+                if template_count(socket, &fitted)? <= budget {
+                    return ask_with_limit(socket, &fitted, limit, manuscript);
+                }
+                if chosen.pop().is_none() {
+                    return Err("コンテキスト上限を超えました".into());
+                }
+            }
+        })
+    }
+
     /// Stops llama-server when it has waited `IDLE` since the last request.
     pub fn reap(&self, now: Instant) {
         let mut s = self.state();
@@ -428,6 +595,15 @@ impl Local {
                 halt(r);
             }
         }
+    }
+
+    pub fn active_context(&self) -> Option<u32> {
+        self.0
+            .try_lock()
+            .ok()?
+            .running
+            .as_ref()
+            .map(|running| running.context)
     }
 
     /// Stops llama-server when it serves `model` and no request runs.
@@ -446,6 +622,12 @@ impl Local {
             halt(r);
         }
     }
+}
+
+pub struct SizedRequest<'a> {
+    pub messages: &'a [Message],
+    pub sections: &'a [String],
+    pub manuscript: bool,
 }
 
 #[cfg(test)]
@@ -684,5 +866,47 @@ mod smoke {
         assert!(dir.join("llama.sock").exists());
         local.stop();
         assert!(!dir.exists());
+    }
+}
+
+#[cfg(test)]
+mod manuscript_context_tests {
+    use super::*;
+
+    #[test]
+    fn adr0117_i2_context_includes_the_answer_and_respects_the_cap() {
+        assert_eq!(select_context(127_258, 262_144), Some(262_144));
+        assert_eq!(select_context(127_258, 131_072), None);
+        assert_eq!(select_context(6_144, 8_192), Some(8_192));
+        assert_eq!(select_context(6_145, 8_192), None);
+    }
+
+    #[test]
+    fn adr0117_i4_external_material_fits_utf8_without_splitting_sections() {
+        let main = vec![Message {
+            role: Role::System,
+            content: "指示".into(),
+        }];
+        let fitted = external_messages(
+            &main,
+            &[
+                "コマンド".into(),
+                "あ".repeat(22_000),
+                "# 小見出し\n本文".into(),
+            ],
+        );
+        assert_eq!(
+            fitted[0].content,
+            "指示\n\n# 資料\n\nコマンド\n\n# 小見出し\n本文\n\n"
+        );
+        let fitted = external_messages(&main, &["あ".repeat(21_844) + "ab"]);
+        assert_eq!(
+            fitted[0]
+                .content
+                .strip_prefix("指示\n\n# 資料\n\n")
+                .unwrap()
+                .len(),
+            65_536
+        );
     }
 }

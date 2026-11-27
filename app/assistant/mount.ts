@@ -15,11 +15,14 @@ import { gitOperation } from "../git-ipc.ts";
 import { displayedSections } from "../ui/copy-displayed-text.ts";
 import { copyText } from "../ui/notices.ts";
 import { applyAnswer, assistantChange } from "./applyflow.ts";
-import type { Scope } from "./edits.ts";
-import { chapterFor, splitSections, type Section } from "./material.ts";
+import { applyEdits, type Scope } from "./edits.ts";
+import { manifestChapters } from "../manifest.ts";
+import { rel, within } from "../path.ts";
+import { parseManuscriptAnswer, rangeLabel, runManuscript } from "./manuscript.ts";
+import { chapterFor, rankSections, splitSections, terms, type Section } from "./material.ts";
 import { connectorsRevoked } from "./models.ts";
-import { messages } from "./prompt.ts";
-import { askChecked, buildPrompt, checkDiagnostics, checkedFile, LOCAL_CONTEXT, type Outcome } from "./request.ts";
+import { commandList, messages } from "./prompt.ts";
+import { askChecked, checkDiagnostics, checkedFile, type Outcome } from "./request.ts";
 import { connectorChoices, isSendKey, lineDiff, promptFile, seconds, targetLabel, targetOf, targetText, type DiffLine } from "./tab.ts";
 
 type Entry = {
@@ -37,12 +40,14 @@ type Entry = {
   outcome: Outcome<Answered> | null;
   /** Why 「適用」 did not apply, shown under the buttons. */
   note: string;
+  requireVersion?: boolean;
 };
 
 /** The history of this run of Aleph; not written to files. */
 const history: Entry[] = [];
 let seq = 1;
 let chosen: ConnectorId = "local";
+let wholeManuscript = false;
 let connectors: ConnectorInfo[] = [];
 let root: HTMLElement | null = null;
 
@@ -56,25 +61,11 @@ const sectionsOf = (chapter: string) => {
   return p;
 };
 
-/** The messages of a request; when the local model cannot count, the material is left empty (I9 holds). */
-const promptOf = async (ctx: Ctx, request: string, file: string, target: string) => {
+const materialOf = async (ctx: Ctx, request: string, file: string, target: string) => {
   const chapter = chapterFor(file);
   const sections = chapter ? await sectionsOf(chapter) : [];
   const commands = ctx.commands.map((c) => ({ id: c.id, label: c.label }));
-  try {
-    const p = await buildPrompt({
-      commands,
-      sections,
-      request,
-      file,
-      target,
-      context: LOCAL_CONTEXT,
-      count: { template: (ms) => api.assistantLocalTemplateCount(ms), texts: (ts) => api.assistantLocalCount(ts) },
-    });
-    return p.messages;
-  } catch {
-    return messages("", request, file, target);
-  }
+  return [commandList(commands), ...rankSections(sections, terms(request, target)).map((section) => section.text)];
 };
 
 const connectorName = (id: ConnectorId) => connectors.find((c) => c.id === id)?.name ?? (id === "local" ? "ローカル" : id === "claude" ? "Claude Code" : "Codex");
@@ -131,7 +122,7 @@ const answerHtml = (e: Entry) => {
 const entryHtml = (e: Entry) =>
   `<div class="as-entry" data-e="${e.id}"><div class="as-req"><div class="as-text">${esc(e.request)}</div><small>${esc(e.file)} · ${esc(e.target)} · ${esc(connectorName(e.connector))}</small></div><div class="as-ans">${
     e.state === "asking"
-      ? `<div class="muted">答えを待っています…</div>`
+      ? `<div class="muted">${esc(e.note || "答えを待っています…")}</div>`
       : e.state === "failed"
         ? `<div class="as-note as-warn" data-response-text>${icon("circle-x", 12)}${esc(e.error)}</div>${e.error.trim() ? `<div class="as-btns">${copyAnswerButton}</div>` : ""}`
         : answerHtml(e)
@@ -151,7 +142,7 @@ const drawTarget = () => {
   const el = root?.querySelector<HTMLElement>(".as-target");
   if (!el || !currentCtx) return;
   const c = current(currentCtx);
-  const text = c ? `対象：${promptFile(c.doc.path, c.doc.project, c.doc.workspace)} の${targetLabel(c.target)}` : "対象：テキストのシートを開いてください";
+  const text = c ? wholeManuscript ? "対象：原稿全体" : `対象：${promptFile(c.doc.path, c.doc.project, c.doc.workspace)} の${targetLabel(c.target)}` : "対象：テキストのシートを開いてください";
   if (el.textContent !== text) el.textContent = text;
 };
 
@@ -164,6 +155,69 @@ const drawForm = () => {
   drawTarget();
 };
 
+const answerForManuscript = async (ctx: Ctx, entry: Entry, doc: Doc) => {
+  const loaded = new Map(allDocs(ctx.store.get()).map((sheet) => [sheet.path, ctx.editors.get(sheet.path)?.text() ?? sheet.text]));
+  let paths = [doc.path];
+  if (doc.project) {
+    const project = doc.project;
+    const chapterNames = manifestChapters(loaded.get(`${project}/manifest.toml`) ?? await api.readText(`${project}/manifest.toml`));
+    paths = [...new Set(chapterNames.map((name) => {
+      const path = within(project, project, name);
+      if (!path) throw new Error(`プロジェクト内の章を指定してください。 ${name}`);
+      return path;
+    }))];
+    if (!paths.length) throw new Error("マニフェストに章がありません");
+  }
+  const fileToPath = new Map(paths.map((path) => [doc.project ? rel(doc.project, path) : entry.file, path]));
+  const unavailable: string[] = [];
+  const candidates = await Promise.all([...fileToPath].map(async ([file, path]) => {
+    try { return { file, text: loaded.get(path) ?? await api.readText(path) }; }
+    catch (error) { return { file, error: String(error) }; }
+  }));
+  const chapters = candidates.flatMap((chapter) => {
+    if (chapter.text !== undefined) return [{ file: chapter.file, text: chapter.text }];
+    unavailable.push(`${chapter.file} を読めません。 ${chapter.error}`);
+    return [];
+  });
+  if (!chapters.length) throw new Error(unavailable.join("\n"));
+  const started = performance.now();
+  let answered: Answered | undefined;
+  const result = await runManuscript(chapters, async (ranges, reconciliation) => {
+    const file = ranges[0]?.file ?? chapters[0].file;
+    const body = reconciliation
+      ? JSON.stringify(reconciliation.map((finding) => ({ ranges: finding.ranges.map(({ file, from, to }) => ({ file, from, to })), explanation: finding.explanation, edits: finding.edits })))
+      : ranges.map((chapter) => `章 ${JSON.stringify(chapter.file)}\n${chapter.text}`).join("\n\n");
+    const request = reconciliation ? `${entry.request}\n章ごとの結果を照合し、章をまたぐ違いと比較できた範囲を説明してください。元の原稿にあったと確かめられない文字の編集案は出さないでください。` : entry.request;
+    const prompt = messages("", request, file, body);
+    prompt[0].content += "\n\n原稿の各章は、章のパスと本文で示す。編集案では file、find、replace を返し、file には対象の章のパスをそのまま書く。";
+    const answer = await api.assistantAsk(entry.connector, prompt, await materialOf(ctx, request, file, body), true);
+    const parsed = parseManuscriptAnswer(answer.answer);
+    answered = answer;
+    return parsed;
+  }, (note) => { entry.note = note; drawHistory(); });
+  const explanation = [
+    ...result.splitReasons.map((reason) => `分割した理由 ${reason}`),
+    result.reconciliation,
+    ...result.findings.map(({ ranges, explanation }) => `${ranges.map(rangeLabel).join("、")}\n${explanation}`),
+    ...result.failed.map(({ range, reason }) => `未処理 ${rangeLabel(range)}。 ${reason}`),
+    ...unavailable,
+    ...result.rejected,
+  ].filter(Boolean).join("\n\n");
+  if (!answered) throw new Error(explanation);
+  const base = { ...answered, ms: Math.round(performance.now() - started) };
+  entry.outcome = { answered: base, answer: { explanation, edits: [] }, after: null, reason: null, check: null };
+  entry.note = "";
+  const childEntries = result.chapters.flatMap((chapter): Entry[] => {
+    if (!chapter.edits.length) return [];
+    const after = applyEdits(chapter.text, chapter.edits);
+    const path = fileToPath.get(chapter.file);
+    if (!after.ok || !path || after.text === chapter.text) return [];
+    const outcome: Outcome<Answered> = { answered: base, answer: { explanation: "", edits: chapter.edits }, after: after.text, reason: null, check: null };
+    return [{ ...entry, id: seq++, path, file: chapter.file, target: "原稿全体からの編集案", scope: { kind: "sheet" }, sheet: chapter.text, state: "answered", outcome, requireVersion: true }];
+  });
+  history.splice(history.indexOf(entry) + 1, 0, ...childEntries);
+};
+
 const send = async (ctx: Ctx) => {
   const field = root?.querySelector<HTMLTextAreaElement>("textarea");
   const request = field?.value.trim() ?? "";
@@ -172,15 +226,20 @@ const send = async (ctx: Ctx) => {
   if (!c) return void ctx.toast("テキストのシートを開いてから頼んでください");
   const { doc, sheet, target } = c;
   const file = promptFile(doc.path, doc.project, doc.workspace);
-  const e: Entry = { id: seq++, request, path: doc.path, file, target: targetLabel(target), scope: target.scope, sheet, connector: chosen, state: "asking", error: "", outcome: null, note: "" };
+  const whole = wholeManuscript;
+  const e: Entry = { id: seq++, request, path: doc.path, file, target: whole ? "原稿全体" : targetLabel(target), scope: target.scope, sheet, connector: chosen, state: "asking", error: "", outcome: null, note: "" };
   history.push(e);
   field.value = "";
   drawHistory();
   const connector = chosen;
   const project = doc.project;
   try {
-    e.outcome = await askChecked({
-      ask: async (r) => api.assistantAsk(connector, await promptOf(ctx, r, file, targetText(target, sheet))),
+    if (whole) await answerForManuscript(ctx, e, doc);
+    else e.outcome = await askChecked({
+      ask: async (r) => {
+        const body = targetText(target, sheet);
+        return api.assistantAsk(connector, messages("", r, file, body), await materialOf(ctx, r, file, body));
+      },
       request,
       sheet,
       target,
@@ -207,6 +266,10 @@ const apply = async (ctx: Ctx, e: Entry) => {
   const edits = e.outcome?.answer?.edits ?? [];
   const doc = (): Doc | undefined => allDocs(ctx.store.get()).find((d) => d.path === e.path);
   const editor = () => ctx.editors.get(e.path);
+  if (e.requireVersion && !editor()?.edit) {
+    try { await ctx.open([e.path]); }
+    catch (error) { e.note = String(error); return drawHistory(); }
+  }
   if (!doc() || !editor()?.edit) {
     e.note = "このシートは開いていません。開いてから「適用」を押してください。";
     return drawHistory();
@@ -217,6 +280,7 @@ const apply = async (ctx: Ctx, e: Entry) => {
   const r = await applyAnswer(
     {
       text: () => editor()?.text() ?? "",
+      matchesVersion: e.requireVersion ? (text) => text === e.sheet : undefined,
       prepare: (applicable) => prepareApply(ctx, doc()!, applicable),
       change: (before, after) => editor()?.edit?.apply(assistantChange(before, after), "assistant"),
       save: async () => (await ctx.save([e.path])).has(e.path),
@@ -238,7 +302,7 @@ const build = (ctx: Ctx) => {
     <div class="as-form">
       <div class="as-target muted"></div>
       <textarea class="field wide" rows="3" placeholder="頼みを書く（⌘↩ で送る）"></textarea>
-      <div class="row"><span class="muted">コネクタ</span><select class="field" data-connector title="コネクタ"></select><span class="grow"></span><span class="btn pri" data-send title="送る（⌘↩）">送る</span></div>
+      <div class="row"><select class="field" data-assistant-target aria-label="対象"><option value="sheet">選択中のシート</option><option value="manuscript">原稿全体</option></select><span class="muted">コネクタ</span><select class="field" data-connector title="コネクタ"></select><span class="grow"></span><span class="btn pri" data-send title="送る（⌘↩）">送る</span></div>
     </div>`;
   const field = el.querySelector("textarea")!;
   field.addEventListener("keydown", (k) => {
@@ -251,6 +315,10 @@ const build = (ctx: Ctx) => {
   el.addEventListener("change", (k) => {
     const t = k.target as HTMLSelectElement;
     if (t.dataset.connector !== undefined) chosen = t.value as ConnectorId;
+    if (t.dataset.assistantTarget !== undefined) {
+      wholeManuscript = t.value === "manuscript";
+      drawTarget();
+    }
   });
   el.addEventListener("click", (k) => {
     const response = (k.target as Element).closest("[data-copy-answer]")?.closest(".as-ans");
@@ -313,7 +381,12 @@ export const mountAssistant = (ctx: Ctx) => {
         const r = d && ctx.editors.get(d.path)?.edit?.core.range();
         return !!r && r.from < r.to;
       },
-      run: open,
+      run: (c) => {
+        wholeManuscript = false;
+        open(c);
+        const target = root?.querySelector<HTMLSelectElement>("[data-assistant-target]");
+        if (target) target.value = "sheet";
+      },
     },
   );
 };
