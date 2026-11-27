@@ -61,10 +61,10 @@ const load = async (ctx: Ctx, head: HTMLElement, body: HTMLElement) => {
   const stale = () => mine !== generation;
   const ws = ctx.store.get().workspace;
   const line = (text: string) => void (body.innerHTML = `<div class="muted dline">${esc(text)}</div>`);
-  head.onmouseup = (e) => {
+  head.onclick = (e) => {
     if (e.button === 0 && (e.target as HTMLElement).closest("[data-diff-reload]")) void load(ctx, head, body);
   };
-  body.onmouseup = (e) => {
+  body.onclick = (e) => {
     const p = (e.target as HTMLElement).closest<HTMLElement>("[data-open]")?.dataset.open;
     const w = ctx.store.get().workspace;
     // opened as from the tree: ⌥ for a new tab (docs/adr/0024)

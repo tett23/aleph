@@ -535,7 +535,7 @@ table.grid tr.dragged td { opacity: 0.45; }
 .phead small { color: var(--faint); }
 .phead small.ng { color: var(--del); }
 .pview .hint { color: var(--faint); font: 12px var(--ui); padding: 24px; text-align: center; }
-.pview pre.error { color: var(--del); font: 12px/1.6 var(--mono); white-space: pre-wrap; padding: 16px; margin: 0; }
+.pview pre.error { color: var(--del); font: 12px/1.6 var(--mono); white-space: pre-wrap; padding: 16px; margin: 0; user-select: text; -webkit-user-select: text; }
 .plain.evaluated .number { margin-right: 0.3em; }
 .plain.evaluated img { max-width: 100%; }
 .plain.evaluated figure { margin: 1em 0; text-align: center; }
