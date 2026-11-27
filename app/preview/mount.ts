@@ -44,6 +44,7 @@ import {
 } from "./render.ts";
 import { readChapterXhtml, xhtmlPath } from "./xhtml.ts";
 import { chapterBody } from "./xhtmldom.ts";
+import { bindPreviewCopy, previewCopyButton } from "./copy.ts";
 import { createProjectInputWatch, previewInput, type InputChange, type InputContent } from "./project-inputs.ts";
 
 // ---- builds ----
@@ -264,6 +265,7 @@ const runPages = async (ctx: Ctx, project: string, b: PageBuild, request: PageRe
 
 let zoom = loadZoom();
 type TabPreview = {
+  stopCopy: () => void;
   revision: string;
   updates: ReturnType<typeof previewPane>;
   controls: (() => void) | null;
@@ -274,7 +276,7 @@ const tabPreview = (head: HTMLElement, body: HTMLElement, ctx: Ctx): TabPreview 
   const existing = tabs.get(body);
   if (existing) return existing;
   const tab: TabPreview = {
-    revision: "", controls: null, error: "",
+    revision: "", controls: null, error: "", stopCopy: bindPreviewCopy(head, body),
     updates: previewPane(body, (error, empty) => {
       tab.error = String(error);
       if (empty) renderHint(body, tab.error, true);
@@ -342,6 +344,8 @@ const drawTab = (head: HTMLElement, body: HTMLElement, ctx: Ctx) => {
   const hb = htmlBuilds.get(project);
   const status = d.kind === "gm" && hb?.busy ? "組んでいます…" : tab.error ? "更新できませんでした" : "";
   head.innerHTML = `${headLeft(s, ctx, d)}<small class="${tab.error ? "ng" : ""}" data-preview-status>${status}</small><span class="sp"></span>${
+    what === "plain" ? previewCopyButton : ""
+  }${
     d.kind === "gm" ? `<span class="iconbtn" data-win="plain" title="別のウィンドウに出す">${icon("external-link", 14)}</span>` : ""
   }`;
   head.onclick = (e) => {
@@ -539,6 +543,7 @@ export const mountPreview = (ctx: Ctx) => {
   };
   ctx.view.closePreviewTab = (body) => {
     const tab = tabs.get(body);
+    tab?.stopCopy();
     tab?.updates.close();
     tab?.controls?.();
     tabs.delete(body);

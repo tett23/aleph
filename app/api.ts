@@ -88,6 +88,7 @@ export const api = {
   zipEntries: (dir: string) => invoke<string[]>("zip_entries", { dir }),
   zipFolder: (dir: string, names: [string, string][]) => invoke<string | null>("zip_folder", { dir, names }),
   copyFiles: (paths: string[]) => invoke<void>("copy_files", { paths }),
+  copyText: (text: string) => invoke<void>("copy_text", { text }),
   /** The tree's paste (docs/adr/0109): the pasteboard's changeCount and file count, and a copy of its files into a folder. */
   pasteboardState: () => invoke<{ count: number; files: number }>("pasteboard_state"),
   pasteFiles: (id: number, target: string) => invoke<Outcome[]>("paste_files", { id, target }),

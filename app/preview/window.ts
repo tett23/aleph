@@ -6,6 +6,7 @@ import { normalize } from "../config.ts";
 import { applyTheme, mountAppearance } from "../theme.ts";
 import { setUiState, windowUiState } from "../uistate.ts";
 import { autoDpi } from "./pages.ts";
+import { bindPreviewCopy, previewCopyButton } from "./copy.ts";
 import { loadZoom, onWheelZoom, preparePages, preparePlain, previewPane, renderHint, saveZoom, zoomByClick, zoomControls } from "./render.ts";
 import { createPreviewFeed } from "./update.ts";
 import type { PagesNotice, PlainNotice } from "./mount.ts";
@@ -24,7 +25,7 @@ export const startPreviewWindow = async (view: "pages" | "plain", project: strin
   let zoom = loadZoom();
   let got: PagesNotice["pages"];
   const drawHead = () => {
-    head.innerHTML = `<span>${view === "pages" ? "ページ" : "本文"}</span><small data-preview-status></small><span class="sp"></span>${view === "pages" ? zoomControls(zoom) : ""}`;
+    head.innerHTML = `<span>${view === "pages" ? "ページ" : "本文"}</span><small data-preview-status></small><span class="sp"></span>${view === "pages" ? zoomControls(zoom) : previewCopyButton}`;
     const status = head.querySelector<HTMLElement>("[data-preview-status]")!;
     status.classList.toggle("ng", !!error);
     status.title = error;
@@ -38,6 +39,7 @@ export const startPreviewWindow = async (view: "pages" | "plain", project: strin
   });
   let closed = false;
   const cleanup: (() => void)[] = [updates.close];
+  if (view === "plain") cleanup.push(bindPreviewCopy(head, body));
   window.addEventListener("pagehide", () => {
     closed = true;
     cleanup.splice(0).forEach((off) => off());

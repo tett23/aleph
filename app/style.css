@@ -791,7 +791,12 @@ a.wikilink.missing { color: var(--faint); text-decoration-style: dotted; }
 .bottom-panel .pr.sev-error .ic { color: var(--del); }
 .bottom-panel .pr.sev-warning .ic { color: var(--mod); }
 .bottom-panel .pr.sev-info .ic { color: #3d7fd6; }
-.bottom-panel .pr .msg { min-width: 0; overflow-wrap: anywhere; }
+.bottom-panel .pr .msg { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.bottom-panel .pr .msg, .bottom-panel .pr small, .bottom-panel .pf, .assistant [data-response-text] { user-select: text; -webkit-user-select: text; }
+.copy-text, .problem-open { font: inherit; color: inherit; }
+.copy-text { white-space: nowrap; }
+.copy-text:disabled { opacity: 0.45; }
+.problem-open { flex: none; margin-left: auto; background: transparent; border: 0; }
 .bottom-panel .pr small { flex: none; color: var(--faint); font-size: 11px; white-space: nowrap; }
 .bottom-panel .empty { padding: 12px 16px; color: var(--text-2); font-size: 12.5px; }
 

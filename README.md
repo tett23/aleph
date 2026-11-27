@@ -55,6 +55,8 @@ Changes to a project's Emet files or its root `manifest.toml` and `style.toml` r
 
 The text and page previews keep your scroll position when the same content target refreshes, both in the tab and in a separate window. The position is measured in pixels from the reading start.
 
+Select text and press ⌘C to copy individual passages from Problems, the text preview, or an assistant response. The copy buttons copy the filtered Problems list, the displayed preview text, or a single assistant response as plain text.
+
 The writing checks for `.gm`, `.md`, and `.txt` skip absolute HTTP and HTTPS URLs with a host, including URLs enclosed in angle brackets.
 
 After a manual build, click the build status to read its command and output. The success notification can reveal the project’s output folder in Finder.
